@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// xengui/src/components/text.rs
+// crates/xengui/src/components/text.rs
 use crate::VNode;
 use smol_str::SmolStr;
 use wgpu_glyph::{Section, Text as WGPUText};

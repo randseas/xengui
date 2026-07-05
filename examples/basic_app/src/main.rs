@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// examples/basic_app/main.rs
+// examples/basic_app/src/main.rs
 use xengui::{props, App, AppConfig, Text, TextProps, WindowPosition};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

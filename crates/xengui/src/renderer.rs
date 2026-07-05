@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// xengui/src/renderer.rs
+// crates/xengui/src/renderer.rs
 use pollster::block_on;
 use std::sync::Arc;
 use wgpu_glyph::{ab_glyph, GlyphBrushBuilder};

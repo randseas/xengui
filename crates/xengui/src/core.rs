@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// xengui/src/core.rs
+// crates/xengui/src/core.rs
 pub trait VNode {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
     fn key(&self) -> &str;

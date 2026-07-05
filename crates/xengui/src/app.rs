@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// xengui/src/app.rs
+// crates/xengui/src/app.rs
 use crate::{DebugText, VNode, XenRenderer};
 use std::collections::VecDeque;
 use std::sync::Arc;
