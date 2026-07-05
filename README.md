@@ -5,7 +5,7 @@
 
 <p align="start" style="margin-top: -.5rem">
   <a href="https://xengui.vercel.app">
-    <img src="assets/XenGui_logo.svg" alt="XenGui logo" width="350"/>
+    <img src=".github/assets/XenGui_logo.svg" alt="XenGui logo" width="350"/>
   </a>
 </p>
 
