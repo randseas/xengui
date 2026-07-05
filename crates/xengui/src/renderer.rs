@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // crates/xengui/src/renderer.rs
-use pollster::block_on;
 use std::sync::Arc;
 use wgpu_glyph::{ab_glyph, GlyphBrushBuilder};
 use winit::window::Window;
@@ -17,27 +16,16 @@ pub struct XenRenderer {
 }
 
 impl XenRenderer {
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn new(window: Arc<Window>) -> Result<Self, String> {
-        // Initialize WGPU boilerplate
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             #[cfg(target_os = "windows")]
             backends: wgpu::Backends::DX12,
-
             #[cfg(target_os = "macos")]
             backends: wgpu::Backends::METAL,
-
             #[cfg(target_os = "linux")]
             backends: wgpu::Backends::VULKAN,
-
-            #[cfg(target_arch = "wasm32")]
-            backends: wgpu::Backends::GL,
-
-            #[cfg(not(any(
-                target_os = "windows",
-                target_os = "macos",
-                target_os = "linux",
-                target_arch = "wasm32"
-            )))]
+            #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
             backends: wgpu::Backends::PRIMARY,
             ..Default::default()
         });
@@ -46,13 +34,52 @@ impl XenRenderer {
             .create_surface(window.clone())
             .map_err(|e| format!("Cannot create surface: {}", e))?;
 
-        let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
-            .map_err(|e| format!("Cannot find a compatible adapter: {}", e))?;
+        // Safely block on desktop targets using pollster
+        let adapter =
+            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+                .expect("Cannot find a compatible adapter");
 
-        let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+                .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
+
+        Self::init_common(window, surface, adapter, device, queue)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn new(window: Arc<Window>) -> Result<Self, String> {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::all(),
+            ..Default::default()
+        });
+
+        let surface = instance
+            .create_surface(window.clone())
+            .map_err(|e| format!("Cannot create surface: {}", e))?;
+
+        // Zero-blocking async pipeline tailored for the browser event loop
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions::default())
+            .await
+            .expect("Cannot find a compatible adapter");
+
+        let (device, queue) = adapter
+            .request_device(&wgpu::DeviceDescriptor::default())
+            .await
             .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
 
-        // Load font for debug overlay
+        Self::init_common(window, surface, adapter, device, queue)
+    }
+
+    fn init_common(
+        window: Arc<Window>,
+        surface: wgpu::Surface<'static>,
+        adapter: wgpu::Adapter,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+    ) -> Result<Self, String> {
+        // Fix: Do not recreate instance/adapter or invoke block_on here.
+        // Leverage the explicitly passed resources directly.
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
             .formats
@@ -64,6 +91,7 @@ impl XenRenderer {
             })
             .unwrap_or(surface_caps.formats[0]);
 
+        // Load font for debug overlay
         let font: &[u8] = include_bytes!("../fonts/Inter_Regular.ttf");
         let font_arc = ab_glyph::FontArc::try_from_slice(font)
             .expect("Cannot load system font: Inter_Regular.ttf corrupted or missing.");
@@ -80,11 +108,15 @@ impl XenRenderer {
             })
             .unwrap_or(wgpu::CompositeAlphaMode::Auto);
 
+        // Fix: Prevent zero-sized texture allocations on web target by defaulting to at least 1px
+        let width = window.inner_size().width.max(1);
+        let height = window.inner_size().height.max(1);
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
-            width: window.inner_size().width,
-            height: window.inner_size().height,
+            width,
+            height,
             present_mode: wgpu::PresentMode::Fifo,
             desired_maximum_frame_latency: 2,
             alpha_mode,

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>XenGUI App</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #1a1a1a;
+      }
+      canvas {
+        display: block;
+        width: 100% !important;
+        height: 100% !important;
+      }
+      canvas:focus {
+        outline: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+    </style>
+    <script>
+      // bypass native web hotkeys
+      window.addEventListener(
+        "keydown",
+        function (e) {
+          const isDevTools =
+            e.key === "F12" ||
+            e.key === "F11" ||
+            e.key === "Escape" ||
+            ((e.ctrlKey || e.metaKey) &&
+              e.shiftKey &&
+              (e.key === "I" || e.key === "i"));
+          const isReload =
+            (e.ctrlKey || e.metaKey) && (e.key === "r" || e.key === "R");
+          const isF5 = e.key === "F5";
+          if (isDevTools || isReload || isF5) {
+            e.stopPropagation();
+          }
+        },
+        true,
+      );
+    </script>
+  </head>
+  <body>
+    <noscript>This app requires WebAssembly enabled in your browser.</noscript>
+  </body>
+</html>

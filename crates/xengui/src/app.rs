@@ -4,12 +4,13 @@ use crate::{DebugText, VNode, XenRenderer};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use winit::{
-    dpi::PhysicalPosition,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     monitor::{MonitorHandle, VideoModeHandle},
     window::{Window, WindowAttributes, WindowId},
 };
+#[cfg(not(target_arch = "wasm32"))]
+use winit::dpi::PhysicalPosition;
 
 pub enum WindowPosition {
     Center,
@@ -24,12 +25,17 @@ pub enum Fullscreen {
 }
 
 pub struct AppConfig {
+    #[cfg(not(target_arch = "wasm32"))]
     pub title: String,
+    #[cfg(not(target_arch = "wasm32"))]
     pub width: u32,
+    #[cfg(not(target_arch = "wasm32"))]
     pub height: u32,
     pub theme: Option<winit::window::Theme>,
+    #[cfg(not(target_arch = "wasm32"))]
     pub resizable: bool,
     pub fullscreen: Option<Fullscreen>,
+    #[cfg(not(target_arch = "wasm32"))]
     pub position: WindowPosition,
     pub debug_mode: bool,
 }
@@ -37,16 +43,25 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            #[cfg(not(target_arch = "wasm32"))]
             title: "XenGui App".to_string(),
+            #[cfg(not(target_arch = "wasm32"))]
             width: 800,
+            #[cfg(not(target_arch = "wasm32"))]
             height: 600,
             theme: None,
+            #[cfg(not(target_arch = "wasm32"))]
             resizable: true,
             fullscreen: None,
+            #[cfg(not(target_arch = "wasm32"))]
             position: WindowPosition::Center,
             debug_mode: false,
         }
     }
+}
+
+pub enum XenEvent {
+    RendererReady(XenRenderer),
 }
 
 pub struct App {
@@ -59,6 +74,9 @@ pub struct App {
     config: AppConfig, // Builder ile gelen ayarlar
     v_domtree: Vec<Box<dyn VNode>>,
     is_visible: bool,
+
+    #[cfg(target_arch = "wasm32")]
+    pub event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
 }
 
 impl App {
@@ -72,9 +90,12 @@ impl App {
             log_history,
             v_domtree: vec![Box::new(DebugText::new("".into()))],
             is_visible: false,
+            #[cfg(target_arch = "wasm32")]
+            event_proxy: None,
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn with_title(&mut self, title: &str) -> &mut Self {
         self.config.title = title.to_string();
         self
@@ -85,10 +106,14 @@ impl App {
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        // Burada winit::event_loop oluşturulacak
-        // Kendi içindeki 'resumed' event'inde XenRenderer::new() çağrılacak
-        let event_loop = EventLoop::new()?;
+        let event_loop: EventLoop<XenEvent> = EventLoop::<XenEvent>::with_user_event().build()?;
         event_loop.set_control_flow(ControlFlow::Wait);
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.event_proxy = Some(event_loop.create_proxy());
+        }
+
         event_loop.run_app(self)?;
         Ok(())
     }
@@ -115,14 +140,21 @@ impl App {
             }
         }
     }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn set_renderer(&mut self, renderer: XenRenderer) {
+        self.renderer = Some(renderer);
+    }
 }
 
-impl winit::application::ApplicationHandler for App {
+impl winit::application::ApplicationHandler<XenEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        // State Kaybı Çözümü: Mobil cihazlarda app öne geldiğinde window zaten varsa yeniden yaratma
+        // State Loss Prevention: Avoid recreation if the window already exists
         if self.window.is_some() {
             return;
         }
+
+        // Parse custom fullscreen configurations into winit primitives
         let winit_fullscreen = self.config.fullscreen.as_ref().map(|f| match f {
             Fullscreen::Borderless(monitor) => {
                 winit::window::Fullscreen::Borderless(monitor.clone())
@@ -131,61 +163,149 @@ impl winit::application::ApplicationHandler for App {
                 winit::window::Fullscreen::Exclusive(video_mode.clone())
             }
         });
-        let mut attr = WindowAttributes::default()
-            .with_title(&self.config.title)
-            .with_inner_size(winit::dpi::LogicalSize::new(
-                self.config.width as f64,
-                self.config.height as f64,
-            ))
+
+        // Consolidate all window properties into a single attribute profile
+        let mut attributes = WindowAttributes::default()
             .with_visible(false)
-            .with_transparent(true)
-            .with_resizable(self.config.resizable)
-            .with_blur(true)
             .with_theme(None)
             .with_fullscreen(winit_fullscreen);
 
-        if let WindowPosition::Fixed(x, y) = self.config.position {
-            attr = attr.with_position(PhysicalPosition::new(x, y));
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            attributes = attributes
+                .with_title(&self.config.title)
+                .with_inner_size(winit::dpi::LogicalSize::new(
+                    self.config.width as f64,
+                    self.config.height as f64,
+                ))
+                .with_resizable(self.config.resizable)
+                .with_transparent(true)
+                .with_blur(true);
+
+            if let WindowPosition::Fixed(x, y) = self.config.position {
+                attributes = attributes.with_position(PhysicalPosition::new(x, y));
+            }
         }
 
-        // todo!("if required, you've must add .unwrap() after .expect() in case.");
+        // Apply web-only configuration specs (Auto-maximizing layout strategy)
+        #[cfg(target_arch = "wasm32")]
+        {
+            use winit::platform::web::WindowAttributesExtWebSys;
+            attributes = attributes.with_append(true).with_prevent_default(false);
+        }
+
+        // Instantiate the official application window instance
         let window = Arc::new(
             event_loop
-                .create_window(attr)
-                .expect("Critical Error: Could not create window."),
+                .create_window(attributes)
+                .expect("Critical Error: Could not create window context."),
         );
+
+        // Synchronize system window theme preferences
         if let Some(actual_theme) = window.theme() {
             self.config.theme = Some(actual_theme);
         } else {
             self.config.theme = Some(winit::window::Theme::Dark);
         }
-        if let WindowPosition::Center = self.config.position {
-            if let Some(monitor) = window.current_monitor() {
-                let monitor_size = monitor.size();
-                let window_size = window.outer_size();
-                window.set_outer_position(PhysicalPosition::new(
-                    (monitor_size.width - window_size.width) as i32 / 2,
-                    (monitor_size.height - window_size.height) as i32 / 2,
-                ));
+
+        // Calculate layout mechanics only on desktop targets
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if let Some(actual_theme) = window.theme() {
+                self.config.theme = Some(actual_theme);
+            } else {
+                self.config.theme = Some(winit::window::Theme::Dark);
+            }
+
+            if let WindowPosition::Center = self.config.position {
+                if let Some(monitor) = window.current_monitor() {
+                    let monitor_size = monitor.size();
+                    let window_size = window.outer_size();
+                    window.set_outer_position(PhysicalPosition::new(
+                        (monitor_size.width as i32 - window_size.width as i32) / 2,
+                        (monitor_size.height as i32 - window_size.height as i32) / 2,
+                    ));
+                }
             }
         }
-        self.window = Some(window.clone());
-        // Create XenRenderer
-        match XenRenderer::new(window) {
-            Ok(renderer) => {
-                self.renderer = Some(renderer);
-                self.log("[INFO] Application Resumed: GPU Context Ready.".to_string());
+
+        // Web optimization: Ensure canvas automatically tracks viewport bounding box dimensions
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.config.theme = Some(winit::window::Theme::Dark);
+
+            use winit::platform::web::WindowExtWebSys;
+            if let Some(_canvas) = window.canvas() {
+                if let Some(web_window) = web_sys::window() {
+                    let inner_w = web_window.inner_width().ok().and_then(|val| val.as_f64());
+                    let inner_h = web_window.inner_height().ok().and_then(|val| val.as_f64());
+
+                    if let (Some(w_val), Some(h_val)) = (inner_w, inner_h) {
+                        // Fix: Explicitly specify target type token <u32> to satisfy compiler constraints
+                        let phys_size = winit::dpi::LogicalSize::new(w_val, h_val)
+                            .to_physical::<u32>(window.scale_factor());
+                        let _ = window.request_inner_size(phys_size);
+                    }
+                }
             }
-            Err(e) => {
-                eprintln!("[CRITICAL] Cannot start GPU: {}", e);
-                std::process::exit(1); // Sistem desteklemiyorsa güvenli çıkış yap
+        }
+
+        self.window = Some(window.clone());
+
+        // Target dependent Graphics Pipeline initialization wrapper
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            match XenRenderer::new(window) {
+                Ok(renderer) => {
+                    self.renderer = Some(renderer);
+                    self.log("[INFO] Application Resumed: GPU Context Ready.".to_string());
+                }
+                Err(e) => {
+                    eprintln!("[CRITICAL] Cannot start GPU pipeline: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Some(proxy) = &self.event_proxy {
+                let window_clone = window.clone();
+                let proxy_clone = proxy.clone();
+
+                wasm_bindgen_futures::spawn_local(async move {
+                    if let Ok(renderer) = XenRenderer::new(window_clone).await {
+                        let _ = proxy_clone.send_event(XenEvent::RendererReady(renderer));
+                    }
+                });
+            }
+            self.log(
+                "[INFO] Application Resumed on Web target. Async GPU compilation started."
+                    .to_string(),
+            );
+        }
+    }
+
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: XenEvent) {
+        match event {
+            XenEvent::RendererReady(renderer) => {
+                self.renderer = Some(renderer);
+                self.log("[INFO] Web GPU Context successfully attached to Event Loop.".to_string());
+                if let Some(w) = &self.window {
+                    w.request_redraw();
+                }
             }
         }
     }
 
     fn window_event(&mut self, _event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
-            WindowEvent::CloseRequested => std::process::exit(0),
+            WindowEvent::CloseRequested => {
+                #[cfg(not(target_arch = "wasm32"))]
+                std::process::exit(0);
+                #[cfg(target_arch = "wasm32")]
+                _event_loop.exit();
+            }
             WindowEvent::RedrawRequested => {
                 if let Some(renderer) = &mut self.renderer {
                     renderer.render_frame(
