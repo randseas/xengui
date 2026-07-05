@@ -11,7 +11,6 @@ version = "0.1.0"
 [profile.release]
 lto = true
 opt-level = 's'
-
 panic = "abort" 
 
 [profile.dev.package."*"]
