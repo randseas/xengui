@@ -1,7 +1,8 @@
 [package]
 name = "xengui"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.92"
 authors = ["randseas <waultbank@gmail.com>"]
 description = "wgpu based, modern and high-performance GUI library."
 license = "Apache-2.0"
@@ -10,6 +11,11 @@ readme = "../../README.md"
 logo = "https://raw.githubusercontent.com/randseas/xengui/main/assets/XenGui_logo_256x.svg"
 keywords = ["gui", "wgpu", "winit", "graphics"]
 categories = ["gui"]
+
+[profile.release]
+lto = true
+opt-level = 's'
+panic = "abort"
 
 [dependencies]
 wgpu = { workspace = true }

@@ -1,0 +1,12 @@
+[package]
+name = "xencommit"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+xengui = { path = "../xengui" }
+reqwest = { version = "0.12", features = ["json"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] } # for asynchronous API calls
