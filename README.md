@@ -45,4 +45,4 @@ xengui = "0.1.0"
 This project is heavily inspired by [egui](https://github.com/emilk/egui), a fantastic immediate mode GUI library. While XenGui is built from the ground up with its own architecture, the design philosophy and the ergonomics of `egui` served as a significant inspiration.
 
 ## License
-GNU General Public License v3.0 © 2026 randseas. See [LICENSE](LICENSE) for details.
+Apache-2.0 © 2026 randseas. See [LICENSE](LICENSE) for details.
