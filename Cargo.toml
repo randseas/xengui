@@ -1,0 +1,3 @@
+[workspace]
+members = ["xengui", "examples/basic_app"]
+resolver = "2"
