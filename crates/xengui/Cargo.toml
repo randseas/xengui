@@ -7,7 +7,7 @@ description = "wgpu based, modern and high-performance GUI library."
 license = "Apache-2.0"
 repository = "https://github.com/randseas/xengui"
 readme = "../../README.md"
-logo = "https://raw.githubusercontent.com/randseas/xengui/main/XenGui_logo_256x.svg"
+logo = "https://raw.githubusercontent.com/randseas/xengui/main/assets/XenGui_logo_256x.svg"
 keywords = ["gui", "wgpu", "winit", "graphics"]
 categories = ["gui"]
 
