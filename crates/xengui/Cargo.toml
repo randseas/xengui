@@ -11,9 +11,9 @@ keywords = ["gui", "wgpu", "winit", "graphics"]
 categories = ["gui"]
 
 [dependencies]
-wgpu = "28.0.0"
-wgpu_glyph = "0.28.0"
-winit = "0.30.0" 
-pollster = "0.4.0"
-bytemuck = { version = "1.21.0", features = ["derive"] }
-smol_str = "0.3"
+wgpu = { workspace = true }
+wgpu_glyph = { workspace = true }
+winit = { workspace = true }
+pollster = { workspace = true }
+bytemuck = { workspace = true }
+smol_str = { workspace = true }
