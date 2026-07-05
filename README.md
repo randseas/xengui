@@ -3,13 +3,13 @@
 [<img alt="github" src="https://img.shields.io/badge/github-randseas/xengui-00aaaa?logo=github" height="20">](https://github.com/randseas/xengui)
 [![GPLv3](https://img.shields.io/badge/license-GPLv3-800000.svg)](https://github.com/randseas/xengui/blob/main/LICENSE)
 
-<p align="center" style="margin-top: -.5rem">
+<p align="start" style="margin-top: -.5rem">
   <a href="https://xengui.vercel.app">
-    <img src="assets/XenGui_logo.svg" alt="XenGui logo" width="300"/>
+    <img src="assets/XenGui_logo.svg" alt="XenGui logo" width="350"/>
   </a>
 </p>
 
-<div align="center" style="margin-top: -1.25rem;text-decoration: underline; text-decoration-color: #4daafc;">
+<div align="start" style="margin-top: -1.25rem;text-decoration: underline; text-decoration-color: #4daafc;">
 
 ### [Live web demo](https://xengui.vercel.app/demo)
 
