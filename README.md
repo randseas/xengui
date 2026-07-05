@@ -3,7 +3,11 @@
 [<img alt="github" src="https://img.shields.io/badge/github-randseas/xengui-00aaaa?logo=github" height="20">](https://github.com/randseas/xengui)
 [![GPLv3](https://img.shields.io/badge/license-GPLv3-800000.svg)](https://github.com/randseas/xengui/blob/main/LICENSE)
 
-[![XenGui logo](assets/XenGui_logo.svg)](https://xengui.vercel.app)
+<p align="center">
+  <a href="https://xengui.vercel.app">
+    <img src="assets/XenGui_logo.svg" alt="XenGui logo" width="250"/>
+  </a>
+</p>
 
 <div align="center" style="margin-top: -1rem">
 
