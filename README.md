@@ -1,7 +1,7 @@
 # XenGui: an reactive GUI in pure Rust
 
 [<img alt="github" src="https://img.shields.io/badge/github-randseas/xengui-00aaaa?logo=github" height="20">](https://github.com/randseas/xengui)
-[![GPLv3](https://img.shields.io/badge/license-GPLv3-800000.svg)](https://github.com/randseas/xengui/blob/main/LICENSE)
+[![Apache-2.0](https://img.shields.io/badge/license-Apache-2.0-blue.svg)](https://github.com/randseas/xengui/blob/main/LICENSE)
 
 <p align="start" style="margin-top: -.5rem">
   <a href="https://xengui.vercel.app">
