@@ -1,0 +1,8 @@
+[package]
+name = "basic_app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+xengui = { path = "../../xengui" }
+winit = "0.30.0"
