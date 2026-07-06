@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // crates/xengui/src/renderer.rs
-use crate::VNode;
+use crate::{RenderContext, VNode};
 use std::sync::Arc;
 use wgpu_glyph::{GlyphBrushBuilder, ab_glyph};
 use winit::window::Window;
@@ -97,16 +97,18 @@ impl XenRenderer {
             {
                 use system_fonts::find_for_system_locale;
 
-                let (_locale, _region, fonts) = find_for_system_locale(system_fonts::FontStyle::Sans);
+                let (_locale, _region, fonts) =
+                    find_for_system_locale(system_fonts::FontStyle::Sans);
                 let mut loaded_font = None;
 
                 for font in fonts {
                     if let system_fonts::FoundFontSource::Path(font_path) = font.source
                         && let Ok(font_bytes) = std::fs::read(&font_path)
-                            && let Ok(font_arc) = ab_glyph::FontArc::try_from_vec(font_bytes) {
-                                loaded_font = Some(font_arc);
-                                break;
-                            }
+                        && let Ok(font_arc) = ab_glyph::FontArc::try_from_vec(font_bytes)
+                    {
+                        loaded_font = Some(font_arc);
+                        break;
+                    }
                 }
                 loaded_font.ok_or_else(|| {
                     "Failed to load any native system font from system paths.".to_string()
@@ -116,10 +118,7 @@ impl XenRenderer {
             #[cfg(target_arch = "wasm32")]
             {
                 if user_fonts.is_empty() {
-                    return Err(
-                        "WASM target requires at least one font supplied."
-                            .to_string(),
-                    );
+                    return Err("WASM target requires at least one font supplied.".to_string());
                 }
                 ab_glyph::FontArc::try_from_vec(user_fonts[0].1.clone())
                     .map_err(|_| "Invalid fallback font provided for WASM context.".to_string())?
@@ -213,14 +212,21 @@ impl XenRenderer {
                 multiview_mask: None,
             });
 
+            let current_theme = match theme {
+                Some(winit::window::Theme::Dark) => winit::window::Theme::Dark,
+                Some(winit::window::Theme::Light) => winit::window::Theme::Light,
+                None => winit::window::Theme::Dark,
+            };
+
+            let mut ctx = RenderContext::new(
+                &mut self.glyph_brush,
+                &self.font_map,
+                current_theme,
+                debug_mode,
+            );
+
             for vnode in tree.iter_mut() {
-                vnode.render(
-                    &mut render_pass,
-                    &mut self.glyph_brush,
-                    &self.font_map,
-                    theme,
-                    &debug_mode,
-                );
+                vnode.render(&mut render_pass, &mut ctx);
             }
 
             drop(render_pass);

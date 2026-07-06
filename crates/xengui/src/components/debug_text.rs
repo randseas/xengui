@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // crates/xengui/src/components/debug_text.rs
-use crate::VNode;
+use crate::{RenderContext, VNode};
 use wgpu_glyph::{Section, Text};
 
 pub struct DebugText {
@@ -43,23 +43,15 @@ impl VNode for DebugText {
         self.is_dirty = dirty;
     }
 
-    fn render(
-        &mut self,
-        _render_pass: &mut wgpu::RenderPass,
-        glyph_brush: &mut wgpu_glyph::GlyphBrush<()>,
-        _font_map: &std::collections::HashMap<String, wgpu_glyph::FontId>,
-        theme: &Option<winit::window::Theme>,
-        _debug_mode: &bool,
-    ) {
-        if !_debug_mode {
+    fn render(&mut self, _render_pass: &mut wgpu::RenderPass, ctx: &mut RenderContext) {
+        if !ctx.debug_mode() {
             return;
         }
 
         let text = &self.cached_text;
-        let text_color = match theme {
-            Some(winit::window::Theme::Dark) => [1.0, 1.0, 1.0, 1.0],
-            Some(winit::window::Theme::Light) => [0.0, 0.0, 0.0, 1.0],
-            None => [1.0, 1.0, 1.0, 1.0],
+        let text_color = match ctx.theme() {
+            winit::window::Theme::Dark => [1.0, 1.0, 1.0, 1.0],
+            winit::window::Theme::Light => [0.0, 0.0, 0.0, 1.0],
         };
 
         let wgpu_text = Text::new(text)
@@ -70,7 +62,7 @@ impl VNode for DebugText {
         let section = Section::default()
             .with_screen_position((0.0, 0.0))
             .add_text(wgpu_text);
-        glyph_brush.queue(section);
+        ctx.glyph_brush.queue(section);
 
         if self.is_dirty {
             self.is_dirty = false;

@@ -4,6 +4,7 @@ pub mod app;
 pub mod components;
 pub mod core;
 pub mod renderer;
+pub mod context;
 
 pub use app::App;
 pub use app::AppConfig;
@@ -13,3 +14,4 @@ pub use components::text::Text;
 pub use components::text::TextProps;
 pub use core::VNode;
 pub use renderer::XenRenderer;
+pub use context::RenderContext;
