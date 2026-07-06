@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // examples/basic_app/src/main.rs
-use xengui::{App, AppConfig, Text, Color};
+use xengui::{App, AppConfig, Color, Text};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_arch = "wasm32")]
@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        use xengui::{WindowPosition};
+        use xengui::WindowPosition;
         // Start the app
         let mut app = App::new(AppConfig {
             title: "XenGui Basic App".into(),
