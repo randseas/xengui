@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // crates/xengui/src/renderer.rs
-use crate::{RenderContext, VNode};
+use crate::{
+    Color, DrawCommand, PaintContext, VNode, style::Length,
+};
 use std::sync::Arc;
-use wgpu_glyph::{GlyphBrushBuilder, ab_glyph};
+use wgpu_glyph::{GlyphBrushBuilder, Section, Text as WGPUText, ab_glyph};
 use winit::window::Window;
 
 pub struct XenRenderer {
@@ -180,7 +182,6 @@ impl XenRenderer {
         &mut self,
         tree: &mut [Box<dyn VNode>],
         theme: &Option<winit::window::Theme>,
-        debug_mode: bool,
     ) {
         let frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -195,7 +196,7 @@ impl XenRenderer {
                 None => wgpu::Color::WHITE,
             };
 
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -212,21 +213,43 @@ impl XenRenderer {
                 multiview_mask: None,
             });
 
-            let current_theme = match theme {
-                Some(winit::window::Theme::Dark) => winit::window::Theme::Dark,
-                Some(winit::window::Theme::Light) => winit::window::Theme::Light,
-                None => winit::window::Theme::Dark,
-            };
+            // frame start 
+            let mut commands = Vec::new();
 
-            let mut ctx = RenderContext::new(
-                &mut self.glyph_brush,
-                &self.font_map,
-                current_theme,
-                debug_mode,
-            );
+            {
+                let mut paint_ctx = PaintContext::new(&mut commands);
 
-            for vnode in tree.iter_mut() {
-                vnode.render(&mut render_pass, &mut ctx);
+                for node in tree.iter() {
+                    node.paint(&mut paint_ctx);
+                }
+            }
+
+            for command in commands {
+                match command {
+                    DrawCommand::Text(cmd) => {
+                        let color = cmd.style.text_color.unwrap_or(match theme {
+                            Some(winit::window::Theme::Dark) => Color::WHITE,
+                            _ => Color::BLACK,
+                        });
+
+                        let font_size = cmd.style.font_size.unwrap_or(Length::pixels(20.0));
+
+                        let mut glyph = WGPUText::new(&cmd.text)
+                            .with_color(color.to_array())
+                            .with_scale(font_size.px());
+
+                        if let Some(font_name) = cmd.font.as_deref()
+                            && let Some(font_id) = self.font_map.get(font_name).copied() {
+                                glyph = glyph.with_font_id(font_id);
+                            }
+
+                        let section = Section::default()
+                            .with_screen_position(cmd.position)
+                            .add_text(glyph);
+
+                        self.queue_text(section);
+                    }
+                }
             }
 
             drop(render_pass);
@@ -251,11 +274,14 @@ impl XenRenderer {
         self.staging_belt.recall();
     }
 
+    pub(crate) fn queue_text(&mut self, section: Section<'_>) {
+        self.glyph_brush.queue(section);
+    }
+
     pub fn resize(
         &mut self,
         tree: &mut [Box<dyn VNode>],
         theme: &Option<winit::window::Theme>,
-        debug_mode: bool,
         size: winit::dpi::PhysicalSize<u32>,
     ) {
         if size.width > 0 && size.height > 0 {
@@ -265,7 +291,7 @@ impl XenRenderer {
             for node in tree.iter_mut() {
                 node.set_dirty(true);
             }
-            self.render_frame(tree, theme, debug_mode);
+            self.render_frame(tree, theme);
         }
     }
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // examples/basic_app/src/main.rs
-use xengui::{props, App, AppConfig, Text, TextProps};
+use xengui::{App, AppConfig, Text, Color};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_arch = "wasm32")]
@@ -14,25 +14,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         app.with_font(
             "Inter_Regular",
             include_bytes!("../fonts/Inter_Regular.ttf").to_vec(),
+        )
+        .with_font(
+            "Inter_Medium",
+            include_bytes!("../fonts/Inter_Medium.ttf").to_vec(),
         );
 
-        // Basic (fluent)
         app.add_node(Box::new(
-            Text::new("text1")
-                .font("Inter_SemiBold")
-                .text("XenGui App")
-                .scale(32.0),
+            Text::new("title")
+                .text("XenGui")
+                .font("Inter_Medium")
+                .font_size(24)
+                .position((0.0, 0.0))
+                .text_color(Color::TEAL),
         ));
 
-        // Advanced (macro)
-        let mut text2 = Text::new("text2");
-        text2.set_props(props! {
-            text: "Hello, world!",
-            scale: 20.0,
-            position: (0.0, 32.0),
-            color: (0.0, 0.5, 0.5, 1.0)
-        });
-        app.add_node(Box::new(text2));
+        app.add_node(Box::new(
+            Text::new("text2")
+                .font("Inter_Regular")
+                .text("Hello, world!")
+                .font_size(20.0)
+                .position((0.0, 24.0))
+                .text_color(Color::WHITE.with_alpha(50)),
+        ));
 
         if let Err(e) = app.run() {
             eprintln!("Error running app: {:?}", e);
@@ -43,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        use xengui::WindowPosition;
+        use xengui::{WindowPosition};
         // Start the app
         let mut app = App::new(AppConfig {
             title: "XenGui Basic App".into(),
@@ -66,23 +70,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             include_bytes!("../fonts/Inter_SemiBold.ttf").to_vec(),
         );
 
-        // Basic (fluent)
         app.add_node(Box::new(
-            Text::new("text1")
-                .font("Inter_SemiBold")
-                .text("XenGui App")
-                .scale(32.0),
+            Text::new("title")
+                .text("XenGui")
+                .font("Inter_Medium")
+                .font_size(24)
+                .position((0.0, 0.0))
+                .text_color(Color::TEAL),
         ));
 
-        // Advanced (macro)
-        let mut text2 = Text::new("text2");
-        text2.set_props(props! {
-            text: "Hello, world!",
-            scale: 20.0,
-            position: (0.0, 32.0),
-            color: (0.0, 0.5, 0.5, 1.0)
-        });
-        app.add_node(Box::new(text2));
+        app.add_node(Box::new(
+            Text::new("text2")
+                .font("Inter_Regular")
+                .text("Hello, world!")
+                .font_size(20.0)
+                .position((0.0, 24.0))
+                .text_color(Color::WHITE.with_alpha(50)),
+        ));
 
         app.run()?;
 

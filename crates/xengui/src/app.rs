@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // crates/xengui/src/app.rs
-use crate::{DebugText, VNode, XenRenderer};
+use crate::{VNode, XenRenderer};
 use std::collections::VecDeque;
 use std::sync::Arc;
 
@@ -36,7 +36,7 @@ pub struct AppConfig {
     pub height: u32,
 
     pub theme: Option<winit::window::Theme>,
-    
+
     #[cfg(not(target_arch = "wasm32"))]
     pub resizable: bool,
 
@@ -102,7 +102,7 @@ impl App {
             window: None,
             config,
             log_history,
-            v_domtree: vec![Box::new(DebugText::new("".into()))],
+            v_domtree: vec![],
             is_visible: false,
             #[cfg(target_arch = "wasm32")]
             event_proxy: None,
@@ -321,11 +321,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
             WindowEvent::RedrawRequested => {
                 if let Some(renderer) = &mut self.renderer {
-                    renderer.render_frame(
-                        &mut self.v_domtree,
-                        &self.config.theme,
-                        self.config.debug_mode,
-                    );
+                    renderer.render_frame(&mut self.v_domtree, &self.config.theme);
                     if !self.is_visible
                         && let Some(window) = &self.window
                     {
@@ -336,12 +332,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
             WindowEvent::Resized(new_size) => {
                 if let Some(renderer) = &mut self.renderer {
-                    renderer.resize(
-                        &mut self.v_domtree,
-                        &self.config.theme,
-                        self.config.debug_mode,
-                        new_size,
-                    );
+                    renderer.resize(&mut self.v_domtree, &self.config.theme, new_size);
                     if !self.is_visible
                         && let Some(window) = &self.window
                     {
