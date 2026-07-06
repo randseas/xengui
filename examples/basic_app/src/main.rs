@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = AppConfig {
         #[cfg(not(target_arch = "wasm32"))]
-        title: "XenGui Basic App".into(),
+        title: "XenGui App".into(),
 
         #[cfg(not(target_arch = "wasm32"))]
         width: 640,
