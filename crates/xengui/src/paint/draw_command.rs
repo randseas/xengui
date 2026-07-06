@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-
 use smol_str::SmolStr;
-
 use crate::Style;
 
 #[derive(Clone, Debug)]

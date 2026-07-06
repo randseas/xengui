@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-// crates/xengui/src/lib.rs
 pub mod app;
 pub mod components;
 pub mod context;

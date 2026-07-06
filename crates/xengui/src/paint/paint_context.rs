@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-
 use super::{DrawCommand, TextCommand};
 
 pub struct PaintContext<'a> {

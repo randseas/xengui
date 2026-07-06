@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-// crates/xengui/src/renderer.rs
 use crate::{
     Color, DrawCommand, PaintContext, VNode, style::Length,
 };

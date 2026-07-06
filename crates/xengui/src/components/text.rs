@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-// crates/xengui/src/components/text.rs
 use crate::{PaintContext, Style, TextCommand, VNode};
 use smol_str::SmolStr;
 

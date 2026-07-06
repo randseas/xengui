@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-// crates/xengui/src/app.rs
 use crate::{VNode, XenRenderer};
 use std::collections::VecDeque;
 use std::sync::Arc;

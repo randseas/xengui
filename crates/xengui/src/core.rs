@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-// crates/xengui/src/core.rs
 use crate::PaintContext;
 
 pub trait VNode {
