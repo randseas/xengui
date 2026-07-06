@@ -7,25 +7,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         console_error_panic_hook::set_once();
 
-        // Web standard execution flow without breaking event loop cycles
         let mut app = App::new(AppConfig {
             ..Default::default()
         });
 
+        app.with_font(
+            "Inter_Regular",
+            include_bytes!("../fonts/Inter_Regular.ttf").to_vec(),
+        );
+
+        // Basic (fluent)
         app.add_node(Box::new(
-            Text::new("text1").text("Hello, world!").scale(20.0),
+            Text::new("text1")
+                .font("Inter_SemiBold")
+                .text("XenGui App")
+                .scale(32.0),
         ));
 
+        // Advanced (macro)
         let mut text2 = Text::new("text2");
         text2.set_props(props! {
             text: "Hello, world!",
             scale: 20.0,
-            position: (0.0, 20.0),
+            position: (0.0, 32.0),
             color: (0.0, 0.5, 0.5, 1.0)
         });
         app.add_node(Box::new(text2));
 
-        // Let winit build the event loop first, then attach the async renderer cleanly
         if let Err(e) = app.run() {
             eprintln!("Error running app: {:?}", e);
         }
@@ -45,9 +53,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..Default::default()
         });
 
+        app.with_font(
+            "Inter_Regular",
+            include_bytes!("../fonts/Inter_Regular.ttf").to_vec(),
+        )
+        .with_font(
+            "Inter_Medium",
+            include_bytes!("../fonts/Inter_Medium.ttf").to_vec(),
+        )
+        .with_font(
+            "Inter_SemiBold",
+            include_bytes!("../fonts/Inter_SemiBold.ttf").to_vec(),
+        );
+
         // Basic (fluent)
         app.add_node(Box::new(
-            Text::new("text1").text("Hello, world!").scale(20.0),
+            Text::new("text1")
+                .font("Inter_SemiBold")
+                .text("XenGui App")
+                .scale(32.0),
         ));
 
         // Advanced (macro)
@@ -55,7 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         text2.set_props(props! {
             text: "Hello, world!",
             scale: 20.0,
-            position: (0.0, 20.0),
+            position: (0.0, 32.0),
             color: (0.0, 0.5, 0.5, 1.0)
         });
         app.add_node(Box::new(text2));

@@ -21,6 +21,7 @@ pub struct TextProps {
     pub scale: Option<f32>,
     pub position: Option<(f32, f32)>,
     pub color: Option<[f32; 4]>,
+    pub font: Option<SmolStr>,
 }
 
 pub struct Text {
@@ -63,6 +64,12 @@ impl Text {
         self
     }
 
+    pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
+        self.props.font = Some(font.into());
+        self.set_dirty(true);
+        self
+    }
+
     pub fn set_props(&mut self, props: TextProps) {
         let mut changed = false;
 
@@ -80,6 +87,10 @@ impl Text {
         }
         if let Some(c) = props.color {
             self.props.color = Some(c);
+            changed = true;
+        }
+        if let Some(f) = props.font {
+            self.props.font = Some(f);
             changed = true;
         }
 
@@ -107,6 +118,7 @@ impl VNode for Text {
         &mut self,
         _render_pass: &mut wgpu::RenderPass,
         glyph_brush: &mut wgpu_glyph::GlyphBrush<()>,
+        font_map: &std::collections::HashMap<String, wgpu_glyph::FontId>,
         theme: &Option<winit::window::Theme>,
         _debug_mode: &bool,
     ) {
@@ -119,12 +131,16 @@ impl VNode for Text {
             None => [1.0, 1.0, 1.0, 1.0],
         });
 
-        let section = Section::default().with_screen_position(position).add_text(
-            WGPUText::new(text)
-                .with_color(text_color)
-                .with_scale(scale),
-        );
+        let mut wgpu_text = WGPUText::new(text).with_color(text_color).with_scale(scale);
 
+        if let Some(font_name) = &self.props.font
+            && let Some(font_id) = font_map.get(font_name.as_str()) {
+                wgpu_text = wgpu_text.with_font_id(*font_id);
+            }
+
+        let section = Section::default()
+            .with_screen_position(position)
+            .add_text(wgpu_text);
         glyph_brush.queue(section);
 
         if self.is_dirty {

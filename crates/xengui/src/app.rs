@@ -3,14 +3,16 @@
 use crate::{DebugText, VNode, XenRenderer};
 use std::collections::VecDeque;
 use std::sync::Arc;
+
+#[cfg(not(target_arch = "wasm32"))]
+use winit::dpi::PhysicalPosition;
+
 use winit::{
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     monitor::{MonitorHandle, VideoModeHandle},
     window::{Window, WindowAttributes, WindowId},
 };
-#[cfg(not(target_arch = "wasm32"))]
-use winit::dpi::PhysicalPosition;
 
 pub enum WindowPosition {
     Center,
@@ -27,17 +29,24 @@ pub enum Fullscreen {
 pub struct AppConfig {
     #[cfg(not(target_arch = "wasm32"))]
     pub title: String,
+
     #[cfg(not(target_arch = "wasm32"))]
     pub width: u32,
     #[cfg(not(target_arch = "wasm32"))]
     pub height: u32,
+
     pub theme: Option<winit::window::Theme>,
+    
     #[cfg(not(target_arch = "wasm32"))]
     pub resizable: bool,
+
     pub fullscreen: Option<Fullscreen>,
+
     #[cfg(not(target_arch = "wasm32"))]
     pub position: WindowPosition,
+
     pub debug_mode: bool,
+    pub fonts: Vec<(String, Vec<u8>)>,
 }
 
 impl Default for AppConfig {
@@ -45,17 +54,24 @@ impl Default for AppConfig {
         Self {
             #[cfg(not(target_arch = "wasm32"))]
             title: "XenGui App".to_string(),
+
             #[cfg(not(target_arch = "wasm32"))]
             width: 800,
             #[cfg(not(target_arch = "wasm32"))]
             height: 600,
+
             theme: None,
+
             #[cfg(not(target_arch = "wasm32"))]
             resizable: true,
+
             fullscreen: None,
+
             #[cfg(not(target_arch = "wasm32"))]
             position: WindowPosition::Center,
+
             debug_mode: false,
+            fonts: Vec::new(),
         }
     }
 }
@@ -65,13 +81,11 @@ pub enum XenEvent {
 }
 
 pub struct App {
-    // GPU Yönetimi
     renderer: Option<XenRenderer>,
     window: Option<Arc<Window>>,
 
-    // Uygulama Verisi
     log_history: VecDeque<String>,
-    config: AppConfig, // Builder ile gelen ayarlar
+    config: AppConfig,
     v_domtree: Vec<Box<dyn VNode>>,
     is_visible: bool,
 
@@ -82,7 +96,7 @@ pub struct App {
 impl App {
     pub fn new(config: AppConfig) -> Self {
         let mut log_history = VecDeque::new();
-        log_history.push_back("[INFO] System Initialized.".to_string());
+        log_history.push_back("[INFO] XenGui Initialized".to_string());
         Self {
             renderer: None,
             window: None,
@@ -98,6 +112,11 @@ impl App {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn with_title(&mut self, title: &str) -> &mut Self {
         self.config.title = title.to_string();
+        self
+    }
+
+    pub fn with_font(&mut self, name: &str, font_data: Vec<u8>) -> &mut Self {
+        self.config.fonts.push((name.to_string(), font_data));
         self
     }
 
@@ -123,9 +142,9 @@ impl App {
         if !self.config.debug_mode {
             return;
         }
-        self.log_history.push_back(msg); // O(1) ekleme
+        self.log_history.push_back(msg); // O(1) add
         if self.log_history.len() > 50 {
-            self.log_history.pop_front(); // O(1) silme, performans darboğazı giderildi
+            self.log_history.pop_front(); // O(1) delete
         }
         let mut needs_redraw = false;
         for node in self.v_domtree.iter_mut() {
@@ -134,10 +153,9 @@ impl App {
                 needs_redraw = true;
             }
         }
-        if needs_redraw
-            && let Some(w) = &self.window {
-                w.request_redraw();
-            }
+        if needs_redraw && let Some(w) = &self.window {
+            w.request_redraw();
+        }
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -163,7 +181,6 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
         });
 
-        // Consolidate all window properties into a single attribute profile
         let mut attributes = WindowAttributes::default()
             .with_visible(false)
             .with_theme(None)
@@ -186,7 +203,6 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
         }
 
-        // Apply web-only configuration specs (Auto-maximizing layout strategy)
         #[cfg(target_arch = "wasm32")]
         {
             use winit::platform::web::WindowAttributesExtWebSys;
@@ -217,14 +233,15 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
 
             if let WindowPosition::Center = self.config.position
-                && let Some(monitor) = window.current_monitor() {
-                    let monitor_size = monitor.size();
-                    let window_size = window.outer_size();
-                    window.set_outer_position(PhysicalPosition::new(
-                        (monitor_size.width as i32 - window_size.width as i32) / 2,
-                        (monitor_size.height as i32 - window_size.height as i32) / 2,
-                    ));
-                }
+                && let Some(monitor) = window.current_monitor()
+            {
+                let monitor_size = monitor.size();
+                let window_size = window.outer_size();
+                window.set_outer_position(PhysicalPosition::new(
+                    (monitor_size.width as i32 - window_size.width as i32) / 2,
+                    (monitor_size.height as i32 - window_size.height as i32) / 2,
+                ));
+            }
         }
 
         // Web optimization: Ensure canvas automatically tracks viewport bounding box dimensions
@@ -239,7 +256,6 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     let inner_h = web_window.inner_height().ok().and_then(|val| val.as_f64());
 
                     if let (Some(w_val), Some(h_val)) = (inner_w, inner_h) {
-                        // Fix: Explicitly specify target type token <u32> to satisfy compiler constraints
                         let phys_size = winit::dpi::LogicalSize::new(w_val, h_val)
                             .to_physical::<u32>(window.scale_factor());
                         let _ = window.request_inner_size(phys_size);
@@ -253,7 +269,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         // Target dependent Graphics Pipeline initialization wrapper
         #[cfg(not(target_arch = "wasm32"))]
         {
-            match XenRenderer::new(window) {
+            let user_fonts = std::mem::take(&mut self.config.fonts);
+            match XenRenderer::new(window, user_fonts) {
                 Ok(renderer) => {
                     self.renderer = Some(renderer);
                     self.log("[INFO] Application Resumed: GPU Context Ready.".to_string());
@@ -270,17 +287,15 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             if let Some(proxy) = &self.event_proxy {
                 let window_clone = window.clone();
                 let proxy_clone = proxy.clone();
+                let user_fonts = std::mem::take(&mut self.config.fonts);
 
                 wasm_bindgen_futures::spawn_local(async move {
-                    if let Ok(renderer) = XenRenderer::new(window_clone).await {
+                    if let Ok(renderer) = XenRenderer::new(window_clone, user_fonts).await {
                         let _ = proxy_clone.send_event(XenEvent::RendererReady(renderer));
                     }
                 });
             }
-            self.log(
-                "[INFO] Application Resumed on Web target. Async GPU compilation started."
-                    .to_string(),
-            );
+            self.log("[INFO] Application Resumed on Web target.".to_string());
         }
     }
 
@@ -312,10 +327,11 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         self.config.debug_mode,
                     );
                     if !self.is_visible
-                        && let Some(window) = &self.window {
-                            window.set_visible(true);
-                            self.is_visible = true;
-                        }
+                        && let Some(window) = &self.window
+                    {
+                        window.set_visible(true);
+                        self.is_visible = true;
+                    }
                 }
             }
             WindowEvent::Resized(new_size) => {
@@ -327,10 +343,11 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         new_size,
                     );
                     if !self.is_visible
-                        && let Some(window) = &self.window {
-                            window.set_visible(true);
-                            self.is_visible = true;
-                        }
+                        && let Some(window) = &self.window
+                    {
+                        window.set_visible(true);
+                        self.is_visible = true;
+                    }
                 }
             }
             WindowEvent::ThemeChanged(new_theme) => {

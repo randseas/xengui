@@ -9,6 +9,7 @@ pub trait VNode {
         &mut self,
         _render_pass: &mut wgpu::RenderPass,
         glyph_brush: &mut wgpu_glyph::GlyphBrush<()>,
+        font_map: &std::collections::HashMap<String, wgpu_glyph::FontId>,
         theme: &Option<winit::window::Theme>,
         _debug_mode: &bool,
     );

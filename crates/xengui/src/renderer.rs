@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // crates/xengui/src/renderer.rs
-use std::sync::Arc;
-use wgpu_glyph::{ab_glyph, GlyphBrushBuilder};
-use winit::window::Window;
-
 use crate::VNode;
+use std::sync::Arc;
+use wgpu_glyph::{GlyphBrushBuilder, ab_glyph};
+use winit::window::Window;
 
 pub struct XenRenderer {
     pub surface: wgpu::Surface<'static>,
@@ -13,11 +12,12 @@ pub struct XenRenderer {
     pub glyph_brush: wgpu_glyph::GlyphBrush<()>,
     pub staging_belt: wgpu::util::StagingBelt,
     pub config: wgpu::SurfaceConfiguration,
+    pub font_map: std::collections::HashMap<String, wgpu_glyph::FontId>, // Name -> ID match
 }
 
 impl XenRenderer {
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn new(window: Arc<Window>) -> Result<Self, String> {
+    pub fn new(window: Arc<Window>, user_fonts: Vec<(String, Vec<u8>)>) -> Result<Self, String> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             #[cfg(target_os = "windows")]
             backends: wgpu::Backends::DX12,
@@ -34,7 +34,6 @@ impl XenRenderer {
             .create_surface(window.clone())
             .map_err(|e| format!("Cannot create surface: {}", e))?;
 
-        // Safely block on desktop targets using pollster
         let adapter =
             pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
                 .expect("Cannot find a compatible adapter");
@@ -43,11 +42,14 @@ impl XenRenderer {
             pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
                 .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
 
-        Self::init_common(window, surface, adapter, device, queue)
+        Self::init_common(window, surface, adapter, device, queue, user_fonts)
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub async fn new(window: Arc<Window>) -> Result<Self, String> {
+    pub async fn new(
+        window: Arc<Window>,
+        user_fonts: Vec<(String, Vec<u8>)>,
+    ) -> Result<Self, String> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -57,7 +59,7 @@ impl XenRenderer {
             .create_surface(window.clone())
             .map_err(|e| format!("Cannot create surface: {}", e))?;
 
-        // Zero-blocking async pipeline tailored for the browser event loop
+        // Zero-blocking async pipeline for the browser event loop
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions::default())
             .await
@@ -68,7 +70,7 @@ impl XenRenderer {
             .await
             .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
 
-        Self::init_common(window, surface, adapter, device, queue)
+        Self::init_common(window, surface, adapter, device, queue, user_fonts)
     }
 
     fn init_common(
@@ -77,9 +79,8 @@ impl XenRenderer {
         adapter: wgpu::Adapter,
         device: wgpu::Device,
         queue: wgpu::Queue,
+        user_fonts: Vec<(String, Vec<u8>)>,
     ) -> Result<Self, String> {
-        // Fix: Do not recreate instance/adapter or invoke block_on here.
-        // Leverage the explicitly passed resources directly.
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
             .formats
@@ -91,12 +92,51 @@ impl XenRenderer {
             })
             .unwrap_or(surface_caps.formats[0]);
 
-        // Load font for debug overlay
-        let font: &[u8] = include_bytes!("../fonts/Inter_Regular.ttf");
-        let font_arc = ab_glyph::FontArc::try_from_slice(font)
-            .expect("Cannot load system font: Inter_Regular.ttf corrupted or missing.");
+        let default_font_arc = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                use system_fonts::find_for_system_locale;
 
-        let glyph_brush = GlyphBrushBuilder::using_font(font_arc).build(&device, surface_format);
+                let (_locale, _region, fonts) = find_for_system_locale(system_fonts::FontStyle::Sans);
+                let mut loaded_font = None;
+
+                for font in fonts {
+                    if let system_fonts::FoundFontSource::Path(font_path) = font.source
+                        && let Ok(font_bytes) = std::fs::read(&font_path)
+                            && let Ok(font_arc) = ab_glyph::FontArc::try_from_vec(font_bytes) {
+                                loaded_font = Some(font_arc);
+                                break;
+                            }
+                }
+                loaded_font.ok_or_else(|| {
+                    "Failed to load any native system font from system paths.".to_string()
+                })?
+            }
+
+            #[cfg(target_arch = "wasm32")]
+            {
+                if user_fonts.is_empty() {
+                    return Err(
+                        "WASM target requires at least one font supplied."
+                            .to_string(),
+                    );
+                }
+                ab_glyph::FontArc::try_from_vec(user_fonts[0].1.clone())
+                    .map_err(|_| "Invalid fallback font provided for WASM context.".to_string())?
+            }
+        };
+
+        let mut glyph_brush =
+            GlyphBrushBuilder::using_font(default_font_arc).build(&device, surface_format);
+        let mut font_map = std::collections::HashMap::new();
+
+        // Dynamic font registering
+        for (name, data) in user_fonts {
+            if let Ok(user_font) = ab_glyph::FontArc::try_from_vec(data) {
+                let id = glyph_brush.add_font(user_font);
+                font_map.insert(name, id);
+            }
+        }
 
         let alpha_mode = surface_caps
             .alpha_modes
@@ -108,7 +148,7 @@ impl XenRenderer {
             })
             .unwrap_or(wgpu::CompositeAlphaMode::Auto);
 
-        // Fix: Prevent zero-sized texture allocations on web target by defaulting to at least 1px
+        // Prevent zero-sized texture allocations on web target by defaulting to at least 1px
         let width = window.inner_size().width.max(1);
         let height = window.inner_size().height.max(1);
 
@@ -133,6 +173,7 @@ impl XenRenderer {
             glyph_brush,
             staging_belt,
             config,
+            font_map,
         })
     }
 
@@ -149,13 +190,12 @@ impl XenRenderer {
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&Default::default());
         {
-            // RenderContext'i burada oluştur
             let background_color = match theme {
                 Some(winit::window::Theme::Dark) => wgpu::Color::BLACK,
                 Some(winit::window::Theme::Light) => wgpu::Color::WHITE,
                 None => wgpu::Color::WHITE,
             };
-            // RenderPass artık mut edilebilir bir değişken
+
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -173,9 +213,14 @@ impl XenRenderer {
                 multiview_mask: None,
             });
 
-            // MİMARİ DÜZELTME: render_pass yaşam döngüsündeyken node'lara iletiliyor.
             for vnode in tree.iter_mut() {
-                vnode.render(&mut render_pass, &mut self.glyph_brush, theme, &debug_mode);
+                vnode.render(
+                    &mut render_pass,
+                    &mut self.glyph_brush,
+                    &self.font_map,
+                    theme,
+                    &debug_mode,
+                );
             }
 
             drop(render_pass);

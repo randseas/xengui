@@ -47,6 +47,7 @@ impl VNode for DebugText {
         &mut self,
         _render_pass: &mut wgpu::RenderPass,
         glyph_brush: &mut wgpu_glyph::GlyphBrush<()>,
+        _font_map: &std::collections::HashMap<String, wgpu_glyph::FontId>,
         theme: &Option<winit::window::Theme>,
         _debug_mode: &bool,
     ) {
@@ -54,21 +55,21 @@ impl VNode for DebugText {
             return;
         }
 
-        // Theme handling
+        let text = &self.cached_text;
         let text_color = match theme {
-            Some(winit::window::Theme::Dark) => [1.0, 1.0, 1.0, 1.0], 
+            Some(winit::window::Theme::Dark) => [1.0, 1.0, 1.0, 1.0],
             Some(winit::window::Theme::Light) => [0.0, 0.0, 0.0, 1.0],
             None => [1.0, 1.0, 1.0, 1.0],
         };
 
+        let wgpu_text = Text::new(text)
+            .with_color(text_color)
+            .with_scale(20.0)
+            .with_font_id(wgpu_glyph::FontId(0));
+
         let section = Section::default()
             .with_screen_position((0.0, 0.0))
-            .add_text(
-                Text::new(&self.cached_text)
-                    .with_color(text_color)
-                    .with_scale(20.0),
-            );
-
+            .add_text(wgpu_text);
         glyph_brush.queue(section);
 
         if self.is_dirty {
