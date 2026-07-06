@@ -12,7 +12,7 @@
 
 <div align="start" style="margin-top: -1.5rem;text-decoration: underline; text-decoration-color: #4daafc;">
 
-### [Live web demo](https://xengui.vercel.app/demo)
+### [Live web demo](https://xengui.vercel.app)
 
 </div>
 
