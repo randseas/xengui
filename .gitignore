@@ -1,2 +1,4 @@
 /target
-/examples/basic_app/dist
+# Build directories for all examples
+examples/*/dist/
+examples/basic_app/dist/index.html
