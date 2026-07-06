@@ -134,11 +134,10 @@ impl App {
                 needs_redraw = true;
             }
         }
-        if needs_redraw {
-            if let Some(w) = &self.window {
+        if needs_redraw
+            && let Some(w) = &self.window {
                 w.request_redraw();
             }
-        }
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -217,8 +216,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 self.config.theme = Some(winit::window::Theme::Dark);
             }
 
-            if let WindowPosition::Center = self.config.position {
-                if let Some(monitor) = window.current_monitor() {
+            if let WindowPosition::Center = self.config.position
+                && let Some(monitor) = window.current_monitor() {
                     let monitor_size = monitor.size();
                     let window_size = window.outer_size();
                     window.set_outer_position(PhysicalPosition::new(
@@ -226,7 +225,6 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         (monitor_size.height as i32 - window_size.height as i32) / 2,
                     ));
                 }
-            }
         }
 
         // Web optimization: Ensure canvas automatically tracks viewport bounding box dimensions
@@ -313,12 +311,11 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         &self.config.theme,
                         self.config.debug_mode,
                     );
-                    if !self.is_visible {
-                        if let Some(window) = &self.window {
+                    if !self.is_visible
+                        && let Some(window) = &self.window {
                             window.set_visible(true);
                             self.is_visible = true;
                         }
-                    }
                 }
             }
             WindowEvent::Resized(new_size) => {
@@ -329,12 +326,11 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         self.config.debug_mode,
                         new_size,
                     );
-                    if !self.is_visible {
-                        if let Some(window) = &self.window {
+                    if !self.is_visible
+                        && let Some(window) = &self.window {
                             window.set_visible(true);
                             self.is_visible = true;
                         }
-                    }
                 }
             }
             WindowEvent::ThemeChanged(new_theme) => {

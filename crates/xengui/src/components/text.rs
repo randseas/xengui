@@ -7,6 +7,7 @@ use wgpu_glyph::{Section, Text as WGPUText};
 #[macro_export]
 macro_rules! props {
     ($($field:ident : $val:expr),* $(,)?) => {
+        #[allow(clippy::needless_update)]
         TextProps {
             $( $field: Some(($val).into()), )*
             ..Default::default()
@@ -25,7 +26,6 @@ pub struct TextProps {
 pub struct Text {
     pub key: String,
     pub is_dirty: bool,
-
     pub props: TextProps,
 }
 
@@ -113,14 +113,14 @@ impl VNode for Text {
         let text = self.props.text.as_deref().unwrap_or("");
         let scale = self.props.scale.unwrap_or(20.0);
         let position = self.props.position.unwrap_or((0.0, 0.0));
-        let text_color = self.props.color.unwrap_or_else(|| match theme {
+        let text_color = self.props.color.unwrap_or(match theme {
             Some(winit::window::Theme::Dark) => [1.0, 1.0, 1.0, 1.0],
             Some(winit::window::Theme::Light) => [0.0, 0.0, 0.0, 1.0],
             None => [1.0, 1.0, 1.0, 1.0],
         });
 
         let section = Section::default().with_screen_position(position).add_text(
-            WGPUText::new(&text)
+            WGPUText::new(text)
                 .with_color(text_color)
                 .with_scale(scale),
         );

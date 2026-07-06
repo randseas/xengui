@@ -202,7 +202,7 @@ impl XenRenderer {
 
     pub fn resize(
         &mut self,
-        mut tree: &mut [Box<dyn VNode>],
+        tree: &mut [Box<dyn VNode>],
         theme: &Option<winit::window::Theme>,
         debug_mode: bool,
         size: winit::dpi::PhysicalSize<u32>,
@@ -214,7 +214,7 @@ impl XenRenderer {
             for node in tree.iter_mut() {
                 node.set_dirty(true);
             }
-            self.render_frame(&mut tree, theme, debug_mode);
+            self.render_frame(tree, theme, debug_mode);
         }
     }
 }
