@@ -32,7 +32,7 @@ app.run()?;
 
 ```toml
 [dependencies]
-xengui = "0.1.0"
+xengui = "0.2.0"
 ```
 
 ## Sections:
