@@ -17,3 +17,4 @@ pub use context::RenderContext;
 pub use core::VNode;
 pub use renderer::XenRenderer;
 pub use style::Style;
+pub use style::Color;
