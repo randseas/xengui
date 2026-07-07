@@ -72,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .font("Inter_Regular")
             .font_size(24)
             .color(Color::WHITE)
-            .background(Color::BLACK)
+            .background(Color::ORANGE)
             .position((0.0, 24.0)),
     ));
 
@@ -82,7 +82,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .font("Inter_Regular")
             .font_size(24)
             .color(Color::WHITE)
-            .background(Color::BLUE)
+            .background(Color::RED)
             .position((0.0, 48.0)),
     ));
 

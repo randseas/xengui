@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use super::{
-    Color, Edges, FontStyle, FontWeight, Length, LetterSpacing, LineHeight, TextAlign,
-    TextDecoration, Size, Background
+    Background, Color, Edges, FontStyle, FontWeight, Length, LetterSpacing, LineHeight, Size,
+    TextAlign, TextDecoration,
 };
 
 #[derive(Clone, Debug, Default)]

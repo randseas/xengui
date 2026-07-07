@@ -47,7 +47,7 @@ impl Color {
         Self { r, g, b, a }
     }
 
-    pub const fn to_array(self) -> [f32; 4] {
+    pub const fn to_f32_array(self) -> [f32; 4] {
         [self.r, self.g, self.b, self.a]
     }
 

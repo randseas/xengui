@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{PaintContext, Style, StyleBuilder, TextCommand, VNode};
+use crate::{PaintContext, RectCommand, Style, StyleBuilder, TextCommand, VNode};
 use smol_str::SmolStr;
 
 #[macro_export]
@@ -87,6 +87,18 @@ impl VNode for Text {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
+        let font_size = self.style.font_size.map(|s| s.value()).unwrap_or(20.0);
+
+        let estimated_width = self.content.len() as f32 * font_size * 0.6;
+        let estimated_height = font_size * 1.2;
+        
+        ctx.draw_rect(RectCommand {
+            position: self.position,
+            size: (estimated_width, estimated_height),
+            background: self.style.background.clone(),
+            border_radius: None,
+        });
+
         ctx.draw_text(TextCommand {
             text: self.content.clone(),
             position: self.position,

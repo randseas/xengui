@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{Color, DrawCommand, PaintContext, VNode, style::Length};
+use crate::{DrawCommand, PaintContext, RectPipeline, TextPipeline, VNode};
 use std::sync::Arc;
-use wgpu_glyph::{GlyphBrushBuilder, Section, Text as WGPUText, ab_glyph};
 use winit::window::Window;
 
 pub struct XenRenderer {
@@ -9,10 +8,10 @@ pub struct XenRenderer {
     pub surface: wgpu::Surface<'static>,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    pub glyph_brush: wgpu_glyph::GlyphBrush<()>,
     pub staging_belt: wgpu::util::StagingBelt,
     pub config: wgpu::SurfaceConfiguration,
-    pub font_map: std::collections::HashMap<String, wgpu_glyph::FontId>, // Name -> ID match
+    pub text_pipeline: TextPipeline,
+    pub rect_pipeline: RectPipeline,
 }
 
 impl XenRenderer {
@@ -92,50 +91,8 @@ impl XenRenderer {
             })
             .unwrap_or(surface_caps.formats[0]);
 
-        let default_font_arc = {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                use system_fonts::find_for_system_locale;
-
-                let (_locale, _region, fonts) =
-                    find_for_system_locale(system_fonts::FontStyle::Sans);
-                let mut loaded_font = None;
-
-                for font in fonts {
-                    if let system_fonts::FoundFontSource::Path(font_path) = font.source
-                        && let Ok(font_bytes) = std::fs::read(&font_path)
-                        && let Ok(font_arc) = ab_glyph::FontArc::try_from_vec(font_bytes)
-                    {
-                        loaded_font = Some(font_arc);
-                        break;
-                    }
-                }
-                loaded_font.ok_or_else(|| {
-                    "Failed to load any native system font from system paths.".to_string()
-                })?
-            }
-
-            #[cfg(target_arch = "wasm32")]
-            {
-                if user_fonts.is_empty() {
-                    return Err("WASM target requires at least one font supplied.".to_string());
-                }
-                ab_glyph::FontArc::try_from_vec(user_fonts[0].1.clone())
-                    .map_err(|_| "Invalid fallback font provided for WASM context.".to_string())?
-            }
-        };
-
-        let mut glyph_brush =
-            GlyphBrushBuilder::using_font(default_font_arc).build(&device, surface_format);
-        let mut font_map = std::collections::HashMap::new();
-
-        // Dynamic font registering
-        for (name, data) in user_fonts {
-            if let Ok(user_font) = ab_glyph::FontArc::try_from_vec(data) {
-                let id = glyph_brush.add_font(user_font);
-                font_map.insert(name, id);
-            }
-        }
+        let text_pipeline = TextPipeline::new(&device, surface_format, user_fonts)?;
+        let rect_pipeline = RectPipeline::new(&device, surface_format);
 
         let alpha_mode = surface_caps
             .alpha_modes
@@ -170,10 +127,10 @@ impl XenRenderer {
             surface,
             device,
             queue,
-            glyph_brush,
             staging_belt,
             config,
-            font_map,
+            text_pipeline,
+            rect_pipeline,
         })
     }
 
@@ -195,7 +152,7 @@ impl XenRenderer {
                 None => wgpu::Color::WHITE,
             };
 
-            let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -226,41 +183,30 @@ impl XenRenderer {
             for command in commands {
                 match command {
                     DrawCommand::Text(cmd) => {
-                        let color = cmd.style.color.unwrap_or(match theme {
-                            Some(winit::window::Theme::Dark) => Color::WHITE,
-                            _ => Color::BLACK,
-                        });
-
-                        let font_size = cmd.style.font_size.unwrap_or(Length::pixels(20.0));
-
-                        let scale = self.window.scale_factor() as f32;
-
-                        let mut glyph = WGPUText::new(&cmd.text)
-                            .with_color(color.to_array())
-                            .with_scale(font_size.to_physical(scale));
-
-                        if let Some(font_name) = cmd.font.as_deref()
-                            && let Some(font_id) = self.font_map.get(font_name).copied()
-                        {
-                            glyph = glyph.with_font_id(font_id);
-                        }
-
-                        let section = Section::default()
-                            .with_screen_position((cmd.position.0 * scale, cmd.position.1 * scale))
-                            .add_text(glyph);
-
-                        self.queue_text(section);
+                        self.text_pipeline.draw(
+                            &mut render_pass,
+                            self.window.scale_factor() as f32,
+                            self.window.theme().unwrap_or(winit::window::Theme::Dark),
+                            &cmd,
+                        );
                     }
-                    DrawCommand::Rect(_cmd) => {
-                        // TODO: Render rectangle
+                    DrawCommand::Rect(cmd) => {
+                        self.rect_pipeline.draw(
+                            &self.device,
+                            &self.queue,
+                            &mut render_pass,
+                            self.config.width,
+                            self.config.height,
+                            &cmd,
+                        );
                     }
                 }
             }
 
             drop(render_pass);
 
-            self.glyph_brush
-                .draw_queued(
+            self.text_pipeline
+                .flush(
                     &self.device,
                     &mut self.staging_belt,
                     &mut encoder,
@@ -268,7 +214,7 @@ impl XenRenderer {
                     frame.texture.width(),
                     frame.texture.height(),
                 )
-                .expect("Drawing failed.");
+                .expect("Text drawing failed.");
         }
 
         // finish buffers
@@ -277,10 +223,6 @@ impl XenRenderer {
         self.queue.submit(Some(encoder.finish()));
         frame.present();
         self.staging_belt.recall();
-    }
-
-    pub(crate) fn queue_text(&mut self, section: Section<'_>) {
-        self.glyph_brush.queue(section);
     }
 
     pub fn resize(

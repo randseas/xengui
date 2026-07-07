@@ -7,7 +7,7 @@ pub struct RectCommand {
     pub position: (f32, f32),
     pub size: (f32, f32),
     pub background: Option<Background>,
-    pub border_radius: Length,
+    pub border_radius: Option<Length>,
 }
 
 #[derive(Clone, Debug)]
