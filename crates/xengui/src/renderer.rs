@@ -235,7 +235,7 @@ impl XenRenderer {
 
                         let mut glyph = WGPUText::new(&cmd.text)
                             .with_color(color.to_array())
-                            .with_scale(font_size.px());
+                            .with_scale(font_size.get_pixels());
 
                         if let Some(font_name) = cmd.font.as_deref()
                             && let Some(font_id) = self.font_map.get(font_name).copied() {

@@ -78,12 +78,15 @@ impl VNode for Text {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
+
     fn key(&self) -> &str {
         &self.key
     }
+
     fn is_dirty(&self) -> bool {
         self.is_dirty
     }
+    
     fn set_dirty(&mut self, dirty: bool) {
         self.is_dirty = dirty;
     }

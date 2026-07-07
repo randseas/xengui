@@ -9,7 +9,7 @@ impl Length {
     }
 
     /// Returns the value in pixels.
-    pub const fn px(&self) -> f32 {
+    pub const fn get_pixels(&self) -> f32 {
         self.0
     }
 }
