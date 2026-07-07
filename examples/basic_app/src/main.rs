@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use xengui::{App, AppConfig, Color, Text};
+use xengui::{App, AppConfig, Color, StyleBuilder, Text};
 
 #[cfg(target_arch = "wasm32")]
 const PLATFORM: &str = "wasm32 (web)";
@@ -59,28 +59,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     app.add_node(Box::new(
         Text::new("title")
             .text("XenGui")
-            .font("Inter_Medium")
+            .font("Inter_SemiBold")
             .font_size(24)
-            .position((0.0, 0.0))
-            .text_color(Color::TEAL),
+            .color(Color::TEAL)
+            .background(Color::YELLOW)
+            .position((0.0, 0.0)),
     ));
 
     app.add_node(Box::new(
         Text::new("text2")
-            .font("Inter_Regular")
             .text("Hello, world!")
-            .font_size(20.0)
-            .position((0.0, 24.0))
-            .text_color(Color::WHITE),
+            .font("Inter_Regular")
+            .font_size(24)
+            .color(Color::WHITE)
+            .background(Color::BLACK)
+            .position((0.0, 24.0)),
     ));
 
     app.add_node(Box::new(
         Text::new("text3")
-            .font("Inter_Regular")
             .text(format!("Platform: {PLATFORM}"))
-            .font_size(20.0)
-            .position((0.0, 44.0))
-            .text_color(Color::LIGHT_GRAY),
+            .font("Inter_Regular")
+            .font_size(24)
+            .color(Color::WHITE)
+            .background(Color::BLUE)
+            .position((0.0, 48.0)),
     ));
 
     #[cfg(target_arch = "wasm32")]
