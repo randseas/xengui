@@ -9,8 +9,12 @@ impl Length {
     }
 
     /// Returns the value in pixels.
-    pub const fn get_pixels(&self) -> f32 {
+    pub const fn value(&self) -> f32 {
         self.0
+    }
+
+    pub fn to_physical(self, scale_factor: f32) -> f32 {
+        self.value() * scale_factor
     }
 }
 

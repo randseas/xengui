@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{
-    Color, DrawCommand, PaintContext, VNode, style::Length,
-};
+use crate::{Color, DrawCommand, PaintContext, VNode, style::Length};
 use std::sync::Arc;
 use wgpu_glyph::{GlyphBrushBuilder, Section, Text as WGPUText, ab_glyph};
 use winit::window::Window;
 
 pub struct XenRenderer {
+    pub window: Arc<Window>,
     pub surface: wgpu::Surface<'static>,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
@@ -167,6 +166,7 @@ impl XenRenderer {
         let staging_belt = wgpu::util::StagingBelt::new(device.clone(), 1024 * 1024);
 
         Ok(Self {
+            window,
             surface,
             device,
             queue,
@@ -212,7 +212,7 @@ impl XenRenderer {
                 multiview_mask: None,
             });
 
-            // frame start 
+            // frame start
             let mut commands = Vec::new();
 
             {
@@ -233,17 +233,20 @@ impl XenRenderer {
 
                         let font_size = cmd.style.font_size.unwrap_or(Length::pixels(20.0));
 
+                        let scale = self.window.scale_factor() as f32;
+
                         let mut glyph = WGPUText::new(&cmd.text)
                             .with_color(color.to_array())
-                            .with_scale(font_size.get_pixels());
+                            .with_scale(font_size.to_physical(scale));
 
                         if let Some(font_name) = cmd.font.as_deref()
-                            && let Some(font_id) = self.font_map.get(font_name).copied() {
-                                glyph = glyph.with_font_id(font_id);
-                            }
+                            && let Some(font_id) = self.font_map.get(font_name).copied()
+                        {
+                            glyph = glyph.with_font_id(font_id);
+                        }
 
                         let section = Section::default()
-                            .with_screen_position(cmd.position)
+                            .with_screen_position((cmd.position.0 * scale, cmd.position.1 * scale))
                             .add_text(glyph);
 
                         self.queue_text(section);
