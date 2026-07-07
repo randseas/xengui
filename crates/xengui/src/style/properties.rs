@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use super::{
     Color, Edges, FontStyle, FontWeight, Length, LetterSpacing, LineHeight, TextAlign,
-    TextDecoration,
+    TextDecoration, Size
 };
 
 #[derive(Clone, Debug, Default)]
@@ -18,4 +18,9 @@ pub struct Style {
 
     // Layout
     pub padding: Option<Edges>,
+
+    // Sizing
+    pub size: Option<Size>,
+    pub min_size: Option<Size>,
+    pub max_size: Option<Size>,
 }
