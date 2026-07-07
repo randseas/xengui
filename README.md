@@ -1,6 +1,7 @@
 # XenGui: a reactive GUI library in pure Rust
 
 [<img alt="github" src="https://img.shields.io/badge/github-randseas/xengui-00aaaa?logo=github" height="20">](https://github.com/randseas/xengui)
+[![Latest version](https://img.shields.io/crates/v/xengui.svg)](https://crates.io/crates/xengui)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/randseas/xengui/blob/main/LICENSE)
 ![CI/CD](https://github.com/randseas/xengui/actions/workflows/ci_check.yml/badge.svg)
 
