@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use super::{DrawCommand, TextCommand};
+use super::{DrawCommand, RectCommand, TextCommand};
 
 pub struct PaintContext<'a> {
     commands: &'a mut Vec<DrawCommand>,
@@ -12,5 +12,9 @@ impl<'a> PaintContext<'a> {
 
     pub fn draw_text(&mut self, command: TextCommand) {
         self.commands.push(DrawCommand::Text(command));
+    }
+
+    pub fn draw_rect(&mut self, command: RectCommand) {
+        self.commands.push(DrawCommand::Rect(command));
     }
 }

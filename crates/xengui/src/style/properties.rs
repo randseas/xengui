@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 use super::{
     Color, Edges, FontStyle, FontWeight, Length, LetterSpacing, LineHeight, TextAlign,
-    TextDecoration, Size
+    TextDecoration, Size, Background
 };
 
 #[derive(Clone, Debug, Default)]
 pub struct Style {
     // Typography
-    pub text_color: Option<Color>,
+    pub color: Option<Color>,
+    pub background: Option<Background>,
     pub font_size: Option<Length>,
     pub font_weight: Option<FontWeight>,
     pub font_style: Option<FontStyle>,

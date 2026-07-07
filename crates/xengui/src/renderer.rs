@@ -226,7 +226,7 @@ impl XenRenderer {
             for command in commands {
                 match command {
                     DrawCommand::Text(cmd) => {
-                        let color = cmd.style.text_color.unwrap_or(match theme {
+                        let color = cmd.style.color.unwrap_or(match theme {
                             Some(winit::window::Theme::Dark) => Color::WHITE,
                             _ => Color::BLACK,
                         });
@@ -250,6 +250,9 @@ impl XenRenderer {
                             .add_text(glyph);
 
                         self.queue_text(section);
+                    }
+                    DrawCommand::Rect(_cmd) => {
+                        // TODO: Render rectangle
                     }
                 }
             }

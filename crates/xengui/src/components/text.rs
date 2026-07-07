@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{PaintContext, Style, TextCommand, VNode};
+use crate::{PaintContext, Style, StyleBuilder, TextCommand, VNode};
 use smol_str::SmolStr;
 
 #[macro_export]
@@ -57,20 +57,15 @@ impl Text {
         self.set_dirty(true);
         self
     }
+}
 
-    pub fn text_color(mut self, color: crate::style::Color) -> Self {
-        self.style.text_color = Some(color);
-        self.set_dirty(true);
-        self
+impl StyleBuilder for Text {
+    fn style_mut(&mut self) -> &mut Style {
+        &mut self.style
     }
 
-    pub fn font_size<L>(mut self, size: L) -> Self
-    where
-        L: Into<crate::style::Length>,
-    {
-        self.style.font_size = Some(size.into());
+    fn mark_dirty(&mut self) {
         self.set_dirty(true);
-        self
     }
 }
 
@@ -86,7 +81,7 @@ impl VNode for Text {
     fn is_dirty(&self) -> bool {
         self.is_dirty
     }
-    
+
     fn set_dirty(&mut self, dirty: bool) {
         self.is_dirty = dirty;
     }
