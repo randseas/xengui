@@ -3,10 +3,10 @@ use super::Length;
 
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct Edges {
-    left: Length,
-    top: Length,
-    right: Length,
-    bottom: Length,
+    pub left: Length,
+    pub top: Length,
+    pub right: Length,
+    pub bottom: Length,
 }
 
 impl Edges {

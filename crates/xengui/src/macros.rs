@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: Apache-2.0
+
+/// Leaf widget'lara (ör. `Text("...")`) tek argümanlı, içerik-bazlı bir
+/// kurucu sağlar. Container widget'lar (View) bunu implemente etmez —
+/// derleme zamanında `Foo("x")` yazıp `Foo` bunu implemente etmiyorsa
+/// açık bir "trait not implemented" hatası alırsınız.
+pub trait WidgetContent: Sized {
+    fn with_content(self, content: impl Into<smol_str::SmolStr>) -> Self;
+}
+
+impl WidgetContent for crate::Text {
+    fn with_content(self, content: impl Into<smol_str::SmolStr>) -> Self {
+        self.text(content)
+    }
+}
+
+/// ```ignore
+/// view! {
+///     View {
+///         width: 400,
+///         height: 300,
+///         padding: 20,
+///         background: Color::BLACK,
+///         Text("Hello"),
+///         View { flex_direction: FlexDirection::Row, Text("World") }
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! view {
+    ($widget:ident { $($rest:tt)* }) => {
+        $crate::view_props!( $widget::new() ; $($rest)* )
+    };
+    ($widget:ident ( $content:expr )) => {
+        $crate::WidgetContent::with_content($widget::new(), $content)
+    };
+}
+
+#[macro_export]
+macro_rules! view_props {
+    ($acc:expr ;) => { $acc };
+
+    // prop: expr  (son eleman)
+    ($acc:expr ; $key:ident : $val:expr) => {
+        $acc.$key($val)
+    };
+    // prop: expr, devamı var
+    ($acc:expr ; $key:ident : $val:expr , $($rest:tt)*) => {
+        $crate::view_props!( $acc.$key($val) ; $($rest)* )
+    };
+
+    // Child { ... } (son eleman)
+    ($acc:expr ; $widget:ident { $($inner:tt)* }) => {{
+        let mut __parent = $acc;
+        let __child = $crate::view_props!( $widget::new() ; $($inner)* );
+        __parent = __parent.child(__child);
+        __parent
+    }};
+    // Child { ... }, devamı var
+    ($acc:expr ; $widget:ident { $($inner:tt)* } , $($rest:tt)*) => {
+        $crate::view_props!({
+            let mut __parent = $acc;
+            let __child = $crate::view_props!( $widget::new() ; $($inner)* );
+            __parent = __parent.child(__child);
+            __parent
+        } ; $($rest)*)
+    };
+
+    // Child(expr) (son eleman) — ör. Text("Hello")
+    ($acc:expr ; $widget:ident ( $content:expr )) => {{
+        let mut __parent = $acc;
+        let __child = $crate::WidgetContent::with_content($widget::new(), $content);
+        __parent = __parent.child(__child);
+        __parent
+    }};
+    // Child(expr), devamı var
+    ($acc:expr ; $widget:ident ( $content:expr ) , $($rest:tt)*) => {
+        $crate::view_props!({
+            let mut __parent = $acc;
+            let __child = $crate::WidgetContent::with_content($widget::new(), $content);
+            __parent = __parent.child(__child);
+            __parent
+        } ; $($rest)*)
+    };
+}

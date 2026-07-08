@@ -1,25 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-use xengui::{App, AppConfig, Color, StyleBuilder, Text};
-
-#[cfg(target_arch = "wasm32")]
-const PLATFORM: &str = "wasm32 (web)";
-
-#[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
-const PLATFORM: &str = "windows";
-
-#[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
-const PLATFORM: &str = "linux";
-
-#[cfg(all(not(target_arch = "wasm32"), target_os = "macos"))]
-const PLATFORM: &str = "macos";
-
-#[cfg(all(
-    not(target_arch = "wasm32"),
-    not(target_os = "windows"),
-    not(target_os = "linux"),
-    not(target_os = "macos")
-))]
-const PLATFORM: &str = "unknown";
+use xengui::{
+    AlignItems, App, AppConfig, Border, Color, Display, Edges, FlexDirection,
+    JustifyContent, Length, StyleBuilder, Text, widgets::View,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_arch = "wasm32")]
@@ -56,32 +39,70 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         include_bytes!("../fonts/Inter_SemiBold.ttf").to_vec(),
     );
 
-    app.add_node(Box::new(
-        Text::new("title")
-            .text("XenGui")
-            .font("Inter_SemiBold")
-            .font_size(24)
-            .color(Color::TEAL)
-            .background(Color::YELLOW),
-    ));
+    let root = Box::new(
+        View::new()
+            .display(Display::Flex)
+            .flex_direction(FlexDirection::Column)
+            .justify_content(JustifyContent::Start)
+            .align_items(AlignItems::Center)
+            //.width(Length::Percent(1.0)) // 1.0 = %100
+            //.height(Length::Percent(1.0)) // 1.0 = %100
+            .padding(Edges::all(20.0))
+            .background(Color::DARK_GRAY)
+            .child(
+                // Header section
+                View::new()
+                    .display(Display::Flex)
+                    .flex_direction(FlexDirection::Row)
+                    .justify_content(JustifyContent::Center)
+                    .align_items(AlignItems::Center)
+                    .size(760.0, 60.0)
+                    .margin(Edges::all(20.0))
+                    .background(Color::LIGHT_GRAY)
+                    .border(Border::new(
+                        Length::pixels(2.0),
+                        Color::RED,
+                        Length::pixels(16.0),
+                    ))
+                    .child(Text::new().text("Dashboard Header").color(Color::BLACK)),
+            )
+            .child(
+                // Content area
+                // Header section (Navbar with flex layout)
+                View::new()
+                    .display(Display::Flex)
+                    .flex_direction(FlexDirection::Row)
+                    .justify_content(JustifyContent::Start)
+                    .align_items(AlignItems::Center)
+                    .size(760.0, 60.0)
+                    .margin(Edges::all(20.0))
+                    .background(Color::LIGHT_GRAY)
+                    .child(
+                        // Logo (none / size defined by content)
+                        View::new()
+                            .padding(Edges::all(10.0))
+                            .child(Text::new().text("Logo").color(Color::BLUE)),
+                    )
+                    .child(
+                        // Arama Çubuğu (grow)
+                        View::new()
+                            .flex_grow(1.0)
+                            .margin(Edges::all(5.0))
+                            .background(Color::DARK_GRAY) // visual separation for input
+                            .align_items(AlignItems::Center)
+                            .justify_content(JustifyContent::Center)
+                            .child(Text::new().text("Arama Çubuğu")),
+                    )
+                    .child(
+                        // Profil (none / size defined by content)
+                        View::new()
+                            .padding(Edges::all(10.0))
+                            .child(Text::new().text("Profil").color(Color::BLUE)),
+                    ),
+            ),
+    );
 
-    app.add_node(Box::new(
-        Text::new("text2")
-            .text("Hello, world!")
-            .font("Inter_Regular")
-            .font_size(16)
-            .color(Color::WHITE)
-            .background(Color::ORANGE),
-    ));
-
-    app.add_node(Box::new(
-        Text::new("text3")
-            .text(format!("Platform: {PLATFORM}"))
-            .font("Inter_Regular")
-            .font_size(16)
-            .color(Color::WHITE)
-            .background(Color::RED),
-    ));
+    app.add_node(root);
 
     #[cfg(target_arch = "wasm32")]
     {

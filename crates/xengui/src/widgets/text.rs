@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    LayoutBox, LayoutContext, PaintContext, RectCommand, Style, StyleBuilder, TextCommand, VNode,
+    LayoutBox, LayoutContext, PaintContext, RectCommand, Style, StyleBuilder, TextCommand, Widget,
 };
 use smol_str::SmolStr;
 
@@ -16,28 +16,19 @@ macro_rules! props {
 }
 
 pub struct Text {
-    pub key: String,
-    pub is_dirty: bool,
-
+    dirty: bool,
     content: SmolStr,
-    position: (f32, f32),
-
     font: Option<SmolStr>,
-
-    pub style: Style,
+    style: Style,
     layout_box: LayoutBox,
 }
 
 impl Text {
-    pub fn new(key: impl Into<String>) -> Self {
+    pub fn new() -> Self {
         Self {
-            key: key.into(),
-            is_dirty: true,
-
+            dirty: true,
             content: SmolStr::new(""),
-            position: (0.0, 0.0),
             font: None,
-
             style: Style::default(),
             layout_box: LayoutBox::default(),
         }
@@ -50,16 +41,16 @@ impl Text {
         self
     }
 
-    pub fn position(mut self, position: (f32, f32)) -> Self {
-        self.position = position;
-        self.set_dirty(true);
-        self
-    }
-
     pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
         self.font = Some(font.into());
         self.set_dirty(true);
         self
+    }
+}
+
+impl Default for Text {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -69,25 +60,33 @@ impl StyleBuilder for Text {
     }
 
     fn mark_dirty(&mut self) {
-        self.set_dirty(true);
+        self.dirty = true;
     }
 }
 
-impl VNode for Text {
+impl Widget for Text {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
 
-    fn key(&self) -> &str {
-        &self.key
-    }
-
     fn is_dirty(&self) -> bool {
-        self.is_dirty
+        self.dirty
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.is_dirty = dirty;
+        self.dirty = dirty;
+    }
+
+    fn style(&self) -> &Style {
+        &self.style
+    }
+
+    fn style_mut(&mut self) -> &mut Style {
+        &mut self.style
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
@@ -106,6 +105,8 @@ impl VNode for Text {
                 size: (self.layout_box.width, self.layout_box.height),
                 background: self.style.background.clone(),
                 border_radius: None,
+                border_color: None,
+                border_width: None,
             });
         }
 
@@ -148,5 +149,9 @@ impl VNode for Text {
 
     fn layout_box(&self) -> &LayoutBox {
         &self.layout_box
+    }
+
+    fn children(&self) -> &[Box<dyn Widget>] {
+        &[]
     }
 }

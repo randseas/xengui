@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     DrawCommand, LayoutContext, LayoutEngine, PaintContext, RectPipeline, RenderCache,
-    TextPipeline, VNode,
+    TextPipeline, Widget,
 };
 use std::{collections::HashSet, sync::Arc};
 use winit::window::Window;
@@ -149,7 +149,7 @@ impl XenRenderer {
 
     pub fn render_frame(
         &mut self,
-        tree: &mut [Box<dyn VNode>],
+        tree: &mut [Box<dyn Widget>],
         theme: &Option<winit::window::Theme>,
     ) {
         let frame = match self.surface.get_current_texture() {
@@ -198,51 +198,45 @@ impl XenRenderer {
                 multiview_mask: None,
             });
 
-            // Layout Pass
+            // Layout Pass — artık taffy ile (flex/grid destekli).
             let layout_ctx = LayoutContext {
                 text: &self.text_pipeline,
                 scale_factor: self.window.scale_factor() as f32,
                 debug: self.debug,
             };
+            LayoutEngine::layout(
+                tree,
+                &layout_ctx,
+                &self.render_cache,
+                self.config.width as f32,
+                self.config.height as f32,
+            );
 
-            LayoutEngine::layout(tree, &layout_ctx, &self.render_cache);
-
-            // Paint Pass — dirty olmayan VE layout box'ı değişmemiş node'lar için
-            // paint() atlanır, önceki frame'in komutları aynen yeniden kullanılır.
+            // Paint Pass — TÜM ağaç (children dahil) recursive gezilir.
+            // Cache key'i artık `Widget::key()`'e değil, ağaçtaki konuma
+            // (path, ör. "0.1.2") dayanır; bu, key() hiç set edilmemiş
+            // widget'larda (View gibi) önceki `.unwrap()` panic'ini de
+            // kalıcı olarak ortadan kaldırır.
             let mut commands = Vec::new();
-            let mut live_keys: HashSet<&str> = HashSet::with_capacity(tree.len());
+            let mut live_keys: HashSet<String> = HashSet::new();
 
-            for node in tree.iter() {
-                let layout_box = *node.layout_box();
-                let key = node.key();
-                live_keys.insert(key);
-
-                if let Some(cached) = self
-                    .render_cache
-                    .try_reuse(key, layout_box, node.is_dirty())
-                {
-                    commands.extend_from_slice(cached);
-                } else {
-                    let mut local = Vec::new();
-                    {
-                        let mut paint_ctx = PaintContext::new(&mut local, self.debug);
-                        node.paint(&mut paint_ctx);
-                    }
-                    self.render_cache.store(key, layout_box, local.clone());
-                    commands.extend(local);
-                }
+            for (i, node) in tree.iter().enumerate() {
+                paint_recursive(
+                    node.as_ref(),
+                    &i.to_string(),
+                    &mut self.render_cache,
+                    &mut commands,
+                    &mut live_keys,
+                    self.debug,
+                );
             }
-
-            // Kaldırılmış node'ların cache girdilerini temizle (bellek sızıntısını önler).
             self.render_cache.retain_keys(&live_keys);
 
-            // Commit fazı: bu frame'de değerlendirilen tüm dirty flag'ler sıfırlanır
-            // (React'in "commit" fazına karşılık gelir).
+            // Commit fazı: dirty flag'leri sıfırla (children dahil).
             for node in tree.iter_mut() {
-                node.set_dirty(false);
+                reset_dirty_recursive(node.as_mut());
             }
 
-            // Komutları türlerine göre ayır (aynı, değişmedi).
             let mut rect_cmds = Vec::with_capacity(commands.len());
             let mut text_cmds = Vec::new();
             for command in commands.into_iter() {
@@ -252,7 +246,6 @@ impl XenRenderer {
                 }
             }
 
-            // Tüm rect'ler TEK vertex buffer yazımı + TEK draw çağrısıyla çizilir.
             self.rect_pipeline.draw_batch(
                 &self.device,
                 &self.queue,
@@ -262,8 +255,6 @@ impl XenRenderer {
                 &rect_cmds,
             );
 
-            // Text komutları glyph_brush'a kuyruklanır; gerçek çizim `flush()` ile
-            // render_pass'tan SONRA (yeni bir encoder pass'i içinde) yapılır.
             let resolved_theme = theme.unwrap_or(winit::window::Theme::Dark);
             for cmd in &text_cmds {
                 self.text_pipeline
@@ -318,7 +309,7 @@ impl XenRenderer {
 
     pub fn resize(
         &mut self,
-        tree: &mut [Box<dyn VNode>],
+        tree: &mut [Box<dyn Widget>],
         theme: &Option<winit::window::Theme>,
         size: winit::dpi::PhysicalSize<u32>,
     ) {
@@ -333,6 +324,54 @@ impl XenRenderer {
                 node.set_dirty(true);
             }
             self.render_frame(tree, theme);
+        }
+    }
+}
+
+/// Bir widget'ı ve TÜM alt ağacını (children) recursive olarak paint eder.
+/// Dirty olmayan ve layout box'ı değişmemiş dallar için cache'ten aynen
+/// yeniden kullanılır — RenderCache'in sağladığı optimizasyon artık tek
+/// seviyeli değil, tüm ağaç derinliğinde çalışıyor.
+fn paint_recursive(
+    widget: &dyn Widget,
+    path: &str,
+    cache: &mut RenderCache,
+    commands: &mut Vec<DrawCommand>,
+    live_keys: &mut HashSet<String>,
+    debug: bool,
+) {
+    live_keys.insert(path.to_string());
+    let layout_box = *widget.layout_box();
+
+    if let Some(cached) = cache.try_reuse(path, layout_box, widget.is_dirty()) {
+        commands.extend_from_slice(cached);
+    } else {
+        let mut local = Vec::new();
+        {
+            let mut paint_ctx = PaintContext::new(&mut local, debug);
+            widget.paint(&mut paint_ctx);
+        }
+        cache.store(path, layout_box, local.clone());
+        commands.extend(local);
+    }
+
+    for (i, child) in widget.children().iter().enumerate() {
+        paint_recursive(
+            child.as_ref(),
+            &format!("{path}.{i}"),
+            cache,
+            commands,
+            live_keys,
+            debug,
+        );
+    }
+}
+
+fn reset_dirty_recursive(widget: &mut dyn Widget) {
+    widget.set_dirty(false);
+    if let Some(children) = widget.children_mut() {
+        for child in children.iter_mut() {
+            reset_dirty_recursive(child.as_mut());
         }
     }
 }

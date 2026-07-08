@@ -12,7 +12,7 @@ impl<'a> PaintContext<'a> {
     }
 
     pub fn draw_text(&mut self, command: TextCommand) {
-        self.commands.push(DrawCommand::Text(command));
+        self.commands.push(DrawCommand::Text(Box::new(command)));
     }
 
     pub fn draw_rect(&mut self, command: RectCommand) {

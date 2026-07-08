@@ -1,7 +1,11 @@
 use crate::style::{FontStyle, FontWeight, LetterSpacing};
 
 // SPDX-License-Identifier: Apache-2.0
-use super::{Background, Color, Edges, Length, Size, Style};
+use super::{
+    AlignItems, Background, Border, Color, Display, Edges, FlexDirection, FlexWrap, GridPlacement,
+    GridTrack, JustifyContent, Length, LineHeight, Position, Size, Style, TextAlign,
+    TextDecoration,
+};
 
 pub trait StyleBuilder: Sized {
     fn style_mut(&mut self) -> &mut Style;
@@ -68,6 +72,180 @@ pub trait StyleBuilder: Sized {
 
     fn letter_spacing(mut self, spacing: impl Into<LetterSpacing>) -> Self {
         self.style_mut().letter_spacing = Some(spacing.into());
+        self.mark_dirty();
+        self
+    }
+
+    fn text_align(mut self, align: TextAlign) -> Self {
+        self.style_mut().text_align = Some(align);
+        self.mark_dirty();
+        self
+    }
+
+    fn text_decoration(mut self, decoration: TextDecoration) -> Self {
+        self.style_mut().text_decoration = Some(decoration);
+        self.mark_dirty();
+        self
+    }
+
+    fn line_height(mut self, height: impl Into<LineHeight>) -> Self {
+        self.style_mut().line_height = Some(height.into());
+        self.mark_dirty();
+        self
+    }
+
+    fn margin<E: Into<Edges>>(mut self, margin: E) -> Self {
+        self.style_mut().margin = Some(margin.into());
+        self.mark_dirty();
+        self
+    }
+
+    fn border(mut self, border: Border) -> Self {
+        self.style_mut().border = Some(border);
+        self.mark_dirty();
+        self
+    }
+
+    fn min_width<L: Into<Length>>(mut self, width: L) -> Self {
+        self.style_mut()
+            .min_size
+            .get_or_insert_with(Default::default)
+            .width = width.into();
+        self.mark_dirty();
+        self
+    }
+
+    fn min_height<L: Into<Length>>(mut self, height: L) -> Self {
+        self.style_mut()
+            .min_size
+            .get_or_insert_with(Default::default)
+            .height = height.into();
+        self.mark_dirty();
+        self
+    }
+
+    fn min_size<W: Into<Length>, H: Into<Length>>(mut self, width: W, height: H) -> Self {
+        self.style_mut().min_size = Some(Size::new(width.into(), height.into()));
+        self.mark_dirty();
+        self
+    }
+
+    fn max_width<L: Into<Length>>(mut self, width: L) -> Self {
+        self.style_mut()
+            .max_size
+            .get_or_insert_with(Default::default)
+            .width = width.into();
+        self.mark_dirty();
+        self
+    }
+
+    fn max_height<L: Into<Length>>(mut self, height: L) -> Self {
+        self.style_mut()
+            .max_size
+            .get_or_insert_with(Default::default)
+            .height = height.into();
+        self.mark_dirty();
+        self
+    }
+
+    fn max_size<W: Into<Length>, H: Into<Length>>(mut self, width: W, height: H) -> Self {
+        self.style_mut().max_size = Some(Size::new(width.into(), height.into()));
+        self.mark_dirty();
+        self
+    }
+
+    fn display(mut self, display: Display) -> Self {
+        self.style_mut().display = Some(display);
+        self.mark_dirty();
+        self
+    }
+
+    fn position(mut self, position: Position) -> Self {
+        self.style_mut().position = Some(position);
+        self.mark_dirty();
+        self
+    }
+
+    fn flex_direction(mut self, direction: FlexDirection) -> Self {
+        self.style_mut().flex_direction = Some(direction);
+        self.mark_dirty();
+        self
+    }
+
+    fn flex_wrap(mut self, wrap: FlexWrap) -> Self {
+        self.style_mut().flex_wrap = Some(wrap);
+        self.mark_dirty();
+        self
+    }
+
+    fn flex_grow(mut self, grow: f32) -> Self {
+        self.style_mut().flex_grow = Some(grow);
+        self.mark_dirty();
+        self
+    }
+
+    fn flex_shrink(mut self, shrink: f32) -> Self {
+        self.style_mut().flex_shrink = Some(shrink);
+        self.mark_dirty();
+        self
+    }
+
+    fn flex_basis<L: Into<Length>>(mut self, basis: L) -> Self {
+        self.style_mut().flex_basis = Some(basis.into());
+        self.mark_dirty();
+        self
+    }
+
+    fn align_items(mut self, align: AlignItems) -> Self {
+        self.style_mut().align_items = Some(align);
+        self.mark_dirty();
+        self
+    }
+
+    fn align_self(mut self, align: AlignItems) -> Self {
+        self.style_mut().align_self = Some(align);
+        self.mark_dirty();
+        self
+    }
+
+    fn justify_content(mut self, justify: JustifyContent) -> Self {
+        self.style_mut().justify_content = Some(justify);
+        self.mark_dirty();
+        self
+    }
+
+    fn align_content(mut self, align: JustifyContent) -> Self {
+        self.style_mut().align_content = Some(align);
+        self.mark_dirty();
+        self
+    }
+
+    fn gap<W: Into<Length>, H: Into<Length>>(mut self, width: W, height: H) -> Self {
+        self.style_mut().gap = Some((width.into(), height.into()));
+        self.mark_dirty();
+        self
+    }
+
+    fn grid_template_columns(mut self, columns: impl Into<Vec<GridTrack>>) -> Self {
+        self.style_mut().grid_template_columns = Some(columns.into());
+        self.mark_dirty();
+        self
+    }
+
+    fn grid_template_rows(mut self, rows: impl Into<Vec<GridTrack>>) -> Self {
+        self.style_mut().grid_template_rows = Some(rows.into());
+        self.mark_dirty();
+        self
+    }
+
+    fn grid_column(mut self, column: GridPlacement) -> Self {
+        self.style_mut().grid_column = Some(column);
+        self.mark_dirty();
+        self
+    }
+
+    fn grid_row(mut self, row: GridPlacement) -> Self {
+        self.style_mut().grid_row = Some(row);
         self.mark_dirty();
         self
     }

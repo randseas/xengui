@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{VNode, XenRenderer};
+use crate::{Widget, XenRenderer};
 use std::sync::Arc;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -83,7 +83,7 @@ pub struct App {
     window: Option<Arc<Window>>,
 
     config: AppConfig,
-    v_domtree: Vec<Box<dyn VNode>>,
+    root: Vec<Box<dyn Widget>>,
     is_visible: bool,
 
     #[cfg(target_arch = "wasm32")]
@@ -99,7 +99,7 @@ impl App {
             renderer: None,
             window: None,
             config,
-            v_domtree: vec![],
+            root: Vec::new(),
             is_visible: false,
             #[cfg(target_arch = "wasm32")]
             event_proxy: None,
@@ -117,8 +117,8 @@ impl App {
         self
     }
 
-    pub fn add_node(&mut self, node: Box<dyn VNode>) {
-        self.v_domtree.push(node);
+    pub fn add_node(&mut self, node: Box<dyn Widget>) {
+        self.root.push(node);
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -301,7 +301,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             WindowEvent::CloseRequested => _event_loop.exit(),
             WindowEvent::RedrawRequested => {
                 if let Some(renderer) = &mut self.renderer {
-                    renderer.render_frame(&mut self.v_domtree, &self.config.theme);
+                    renderer.render_frame(&mut self.root, &self.config.theme);
                     if !self.is_visible
                         && let Some(window) = &self.window
                     {
@@ -312,7 +312,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
             WindowEvent::Resized(new_size) => {
                 if let Some(renderer) = &mut self.renderer {
-                    renderer.resize(&mut self.v_domtree, &self.config.theme, new_size);
+                    renderer.resize(&mut self.root, &self.config.theme, new_size);
                     if !self.is_visible
                         && let Some(window) = &self.window
                     {
@@ -322,7 +322,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 }
             }
             WindowEvent::ScaleFactorChanged { .. } => {
-                for node in &mut self.v_domtree {
+                for node in &mut self.root {
                     node.set_dirty(true);
                 }
                 if let Some(window) = &self.window {
@@ -334,7 +334,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 if self.config.debug {
                     log::info!("[INFO] Theme changed: {:?}", new_theme);
                 }
-                for node in &mut self.v_domtree {
+                for node in &mut self.root {
                     node.set_dirty(true);
                 }
                 if let Some(window) = &self.window {

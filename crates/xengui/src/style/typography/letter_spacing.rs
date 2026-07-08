@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::style::Length;
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct LetterSpacing(Length);
 
 impl LetterSpacing {

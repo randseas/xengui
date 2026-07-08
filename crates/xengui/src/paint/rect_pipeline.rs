@@ -4,8 +4,13 @@ use crate::RectCommand;
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
-    position: [f32; 2],
-    color: [f32; 4],
+    position: [f32; 2],  // NDC
+    local_pos: [f32; 2], // rect merkezine göre piksel-uzayı konumu
+    half_size: [f32; 2], // rect'in yarı genişlik/yükseklik (piksel)
+    radius: f32,
+    border_width: f32,
+    fill_color: [f32; 4],
+    border_color: [f32; 4],
 }
 
 impl Vertex {
@@ -22,6 +27,31 @@ impl Vertex {
                 wgpu::VertexAttribute {
                     shader_location: 1,
                     offset: 8,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
+                wgpu::VertexAttribute {
+                    shader_location: 2,
+                    offset: 16,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
+                wgpu::VertexAttribute {
+                    shader_location: 3,
+                    offset: 24,
+                    format: wgpu::VertexFormat::Float32,
+                },
+                wgpu::VertexAttribute {
+                    shader_location: 4,
+                    offset: 28,
+                    format: wgpu::VertexFormat::Float32,
+                },
+                wgpu::VertexAttribute {
+                    shader_location: 5,
+                    offset: 32,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    shader_location: 6,
+                    offset: 48,
                     format: wgpu::VertexFormat::Float32x4,
                 },
             ],
@@ -35,9 +65,7 @@ pub struct RectPipeline {
     vertex_capacity: usize,
 }
 
-/// Bir rect kaç vertex'e denk geliyor (2 üçgen = 6 vertex).
 const VERTICES_PER_RECT: usize = 6;
-/// Frame ortasında sık sık realloc olmaması için makul bir başlangıç kapasitesi.
 const DEFAULT_RECT_CAPACITY: usize = 256;
 
 impl RectPipeline {
@@ -83,7 +111,6 @@ impl RectPipeline {
         });
 
         let vertex_capacity = DEFAULT_RECT_CAPACITY * VERTICES_PER_RECT;
-
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Rect Vertex Buffer"),
             size: (vertex_capacity * std::mem::size_of::<Vertex>()) as u64,
@@ -98,10 +125,6 @@ impl RectPipeline {
         }
     }
 
-    /// Bir frame'deki TÜM rect komutlarını tek vertex buffer yazımı ve
-    /// tek draw çağrısıyla çizer. Komutlar tek tek çizilmez; aksi halde
-    /// `queue.write_buffer` çağrıları `submit()` anına kadar sıraya girdiği
-    /// için önceki rect'lerin verisi sonraki rect'inkiyle ezilir.
     pub fn draw_batch(
         &mut self,
         device: &wgpu::Device,
@@ -122,45 +145,54 @@ impl RectPipeline {
         let mut vertices = Vec::with_capacity(cmds.len() * VERTICES_PER_RECT);
 
         for cmd in cmds {
-            let background = match cmd.background.as_ref() {
-                Some(crate::Background::Color(color)) => color,
-                None => continue, // arka planı olmayan rect'i sessizce atla
+            let fill_color = match cmd.background.as_ref() {
+                Some(crate::Background::Color(color)) => color.to_f32_array(),
+                None => [0.0, 0.0, 0.0, 0.0],
             };
-            let rgba = background.to_f32_array();
 
             let (x, y) = cmd.position;
             let (w, h) = cmd.size;
+            let half_w = w * 0.5;
+            let half_h = h * 0.5;
 
+            // Radius, rect'ten büyük olamaz (aksi halde SDF bozuk şekil üretir).
+            let radius = cmd
+                .border_radius
+                .map(|r| r.value())
+                .unwrap_or(0.0)
+                .clamp(0.0, half_w.min(half_h));
+
+            let border_width = cmd.border_width.map(|bw| bw.value()).unwrap_or(0.0);
+            let border_color = cmd
+                .border_color
+                .map(|c| c.to_f32_array())
+                .unwrap_or([0.0, 0.0, 0.0, 0.0]);
+
+            let half_size = [half_w, half_h];
             let p0 = ndc(x, y);
             let p1 = ndc(x + w, y);
             let p2 = ndc(x, y + h);
             let p3 = ndc(x + w, y + h);
 
+            let local = |lx: f32, ly: f32| [lx, ly];
+
+            let mk = |screen: [f32; 2], local_pos: [f32; 2]| Vertex {
+                position: screen,
+                local_pos,
+                half_size,
+                radius,
+                border_width,
+                fill_color,
+                border_color,
+            };
+
             vertices.extend_from_slice(&[
-                Vertex {
-                    position: p0,
-                    color: rgba,
-                },
-                Vertex {
-                    position: p1,
-                    color: rgba,
-                },
-                Vertex {
-                    position: p2,
-                    color: rgba,
-                },
-                Vertex {
-                    position: p2,
-                    color: rgba,
-                },
-                Vertex {
-                    position: p1,
-                    color: rgba,
-                },
-                Vertex {
-                    position: p3,
-                    color: rgba,
-                },
+                mk(p0, local(-half_w, -half_h)),
+                mk(p1, local(half_w, -half_h)),
+                mk(p2, local(-half_w, half_h)),
+                mk(p2, local(-half_w, half_h)),
+                mk(p1, local(half_w, -half_h)),
+                mk(p3, local(half_w, half_h)),
             ]);
         }
 
@@ -169,7 +201,6 @@ impl RectPipeline {
         }
 
         self.ensure_capacity(device, vertices.len());
-
         queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
 
         render_pass.set_pipeline(&self.pipeline);
@@ -183,7 +214,6 @@ impl RectPipeline {
             1.0,
         );
         render_pass.set_scissor_rect(0, 0, surface_width, surface_height);
-
         render_pass.draw(0..vertices.len() as u32, 0..1);
     }
 
@@ -191,9 +221,7 @@ impl RectPipeline {
         if required <= self.vertex_capacity {
             return;
         }
-
         self.vertex_capacity = required.next_power_of_two();
-
         self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Rect Vertex Buffer"),
             size: (self.vertex_capacity * std::mem::size_of::<Vertex>()) as u64,

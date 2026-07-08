@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{Background, Length, Style};
+use crate::{Background, Color, Length, Style};
 use smol_str::SmolStr;
 
 #[derive(Clone, Debug)]
@@ -8,6 +8,8 @@ pub struct RectCommand {
     pub size: (f32, f32),
     pub background: Option<Background>,
     pub border_radius: Option<Length>,
+    pub border_width: Option<Length>,
+    pub border_color: Option<Color>,
 }
 
 #[derive(Clone, Debug)]
@@ -21,5 +23,5 @@ pub struct TextCommand {
 #[derive(Clone, Debug)]
 pub enum DrawCommand {
     Rect(RectCommand),
-    Text(TextCommand),
+    Text(Box<TextCommand>),
 }

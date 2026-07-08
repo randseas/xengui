@@ -50,7 +50,7 @@ impl Color {
     pub const fn to_f32_array(self) -> [f32; 4] {
         [self.r(), self.g(), self.b(), self.a()]
     }
-    
+
     pub const fn with_alpha(self, alpha: u8) -> Self {
         Self {
             r: self.r,
@@ -93,4 +93,10 @@ impl Color {
     pub const GRAY: Self = Self::rgb(128, 128, 128);
     pub const LIGHT_GRAY: Self = Self::rgb(211, 211, 211);
     pub const DARK_GRAY: Self = Self::rgb(64, 64, 64);
+}
+
+impl Default for Color {
+    fn default() -> Self {
+        Self::TRANSPARENT
+    }
 }
