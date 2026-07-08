@@ -17,7 +17,7 @@ panic = "abort"
 opt-level = 2
 
 [workspace.dependencies]
-xengui = { version = "0.2.0", path = "crates/xengui" }
+xengui = { version = "0.2.1", path = "crates/xengui" }
 wgpu = { version = "28.0.0", features = ["webgl"] }
 wgpu_glyph = "0.28.0"
 winit = "0.30.0"

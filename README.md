@@ -52,7 +52,7 @@ app.add_node(Box::new(
 
 ```toml
 [dependencies]
-xengui = "0.2.0"
+xengui = "0.2.1"
 ```
 
 ## Sections:
