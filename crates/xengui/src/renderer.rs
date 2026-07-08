@@ -57,6 +57,7 @@ impl XenRenderer {
     pub async fn new(
         window: Arc<Window>,
         user_fonts: Vec<(String, Vec<u8>)>,
+        debug: bool,
     ) -> Result<Self, String> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -78,7 +79,7 @@ impl XenRenderer {
             .await
             .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
 
-        Self::init_common(window, surface, adapter, device, queue, user_fonts)
+        Self::init_common(window, surface, adapter, device, queue, user_fonts, debug)
     }
 
     fn init_common(

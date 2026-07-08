@@ -268,9 +268,10 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 let window_clone = window.clone();
                 let proxy_clone = proxy.clone();
                 let user_fonts = std::mem::take(&mut self.config.fonts);
+                let debug = std::mem::take(&mut self.config.debug);
 
                 wasm_bindgen_futures::spawn_local(async move {
-                    if let Ok(renderer) = XenRenderer::new(window_clone, user_fonts).await {
+                    if let Ok(renderer) = XenRenderer::new(window_clone, user_fonts, debug).await {
                         let _ = proxy_clone.send_event(XenEvent::RendererReady(renderer));
                     }
                 });
