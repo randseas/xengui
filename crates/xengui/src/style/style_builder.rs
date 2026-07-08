@@ -1,3 +1,5 @@
+use crate::style::{FontStyle, FontWeight, LetterSpacing};
+
 // SPDX-License-Identifier: Apache-2.0
 use super::{Background, Color, Edges, Length, Size, Style};
 
@@ -49,6 +51,23 @@ pub trait StyleBuilder: Sized {
 
     fn font_size<L: Into<Length>>(mut self, size: L) -> Self {
         self.style_mut().font_size = Some(size.into());
+        self.mark_dirty();
+        self
+    }
+    fn font_weight(mut self, weight: FontWeight) -> Self {
+        self.style_mut().font_weight = Some(weight);
+        self.mark_dirty();
+        self
+    }
+
+    fn font_style(mut self, style: FontStyle) -> Self {
+        self.style_mut().font_style = Some(style);
+        self.mark_dirty();
+        self
+    }
+
+    fn letter_spacing(mut self, spacing: impl Into<LetterSpacing>) -> Self {
+        self.style_mut().letter_spacing = Some(spacing.into());
         self.mark_dirty();
         self
     }

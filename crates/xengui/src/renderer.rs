@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    DrawCommand, LayoutContext, LayoutEngine, PaintContext, RectPipeline, TextPipeline, VNode,
+    DrawCommand, LayoutContext, LayoutEngine, PaintContext, RectPipeline, RenderCache,
+    TextPipeline, VNode,
 };
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 use winit::window::Window;
 
 pub struct XenRenderer {
@@ -14,6 +15,7 @@ pub struct XenRenderer {
     pub config: wgpu::SurfaceConfiguration,
     pub text_pipeline: TextPipeline,
     pub rect_pipeline: RectPipeline,
+    pub render_cache: RenderCache,
     pub debug: bool,
 }
 
@@ -139,6 +141,7 @@ impl XenRenderer {
             config,
             text_pipeline,
             rect_pipeline,
+            render_cache: RenderCache::new(),
             debug,
         })
     }
@@ -201,22 +204,46 @@ impl XenRenderer {
                 debug: self.debug,
             };
 
-            LayoutEngine::layout(tree, &layout_ctx);
+            LayoutEngine::layout(tree, &layout_ctx, &self.render_cache);
 
-            // Paint Pass — VNode ağacı çizim komutlarını üretir.
+            // Paint Pass — dirty olmayan VE layout box'ı değişmemiş node'lar için
+            // paint() atlanır, önceki frame'in komutları aynen yeniden kullanılır.
             let mut commands = Vec::new();
-            {
-                let mut paint_ctx = PaintContext::new(&mut commands, self.debug);
-                for node in tree.iter() {
-                    node.paint(&mut paint_ctx);
+            let mut live_keys: HashSet<&str> = HashSet::with_capacity(tree.len());
+
+            for node in tree.iter() {
+                let layout_box = *node.layout_box();
+                let key = node.key();
+                live_keys.insert(key);
+
+                if let Some(cached) = self
+                    .render_cache
+                    .try_reuse(key, layout_box, node.is_dirty())
+                {
+                    commands.extend_from_slice(cached);
+                } else {
+                    let mut local = Vec::new();
+                    {
+                        let mut paint_ctx = PaintContext::new(&mut local, self.debug);
+                        node.paint(&mut paint_ctx);
+                    }
+                    self.render_cache.store(key, layout_box, local.clone());
+                    commands.extend(local);
                 }
             }
 
-            // Komutları türlerine göre ayır. `commands` sahibi bizde olduğundan
-            // klonlamaya gerek yok; `into_iter()` ile taşıyoruz.
+            // Kaldırılmış node'ların cache girdilerini temizle (bellek sızıntısını önler).
+            self.render_cache.retain_keys(&live_keys);
+
+            // Commit fazı: bu frame'de değerlendirilen tüm dirty flag'ler sıfırlanır
+            // (React'in "commit" fazına karşılık gelir).
+            for node in tree.iter_mut() {
+                node.set_dirty(false);
+            }
+
+            // Komutları türlerine göre ayır (aynı, değişmedi).
             let mut rect_cmds = Vec::with_capacity(commands.len());
             let mut text_cmds = Vec::new();
-
             for command in commands.into_iter() {
                 match command {
                     DrawCommand::Rect(cmd) => rect_cmds.push(cmd),

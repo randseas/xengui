@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct LayoutBox {
     pub x: f32,
     pub y: f32,

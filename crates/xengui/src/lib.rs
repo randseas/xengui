@@ -14,5 +14,5 @@ pub use components::text::Text;
 pub use core::VNode;
 pub use paint::*;
 pub use renderer::XenRenderer;
-pub use style::{Color, Edges, Length, Style, StyleBuilder, Background};
+pub use style::*;
 pub use layout::*;

@@ -1,13 +1,19 @@
-use crate::{LayoutBox, LayoutContext, VNode};
+use crate::{LayoutBox, LayoutContext, RenderCache, VNode};
 
 pub struct LayoutEngine;
 
 impl LayoutEngine {
-    pub fn layout(nodes: &mut [Box<dyn VNode>], ctx: &LayoutContext) {
+    pub fn layout(nodes: &mut [Box<dyn VNode>], ctx: &LayoutContext, cache: &RenderCache) {
         let mut current_y = 0.0;
 
         for node in nodes {
-            let (w, h) = node.measure(ctx);
+            let (w, h) = if node.is_dirty() {
+                node.measure(ctx)
+            } else {
+                cache
+                    .cached_size(node.key())
+                    .unwrap_or_else(|| node.measure(ctx))
+            };
 
             node.layout(LayoutBox {
                 x: 0.0,
@@ -15,10 +21,6 @@ impl LayoutEngine {
                 width: w,
                 height: h,
             });
-
-            if ctx.debug {
-                log::trace!("layout: x={} y={} w={} h={}", 0.0, current_y, w, h);
-            }
 
             current_y += h;
         }

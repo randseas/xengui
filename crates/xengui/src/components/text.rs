@@ -118,14 +118,28 @@ impl VNode for Text {
     }
 
     fn measure(&self, ctx: &LayoutContext) -> (f32, f32) {
+        let scale_factor = ctx.scale_factor;
+
         let font_size = self
             .style
             .font_size
-            .map(|s| s.to_physical(ctx.scale_factor))
-            .unwrap_or(20.0 * ctx.scale_factor); // draw()'daki 20.0 varsayılanıyla birebir aynı taban
+            .map(|s| s.to_physical(scale_factor))
+            .unwrap_or(20.0 * scale_factor);
 
-        ctx.text
-            .measure(&self.content, self.font.as_deref(), font_size)
+        let letter_spacing = self
+            .style
+            .letter_spacing
+            .map(|ls| ls.value().to_physical(scale_factor))
+            .unwrap_or(0.0);
+
+        ctx.text.measure(
+            &self.content,
+            self.font.as_deref(),
+            font_size,
+            self.style.font_weight.unwrap_or_default(),
+            self.style.font_style.unwrap_or_default(),
+            letter_spacing,
+        )
     }
 
     fn layout(&mut self, rect: LayoutBox) {
