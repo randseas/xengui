@@ -45,10 +45,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .flex_direction(FlexDirection::Column)
             .justify_content(JustifyContent::Start)
             .align_items(AlignItems::Center)
-            //.width(Length::Percent(1.0)) // 1.0 = %100
-            //.height(Length::Percent(1.0)) // 1.0 = %100
+            .width(Length::Percent(100.0)) // 1.0 = %100
+            .height(Length::Percent(100.0)) // 1.0 = %100
             .padding(Edges::all(20.0))
-            .background(Color::DARK_GRAY)
+            .background(Color::TRANSPARENT)
             .child(
                 // Header section
                 View::new()

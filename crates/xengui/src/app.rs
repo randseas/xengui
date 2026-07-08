@@ -5,6 +5,9 @@ use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use winit::dpi::PhysicalPosition;
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::JsCast;
+
 use winit::{
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
@@ -226,7 +229,11 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             self.config.theme = Some(winit::window::Theme::Dark);
 
             use winit::platform::web::WindowExtWebSys;
-            if let Some(_canvas) = window.canvas() {
+
+            // Local helper: pull the current browser viewport size and push it
+            // into the winit window. This is what actually causes winit to
+            // enqueue a `WindowEvent::Resized` (when the size changed).
+            fn sync_canvas_to_viewport(window: &Window) {
                 if let Some(web_window) = web_sys::window() {
                     let inner_w = web_window.inner_width().ok().and_then(|val| val.as_f64());
                     let inner_h = web_window.inner_height().ok().and_then(|val| val.as_f64());
@@ -236,6 +243,34 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                             .to_physical::<u32>(window.scale_factor());
                         let _ = window.request_inner_size(phys_size);
                     }
+                }
+            }
+
+            if window.canvas().is_some() {
+                // Set the initial size once, as before.
+                sync_canvas_to_viewport(&window);
+
+                // IMPORTANT: the one-shot call above only sets the size at
+                // startup. Nothing was previously re-syncing the canvas when
+                // the *browser window* was resized afterwards, so the canvas'
+                // own box size never changed, winit's internal ResizeObserver
+                // never fired, and `WindowEvent::Resized` never reached
+                // `window_event()` -> layout was never recalculated.
+                //
+                // Fix: listen for the DOM "resize" event on `window` for the
+                // lifetime of the app, and re-sync on every occurrence.
+                if let Some(web_window) = web_sys::window() {
+                    let window_for_closure = window.clone();
+                    let closure = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(move || {
+                        sync_canvas_to_viewport(&window_for_closure);
+                    });
+                    let _ = web_window.add_event_listener_with_callback(
+                        "resize",
+                        closure.as_ref().unchecked_ref(),
+                    );
+                    // Leak the closure so it stays alive for the whole
+                    // program (equivalent to the app's own lifetime here).
+                    closure.forget();
                 }
             }
         }
