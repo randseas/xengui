@@ -62,28 +62,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .font("Inter_SemiBold")
             .font_size(24)
             .color(Color::TEAL)
-            .background(Color::YELLOW)
-            .position((0.0, 0.0)),
+            .background(Color::YELLOW),
     ));
 
     app.add_node(Box::new(
         Text::new("text2")
             .text("Hello, world!")
             .font("Inter_Regular")
-            .font_size(24)
+            .font_size(16)
             .color(Color::WHITE)
-            .background(Color::ORANGE)
-            .position((0.0, 24.0)),
+            .background(Color::ORANGE),
     ));
 
     app.add_node(Box::new(
         Text::new("text3")
             .text(format!("Platform: {PLATFORM}"))
             .font("Inter_Regular")
-            .font_size(24)
+            .font_size(16)
             .color(Color::WHITE)
-            .background(Color::RED)
-            .position((0.0, 48.0)),
+            .background(Color::RED),
     ));
 
     #[cfg(target_arch = "wasm32")]

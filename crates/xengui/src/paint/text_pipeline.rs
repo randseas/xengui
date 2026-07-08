@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 // SPDX-License-Identifier: Apache-2.0
 use crate::TextCommand;
 use wgpu_glyph::{GlyphBrushBuilder, Section, Text, ab_glyph};
@@ -5,6 +7,8 @@ use wgpu_glyph::{GlyphBrushBuilder, Section, Text, ab_glyph};
 pub struct TextPipeline {
     glyph_brush: wgpu_glyph::GlyphBrush<()>,
     font_map: std::collections::HashMap<String, wgpu_glyph::FontId>,
+    fonts: std::collections::HashMap<String, ab_glyph::FontArc>,
+    default_font: ab_glyph::FontArc,
 }
 
 impl TextPipeline {
@@ -13,16 +17,17 @@ impl TextPipeline {
         surface_format: wgpu::TextureFormat,
         user_fonts: Vec<(String, Vec<u8>)>,
     ) -> Result<Self, String> {
+        let mut fonts = HashMap::new();
+
         let default_font_arc = {
             #[cfg(not(target_arch = "wasm32"))]
             {
                 use system_fonts::find_for_system_locale;
-
-                let (_locale, _region, fonts) =
+                let (_locale, _region, sys_fonts) =
                     find_for_system_locale(system_fonts::FontStyle::Sans);
                 let mut loaded_font = None;
 
-                for font in fonts {
+                for font in sys_fonts {
                     if let system_fonts::FoundFontSource::Path(font_path) = font.source
                         && let Ok(font_bytes) = std::fs::read(&font_path)
                         && let Ok(font_arc) = ab_glyph::FontArc::try_from_vec(font_bytes)
@@ -31,9 +36,17 @@ impl TextPipeline {
                         break;
                     }
                 }
-                loaded_font.ok_or_else(|| {
-                    "Failed to load any native system font from system paths.".to_string()
-                })?
+
+                // Sistem fontu bulunamazsa, kullanıcının sağladığı ilk fonta düş.
+                loaded_font
+                    .or_else(|| {
+                        user_fonts.first().and_then(|(_, data)| {
+                            ab_glyph::FontArc::try_from_vec(data.clone()).ok()
+                        })
+                    })
+                    .ok_or_else(|| {
+                        "No system font found and no fallback font provided.".to_string()
+                    })?
             }
 
             #[cfg(target_arch = "wasm32")]
@@ -46,6 +59,8 @@ impl TextPipeline {
             }
         };
 
+        let default_font = default_font_arc.clone();
+
         let mut glyph_brush =
             GlyphBrushBuilder::using_font(default_font_arc).build(device, surface_format);
 
@@ -54,7 +69,10 @@ impl TextPipeline {
         // Dynamic font registering
         for (name, data) in user_fonts {
             if let Ok(user_font) = ab_glyph::FontArc::try_from_vec(data) {
+                fonts.insert(name.clone(), user_font.clone());
+
                 let id = glyph_brush.add_font(user_font);
+
                 font_map.insert(name, id);
             }
         }
@@ -62,16 +80,12 @@ impl TextPipeline {
         Ok(Self {
             glyph_brush,
             font_map,
+            fonts,
+            default_font,
         })
     }
 
-    pub fn draw(
-        &mut self,
-        _render_pass: &mut wgpu::RenderPass<'_>,
-        scale_factor: f32,
-        theme: winit::window::Theme,
-        command: &TextCommand,
-    ) {
+    pub fn draw(&mut self, scale_factor: f32, theme: winit::window::Theme, command: &TextCommand) {
         let color = command.style.color.unwrap_or(match theme {
             winit::window::Theme::Dark => crate::Color::WHITE,
             winit::window::Theme::Light => crate::Color::BLACK,
@@ -81,7 +95,7 @@ impl TextPipeline {
             .style
             .font_size
             .map(|s| s.to_physical(scale_factor))
-            .unwrap_or(20.0);
+            .unwrap_or(20.0 * scale_factor);
 
         let mut text = Text::new(&command.text)
             .with_color([color.r(), color.g(), color.b(), color.a()])
@@ -98,6 +112,26 @@ impl TextPipeline {
                 .with_screen_position(command.position)
                 .add_text(text),
         );
+    }
+
+    pub fn measure(&self, text: &str, font: Option<&str>, font_size: f32) -> (f32, f32) {
+        use wgpu_glyph::ab_glyph::{Font, PxScale, ScaleFont};
+
+        let font = font
+            .and_then(|name| self.fonts.get(name))
+            .unwrap_or(&self.default_font);
+
+        let scaled = font.as_scaled(PxScale::from(font_size));
+
+        let mut width = 0.0;
+
+        for ch in text.chars() {
+            width += scaled.h_advance(scaled.glyph_id(ch));
+        }
+
+        let height = scaled.height();
+
+        (width, height)
     }
 
     #[allow(clippy::too_many_arguments)]

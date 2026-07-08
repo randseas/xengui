@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{VNode, XenRenderer};
-use std::collections::VecDeque;
 use std::sync::Arc;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -44,7 +43,7 @@ pub struct AppConfig {
     #[cfg(not(target_arch = "wasm32"))]
     pub position: WindowPosition,
 
-    pub debug_mode: bool,
+    pub debug: bool,
     pub fonts: Vec<(String, Vec<u8>)>,
 }
 
@@ -69,7 +68,7 @@ impl Default for AppConfig {
             #[cfg(not(target_arch = "wasm32"))]
             position: WindowPosition::Center,
 
-            debug_mode: false,
+            debug: false,
             fonts: Vec::new(),
         }
     }
@@ -83,7 +82,6 @@ pub struct App {
     renderer: Option<XenRenderer>,
     window: Option<Arc<Window>>,
 
-    log_history: VecDeque<String>,
     config: AppConfig,
     v_domtree: Vec<Box<dyn VNode>>,
     is_visible: bool,
@@ -94,13 +92,13 @@ pub struct App {
 
 impl App {
     pub fn new(config: AppConfig) -> Self {
-        let mut log_history = VecDeque::new();
-        log_history.push_back("[INFO] XenGui Initialized".to_string());
+        if config.debug {
+            log::info!("[INFO] XenGui Initialized");
+        }
         Self {
             renderer: None,
             window: None,
             config,
-            log_history,
             v_domtree: vec![],
             is_visible: false,
             #[cfg(target_arch = "wasm32")]
@@ -134,27 +132,6 @@ impl App {
 
         event_loop.run_app(self)?;
         Ok(())
-    }
-
-    /// Logs a message to the internal history and triggers a redraw.
-    fn log(&mut self, msg: String) {
-        if !self.config.debug_mode {
-            return;
-        }
-        self.log_history.push_back(msg); // O(1) add
-        if self.log_history.len() > 50 {
-            self.log_history.pop_front(); // O(1) delete
-        }
-        let mut needs_redraw = false;
-        for node in self.v_domtree.iter_mut() {
-            if node.key() == "debug_text" {
-                node.set_dirty(true);
-                needs_redraw = true;
-            }
-        }
-        if needs_redraw && let Some(w) = &self.window {
-            w.request_redraw();
-        }
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -269,13 +246,17 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let user_fonts = std::mem::take(&mut self.config.fonts);
-            match XenRenderer::new(window, user_fonts) {
+            match XenRenderer::new(window, user_fonts, self.config.debug) {
                 Ok(renderer) => {
                     self.renderer = Some(renderer);
-                    self.log("[INFO] Application Resumed: GPU Context Ready.".to_string());
+                    if self.config.debug {
+                        log::info!("[INFO] Application Resumed: GPU Context Ready.");
+                    }
                 }
                 Err(e) => {
-                    eprintln!("[CRITICAL] Cannot start GPU pipeline: {}", e);
+                    if self.config.debug {
+                        log::info!("[CRITICAL] Cannot start GPU pipeline: {}", e);
+                    }
                     std::process::exit(1);
                 }
             }
@@ -294,7 +275,9 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     }
                 });
             }
-            self.log("[INFO] Application Resumed on Web target.".to_string());
+            if self.config.debug {
+                log::info!("[INFO] Application Resumed on Web target.");
+            }
         }
     }
 
@@ -302,7 +285,9 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         match event {
             XenEvent::RendererReady(renderer) => {
                 self.renderer = Some(renderer);
-                self.log("[INFO] Web GPU Context successfully attached to Event Loop.".to_string());
+                if self.config.debug {
+                    log::info!("[INFO] Web GPU Context successfully attached to Event Loop.");
+                }
                 if let Some(w) = &self.window {
                     w.request_redraw();
                 }
@@ -312,12 +297,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
 
     fn window_event(&mut self, _event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
-            WindowEvent::CloseRequested => {
-                #[cfg(not(target_arch = "wasm32"))]
-                std::process::exit(0);
-                #[cfg(target_arch = "wasm32")]
-                _event_loop.exit();
-            }
+            WindowEvent::CloseRequested => _event_loop.exit(),
             WindowEvent::RedrawRequested => {
                 if let Some(renderer) = &mut self.renderer {
                     renderer.render_frame(&mut self.v_domtree, &self.config.theme);
@@ -340,11 +320,19 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     }
                 }
             }
+            WindowEvent::ScaleFactorChanged { .. } => {
+                for node in &mut self.v_domtree {
+                    node.set_dirty(true);
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
             WindowEvent::ThemeChanged(new_theme) => {
                 self.config.theme = Some(new_theme);
-                /* Debug */
-                println!("[INFO] Theme changed: {:?}", new_theme);
-                self.log(format!("[INFO] Theme changed: {:?}", new_theme));
+                if self.config.debug {
+                    log::info!("[INFO] Theme changed: {:?}", new_theme);
+                }
                 for node in &mut self.v_domtree {
                     node.set_dirty(true);
                 }

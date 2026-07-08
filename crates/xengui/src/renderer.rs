@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{DrawCommand, PaintContext, RectPipeline, TextPipeline, VNode};
+use crate::{
+    DrawCommand, LayoutContext, LayoutEngine, PaintContext, RectPipeline, TextPipeline, VNode,
+};
 use std::sync::Arc;
 use winit::window::Window;
 
@@ -12,11 +14,16 @@ pub struct XenRenderer {
     pub config: wgpu::SurfaceConfiguration,
     pub text_pipeline: TextPipeline,
     pub rect_pipeline: RectPipeline,
+    pub debug: bool,
 }
 
 impl XenRenderer {
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn new(window: Arc<Window>, user_fonts: Vec<(String, Vec<u8>)>) -> Result<Self, String> {
+    pub fn new(
+        window: Arc<Window>,
+        user_fonts: Vec<(String, Vec<u8>)>,
+        debug: bool,
+    ) -> Result<Self, String> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             #[cfg(target_os = "windows")]
             backends: wgpu::Backends::DX12,
@@ -41,7 +48,7 @@ impl XenRenderer {
             pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
                 .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
 
-        Self::init_common(window, surface, adapter, device, queue, user_fonts)
+        Self::init_common(window, surface, adapter, device, queue, user_fonts, debug)
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -79,6 +86,7 @@ impl XenRenderer {
         device: wgpu::Device,
         queue: wgpu::Queue,
         user_fonts: Vec<(String, Vec<u8>)>,
+        debug: bool,
     ) -> Result<Self, String> {
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
@@ -131,6 +139,7 @@ impl XenRenderer {
             config,
             text_pipeline,
             rect_pipeline,
+            debug,
         })
     }
 
@@ -141,7 +150,23 @@ impl XenRenderer {
     ) {
         let frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
-            Err(_) => return,
+            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                log::warn!("Surface lost/outdated, reconfiguring.");
+                self.surface.configure(&self.device, &self.config);
+                return; // bir sonraki redraw'da yeni surface ile tekrar denenecek
+            }
+            Err(wgpu::SurfaceError::OutOfMemory) => {
+                log::error!("GPU out of memory, cannot continue.");
+                std::process::exit(1);
+            }
+            Err(wgpu::SurfaceError::Timeout) => {
+                log::debug!("Surface timeout, skipping frame.");
+                return;
+            }
+            Err(e) => {
+                log::warn!("Unhandled surface error: {e:?}");
+                return;
+            }
         };
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&Default::default());
@@ -169,52 +194,90 @@ impl XenRenderer {
                 multiview_mask: None,
             });
 
-            // frame start
+            // Layout Pass
+            let layout_ctx = LayoutContext {
+                text: &self.text_pipeline,
+                scale_factor: self.window.scale_factor() as f32,
+                debug: self.debug,
+            };
+
+            LayoutEngine::layout(tree, &layout_ctx);
+
+            // Paint Pass — VNode ağacı çizim komutlarını üretir.
             let mut commands = Vec::new();
-
             {
-                let mut paint_ctx = PaintContext::new(&mut commands);
-
+                let mut paint_ctx = PaintContext::new(&mut commands, self.debug);
                 for node in tree.iter() {
                     node.paint(&mut paint_ctx);
                 }
             }
 
-            for command in commands {
+            // Komutları türlerine göre ayır. `commands` sahibi bizde olduğundan
+            // klonlamaya gerek yok; `into_iter()` ile taşıyoruz.
+            let mut rect_cmds = Vec::with_capacity(commands.len());
+            let mut text_cmds = Vec::new();
+
+            for command in commands.into_iter() {
                 match command {
-                    DrawCommand::Text(cmd) => {
-                        self.text_pipeline.draw(
-                            &mut render_pass,
-                            self.window.scale_factor() as f32,
-                            self.window.theme().unwrap_or(winit::window::Theme::Dark),
-                            &cmd,
-                        );
-                    }
-                    DrawCommand::Rect(cmd) => {
-                        self.rect_pipeline.draw(
-                            &self.device,
-                            &self.queue,
-                            &mut render_pass,
-                            self.config.width,
-                            self.config.height,
-                            &cmd,
-                        );
-                    }
+                    DrawCommand::Rect(cmd) => rect_cmds.push(cmd),
+                    DrawCommand::Text(cmd) => text_cmds.push(cmd),
                 }
+            }
+
+            // Tüm rect'ler TEK vertex buffer yazımı + TEK draw çağrısıyla çizilir.
+            self.rect_pipeline.draw_batch(
+                &self.device,
+                &self.queue,
+                &mut render_pass,
+                self.config.width,
+                self.config.height,
+                &rect_cmds,
+            );
+
+            // Text komutları glyph_brush'a kuyruklanır; gerçek çizim `flush()` ile
+            // render_pass'tan SONRA (yeni bir encoder pass'i içinde) yapılır.
+            let resolved_theme = theme.unwrap_or(winit::window::Theme::Dark);
+            for cmd in &text_cmds {
+                self.text_pipeline
+                    .draw(self.window.scale_factor() as f32, resolved_theme, cmd);
             }
 
             drop(render_pass);
 
-            self.text_pipeline
-                .flush(
+            const MAX_TEXT_FLUSH_RETRIES: u32 = 3;
+
+            let mut attempts = 0;
+            loop {
+                match self.text_pipeline.flush(
                     &self.device,
                     &mut self.staging_belt,
                     &mut encoder,
                     &view,
                     frame.texture.width(),
                     frame.texture.height(),
-                )
-                .expect("Text drawing failed.");
+                ) {
+                    Ok(()) => break,
+                    Err(e) if attempts < MAX_TEXT_FLUSH_RETRIES => {
+                        attempts += 1;
+                        log::warn!(
+                            "Text cache resize, retrying flush ({attempts}/{MAX_TEXT_FLUSH_RETRIES}): {e}"
+                        );
+                        // glyph_brush zaten queue'yu ve texture'ı büyüttü; aynı komutları
+                        // yeniden queue'lamamız gerekir çünkü draw_queued başarısız kalanı boşaltmış olabilir.
+                        for cmd in &text_cmds {
+                            self.text_pipeline.draw(
+                                self.window.scale_factor() as f32,
+                                resolved_theme,
+                                cmd,
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Text drawing failed permanently, skipping frame: {e}");
+                        return;
+                    }
+                }
+            }
         }
 
         // finish buffers
@@ -231,6 +294,9 @@ impl XenRenderer {
         theme: &Option<winit::window::Theme>,
         size: winit::dpi::PhysicalSize<u32>,
     ) {
+        if size.width == self.config.width && size.height == self.config.height {
+            return; // aynı boyutla gelen tekrarlı event'i atla
+        }
         if size.width > 0 && size.height > 0 {
             self.config.width = size.width.max(1);
             self.config.height = size.height.max(1);

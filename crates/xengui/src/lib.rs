@@ -5,6 +5,7 @@ pub mod core;
 pub mod paint;
 pub mod renderer;
 pub mod style;
+pub mod layout;
 
 pub use app::App;
 pub use app::AppConfig;
@@ -14,3 +15,4 @@ pub use core::VNode;
 pub use paint::*;
 pub use renderer::XenRenderer;
 pub use style::{Color, Edges, Length, Style, StyleBuilder, Background};
+pub use layout::*;

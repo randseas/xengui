@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{PaintContext, RectCommand, Style, StyleBuilder, TextCommand, VNode};
+use crate::{
+    LayoutBox, LayoutContext, PaintContext, RectCommand, Style, StyleBuilder, TextCommand, VNode,
+};
 use smol_str::SmolStr;
 
 #[macro_export]
@@ -23,6 +25,7 @@ pub struct Text {
     font: Option<SmolStr>,
 
     pub style: Style,
+    layout_box: LayoutBox,
 }
 
 impl Text {
@@ -36,6 +39,7 @@ impl Text {
             font: None,
 
             style: Style::default(),
+            layout_box: LayoutBox::default(),
         }
     }
 
@@ -87,23 +91,48 @@ impl VNode for Text {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
-        let font_size = self.style.font_size.map(|s| s.value()).unwrap_or(20.0);
+        if ctx.debug {
+            log::info!(
+                "paint -> '{}' x={} y={}",
+                self.content,
+                self.layout_box.x,
+                self.layout_box.y,
+            );
+        }
 
-        let estimated_width = self.content.len() as f32 * font_size * 0.6;
-        let estimated_height = font_size * 1.2;
-        
-        ctx.draw_rect(RectCommand {
-            position: self.position,
-            size: (estimated_width, estimated_height),
-            background: self.style.background.clone(),
-            border_radius: None,
-        });
+        if self.style.background.is_some() {
+            ctx.draw_rect(RectCommand {
+                position: (self.layout_box.x, self.layout_box.y),
+                size: (self.layout_box.width, self.layout_box.height),
+                background: self.style.background.clone(),
+                border_radius: None,
+            });
+        }
 
         ctx.draw_text(TextCommand {
             text: self.content.clone(),
-            position: self.position,
+            position: (self.layout_box.x, self.layout_box.y),
             style: self.style.clone(),
             font: self.font.clone(),
         });
+    }
+
+    fn measure(&self, ctx: &LayoutContext) -> (f32, f32) {
+        let font_size = self
+            .style
+            .font_size
+            .map(|s| s.to_physical(ctx.scale_factor))
+            .unwrap_or(20.0 * ctx.scale_factor); // draw()'daki 20.0 varsayılanıyla birebir aynı taban
+
+        ctx.text
+            .measure(&self.content, self.font.as_deref(), font_size)
+    }
+
+    fn layout(&mut self, rect: LayoutBox) {
+        self.layout_box = rect;
+    }
+
+    fn layout_box(&self) -> &LayoutBox {
+        &self.layout_box
     }
 }

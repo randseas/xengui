@@ -3,11 +3,12 @@ use super::{DrawCommand, RectCommand, TextCommand};
 
 pub struct PaintContext<'a> {
     commands: &'a mut Vec<DrawCommand>,
+    pub debug: bool,
 }
 
 impl<'a> PaintContext<'a> {
-    pub(crate) fn new(commands: &'a mut Vec<DrawCommand>) -> Self {
-        Self { commands }
+    pub(crate) fn new(commands: &'a mut Vec<DrawCommand>, debug: bool) -> Self {
+        Self { commands, debug }
     }
 
     pub fn draw_text(&mut self, command: TextCommand) {
