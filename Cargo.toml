@@ -21,6 +21,7 @@ xengui = { version = "0.2.1", path = "crates/xengui" }
 wgpu = { version = "28.0.0", features = ["webgl"] }
 wgpu_glyph = "0.28.0"
 winit = "0.30.0"
+taffy = "0.12.1"
 pollster = "0.4.0"
 bytemuck = { version = "1.21.0", features = ["derive"] }
 smol_str = "0.3"
