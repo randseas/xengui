@@ -76,7 +76,7 @@ Docs are available at: [https://xengui.vercel.app/docs](https://xengui.vercel.ap
 
 ## Inspiration
 
-This project is inspired by [Dear ImGui](https://github.com//imgui) and [egui](https://github.com/emilk/egui).
+This project is inspired by [Dear ImGui](https://github.com/ocornut/imgui) and [egui](https://github.com/emilk/egui).
 
 ## License
 
