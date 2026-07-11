@@ -1,14 +1,12 @@
-use std::collections::HashMap;
-
 // SPDX-License-Identifier: Apache-2.0
-use crate::{FontStyle, FontWeight, TextCommand};
+use crate::{
+    FontDatabase, FontDescriptor, FontStyle, FontWeight, TextCommand, TextMetrics, TextRasterizer,
+};
 use wgpu_glyph::{GlyphBrushBuilder, Section, Text, ab_glyph};
 
 pub struct TextPipeline {
     glyph_brush: wgpu_glyph::GlyphBrush<()>,
-    font_map: HashMap<String, wgpu_glyph::FontId>,
-    fonts: HashMap<String, ab_glyph::FontArc>,
-    default_font: ab_glyph::FontArc,
+    font_db: FontDatabase,
 }
 
 impl TextPipeline {
@@ -17,8 +15,6 @@ impl TextPipeline {
         surface_format: wgpu::TextureFormat,
         user_fonts: Vec<(String, Vec<u8>)>,
     ) -> Result<Self, String> {
-        let mut fonts = HashMap::new();
-
         let default_font_arc = {
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -62,69 +58,19 @@ impl TextPipeline {
         let default_font = default_font_arc.clone();
         let mut glyph_brush =
             GlyphBrushBuilder::using_font(default_font_arc).build(device, surface_format);
-        let mut font_map = HashMap::new();
+        let mut font_db = FontDatabase::new(default_font);
 
         for (name, data) in user_fonts {
             if let Ok(user_font) = ab_glyph::FontArc::try_from_vec(data) {
-                fonts.insert(name.clone(), user_font.clone());
-                let id = glyph_brush.add_font(user_font);
-                font_map.insert(name, id);
+                let id = glyph_brush.add_font(user_font.clone());
+                font_db.register(name, user_font, id);
             }
         }
 
         Ok(Self {
             glyph_brush,
-            font_map,
-            fonts,
-            default_font,
+            font_db,
         })
-    }
-
-    /// `{family}-{Weight}-{Style}` -> `{family}-{Weight}` -> `{family}` sırasıyla
-    /// en spesifik eşleşen kayıtlı fontu bulur. Hiçbiri yoksa `None` döner
-    /// (çağıran taraf default fonta düşer).
-    fn resolve_font_id(
-        &self,
-        family: Option<&str>,
-        weight: FontWeight,
-        style: FontStyle,
-    ) -> Option<wgpu_glyph::FontId> {
-        let family = family?;
-
-        let composite = format!("{family}-{weight:?}-{style:?}");
-        if let Some(id) = self.font_map.get(&composite) {
-            return Some(*id);
-        }
-
-        let weight_only = format!("{family}-{weight:?}");
-        if let Some(id) = self.font_map.get(&weight_only) {
-            return Some(*id);
-        }
-
-        self.font_map.get(family).copied()
-    }
-
-    fn resolve_font_arc(
-        &self,
-        family: Option<&str>,
-        weight: FontWeight,
-        style: FontStyle,
-    ) -> &ab_glyph::FontArc {
-        let Some(family) = family else {
-            return &self.default_font;
-        };
-
-        let composite = format!("{family}-{weight:?}-{style:?}");
-        if let Some(font) = self.fonts.get(&composite) {
-            return font;
-        }
-
-        let weight_only = format!("{family}-{weight:?}");
-        if let Some(font) = self.fonts.get(&weight_only) {
-            return font;
-        }
-
-        self.fonts.get(family).unwrap_or(&self.default_font)
     }
 
     pub fn draw(&mut self, scale_factor: f32, theme: winit::window::Theme, command: &TextCommand) {
@@ -141,7 +87,9 @@ impl TextPipeline {
 
         let weight = command.style.font_weight.unwrap_or_default();
         let style = command.style.font_style.unwrap_or_default();
-        let font_id = self.resolve_font_id(command.font.as_deref(), weight, style);
+        let font_id = self
+            .font_db
+            .resolve_font_id(command.font.as_deref(), weight, style);
 
         let letter_spacing = command
             .style
@@ -172,7 +120,8 @@ impl TextPipeline {
         // layout kutusu ile gerçek çizim arasında (daha önce düzelttiğimiz
         // font_size uyuşmazlığı gibi) bir sapma oluşur.
         let font_arc = self
-            .resolve_font_arc(command.font.as_deref(), weight, style)
+            .font_db
+            .resolve_font(command.font.as_deref(), weight, style)
             .clone();
         let scaled = {
             use wgpu_glyph::ab_glyph::{Font, PxScale};
@@ -212,7 +161,7 @@ impl TextPipeline {
     ) -> (f32, f32) {
         use wgpu_glyph::ab_glyph::{Font, PxScale, ScaleFont};
 
-        let font_arc = self.resolve_font_arc(font, weight, style);
+        let font_arc = self.font_db.resolve_font(font, weight, style);
         let scaled = font_arc.as_scaled(PxScale::from(font_size));
 
         let chars: Vec<char> = text.chars().collect();
@@ -242,5 +191,25 @@ impl TextPipeline {
         self.glyph_brush
             .draw_queued(device, staging_belt, encoder, view, width, height)
             .map_err(|e| e.to_string())
+    }
+}
+
+impl TextRasterizer for TextPipeline {
+    fn measure(&self, text: &str, font: &FontDescriptor) -> TextMetrics {
+        let (width, height) = self.measure(
+            text,
+            font.family.as_deref(),
+            font.size,
+            font.weight,
+            font.style,
+            font.letter_spacing,
+        );
+
+        TextMetrics { width, height }
+    }
+
+    fn rasterize(&mut self, ch: char, font: &FontDescriptor) -> crate::GlyphBitmap {
+
+        
     }
 }

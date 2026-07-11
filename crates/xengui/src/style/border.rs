@@ -11,9 +11,9 @@ pub struct Border {
 impl Default for Border {
     fn default() -> Self {
         Self {
-            width: Length::pixels(0.0),
+            width: Length::px(0.0),
             color: Color::TRANSPARENT,
-            radius: Length::pixels(0.0),
+            radius: Length::px(0.0),
         }
     }
 }

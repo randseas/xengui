@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{Widget, XenRenderer};
+use crate::{
+    EventCtx, InputEvent, InputState, ModifiersState, Widget, XenRenderer, convert_keyboard_event,
+    dispatch_positional, dispatch_to_path, hit_test_path,
+};
 use std::sync::Arc;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -88,6 +91,7 @@ pub struct App {
     config: AppConfig,
     root: Vec<Box<dyn Widget>>,
     is_visible: bool,
+    input: InputState,
 
     #[cfg(target_arch = "wasm32")]
     pub event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
@@ -104,6 +108,7 @@ impl App {
             config,
             root: Vec::new(),
             is_visible: false,
+            input: InputState::default(),
             #[cfg(target_arch = "wasm32")]
             event_proxy: None,
         }
@@ -376,7 +381,193 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     window.request_redraw();
                 }
             }
+            WindowEvent::CursorMoved { position, .. } => {
+                let point = (position.x as f32, position.y as f32);
+                self.input.cursor_pos = Some(point);
+
+                let new_hover = hit_test_path(&self.root, point);
+                if new_hover != self.input.hovered_path {
+                    if let Some(old) = self.input.hovered_path.take() {
+                        let mut ctx = EventCtx::new();
+                        dispatch_to_path(&mut self.root, &old, &InputEvent::MouseExited, &mut ctx);
+                        self.apply_event_ctx(ctx);
+                    }
+                    if let Some(new) = &new_hover {
+                        let mut ctx = EventCtx::new();
+                        dispatch_to_path(&mut self.root, new, &InputEvent::MouseEntered, &mut ctx);
+                        self.apply_event_ctx(ctx);
+                    }
+                    self.input.hovered_path = new_hover.clone();
+                }
+
+                if let Some(path) = &new_hover {
+                    let mut ctx = EventCtx::new();
+                    dispatch_positional(
+                        &mut self.root,
+                        path,
+                        &InputEvent::MouseMoved { position: point },
+                        &mut ctx,
+                    );
+                    self.apply_event_ctx(ctx);
+                }
+            }
+            WindowEvent::CursorLeft { .. } => {
+                self.input.cursor_pos = None;
+                if let Some(old) = self.input.hovered_path.take() {
+                    let mut ctx = EventCtx::new();
+                    dispatch_to_path(&mut self.root, &old, &InputEvent::MouseExited, &mut ctx);
+                    self.apply_event_ctx(ctx);
+                }
+            }
+            WindowEvent::MouseInput { state, button, .. } => {
+                let Some(point) = self.input.cursor_pos else {
+                    return;
+                };
+                let path = self
+                    .input
+                    .hovered_path
+                    .clone()
+                    .or_else(|| hit_test_path(&self.root, point));
+
+                if state == winit::event::ElementState::Pressed {
+                    self.input.pressed_path = path.clone();
+                }
+
+                if let Some(path) = &path {
+                    let mut ctx = EventCtx::new();
+                    dispatch_positional(
+                        &mut self.root,
+                        path,
+                        &InputEvent::MouseInput {
+                            state,
+                            button,
+                            position: point,
+                        },
+                        &mut ctx,
+                    );
+                    self.apply_event_ctx(ctx);
+                }
+
+                if state == winit::event::ElementState::Released {
+                    self.input.pressed_path = None;
+                }
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let Some(point) = self.input.cursor_pos else {
+                    return;
+                };
+                let path = self
+                    .input
+                    .hovered_path
+                    .clone()
+                    .or_else(|| hit_test_path(&self.root, point));
+
+                if let Some(path) = &path {
+                    let mut ctx = EventCtx::new();
+                    dispatch_positional(
+                        &mut self.root,
+                        path,
+                        &InputEvent::MouseWheel {
+                            delta,
+                            position: point,
+                        },
+                        &mut ctx,
+                    );
+                    self.apply_event_ctx(ctx);
+                }
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if let Some(path) = self.input.focused_path.clone() {
+                    let mut ctx = EventCtx::new();
+                    let keyboard_event = convert_keyboard_event(event);
+
+                    dispatch_positional(
+                        &mut self.root,
+                        &path,
+                        &InputEvent::KeyInput {
+                            event: keyboard_event,
+                            modifiers: self.input.modifiers,
+                        },
+                        &mut ctx
+                    );
+                    self.apply_event_ctx(ctx);
+                }
+            }
+            WindowEvent::ModifiersChanged(new_mods) => {
+                let mods = new_mods.state();
+  
+                self.input.modifiers = ModifiersState {
+                    ctrl: mods.control_key(),
+                    shift: mods.shift_key(),
+                    alt: mods.alt_key(),
+                    super_key: mods.super_key(),
+                };
+            }
+            WindowEvent::Ime(ime_event) => {
+                if let Some(path) = self.input.focused_path.clone() {
+                    let mut ctx = EventCtx::new();
+                    dispatch_positional(
+                        &mut self.root,
+                        &path,
+                        &InputEvent::Ime(ime_event),
+                        &mut ctx,
+                    );
+                    self.apply_event_ctx(ctx);
+                }
+            }
+            WindowEvent::Focused(has_focus)
+                // OS seviyesinde pencere focus'unu kaybettiğimizde basılı
+                // tutulan mouse-down state'ini bırak; aksi halde alt+tab
+                // sonrası "yapışık buton" durumu oluşabilir.
+                if !has_focus => {
+                    self.input.pressed_path = None;
+                }
             _ => (),
+        }
+    }
+}
+
+impl App {
+    /// Bir dispatch turundan dönen `EventCtx`'i uygular: focus geçişini
+    /// gerçekleştirip ilgili widget'lara `FocusGained`/`FocusLost` gönderir,
+    /// cursor icon'unu günceller ve gerekiyorsa yeniden çizim tetikler.
+    ///
+    /// Widget'lar App'i bilmediği için bu adım kasıtlı olarak dispatch'ten
+    /// AYRI: `Widget::event()` sadece `ctx` üzerinden talepte bulunur, asıl
+    /// state mutasyonu (focused_path değişimi vb.) burada, tek yerde olur.
+    fn apply_event_ctx(&mut self, mut ctx: EventCtx) {
+        if let Some(new_focus) = ctx.focus_target.take() {
+            if self.input.focused_path.as_deref() != Some(new_focus.as_str()) {
+                if let Some(old) = self.input.focused_path.take() {
+                    let mut sub_ctx = EventCtx::new();
+                    dispatch_to_path(&mut self.root, &old, &InputEvent::FocusLost, &mut sub_ctx);
+                }
+                let mut sub_ctx = EventCtx::new();
+                dispatch_to_path(
+                    &mut self.root,
+                    &new_focus,
+                    &InputEvent::FocusGained,
+                    &mut sub_ctx,
+                );
+                self.input.focused_path = Some(new_focus);
+            }
+        } else if ctx.clear_focus
+            && let Some(old) = self.input.focused_path.take()
+        {
+            let mut sub_ctx = EventCtx::new();
+            dispatch_to_path(&mut self.root, &old, &InputEvent::FocusLost, &mut sub_ctx);
+        }
+
+        if let Some(icon) = ctx.take_cursor_icon()
+            && let Some(window) = &self.window
+        {
+            window.set_cursor(icon);
+        }
+
+        if ctx.redraw_requested()
+            && let Some(window) = &self.window
+        {
+            window.request_redraw();
         }
     }
 }

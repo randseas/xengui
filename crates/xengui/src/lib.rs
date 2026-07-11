@@ -7,9 +7,10 @@ pub mod renderer;
 pub mod style;
 pub mod widget;
 pub mod widgets;
+pub mod input;
+pub mod interaction;
+pub mod text;
 
-pub use app::App;
-pub use app::AppConfig;
 pub use app::WindowPosition;
 pub use layout::*;
 pub use macros::WidgetContent;
@@ -17,4 +18,22 @@ pub use paint::*;
 pub use renderer::XenRenderer;
 pub use style::*;
 pub use widget::Widget;
-pub use widgets::text::Text;
+pub use input::*;
+pub use interaction::*;
+pub use text::*;
+
+pub use app::{App, AppConfig};
+pub use input::{InputEvent, Key, KeyState};
+pub use style::{
+    Color,
+    Length,
+    Border,
+    Edges,
+    Style,
+    StyleBuilder,
+    FlexDirection,
+    FlexWrap,
+    FontStyle,
+    FontWeight
+};
+pub use widgets::{Button, Label, View};

@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use xengui::{
-    AlignItems, App, AppConfig, Border, Color, Display, Edges, FlexDirection,
-    JustifyContent, Length, StyleBuilder, Text, widgets::View,
-};
+use xengui::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_arch = "wasm32")]
@@ -26,94 +23,102 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut app = App::new(config);
 
-    app.with_font(
-        "Inter_Regular",
-        include_bytes!("../fonts/Inter_Regular.ttf").to_vec(),
-    )
-    .with_font(
-        "Inter_Medium",
-        include_bytes!("../fonts/Inter_Medium.ttf").to_vec(),
-    )
-    .with_font(
-        "Inter_SemiBold",
-        include_bytes!("../fonts/Inter_SemiBold.ttf").to_vec(),
-    );
-
     let root = Box::new(
         View::new()
             .display(Display::Flex)
             .flex_direction(FlexDirection::Column)
             .justify_content(JustifyContent::Start)
-            .align_items(AlignItems::Center)
-            .width(Length::Percent(100.0)) // 1.0 = %100
-            .height(Length::Percent(100.0)) // 1.0 = %100
-            .padding(Edges::all(20.0))
-            .background(Color::TRANSPARENT)
+            .align_items(AlignItems::Start)
+            .width(Length::Percent(100.0))
+            .height(Length::Percent(100.0))
+            .background(Color::WHITE)
+            .padding(Edges::all(15))
             .child(
-                // Header section
                 View::new()
-                    .display(Display::Flex)
-                    .flex_direction(FlexDirection::Row)
+                    .flex_direction(FlexDirection::Column)
+                    .width(Length::Percent(100.0))
+                    .height(Length::Percent(100.0))
+                    .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
-                    .align_items(AlignItems::Center)
-                    .size(760.0, 60.0)
-                    .margin(Edges::all(20.0))
-                    .background(Color::LIGHT_GRAY)
-                    .border(Border::new(
-                        Length::pixels(2.0),
-                        Color::RED,
-                        Length::pixels(16.0),
-                    ))
-                    .child(Text::new().text("Dashboard Header").color(Color::BLACK)),
-            )
-            .child(
-                // Content area
-                // Header section (Navbar with flex layout)
-                View::new()
-                    .display(Display::Flex)
-                    .flex_direction(FlexDirection::Row)
-                    .justify_content(JustifyContent::Start)
-                    .align_items(AlignItems::Center)
-                    .size(760.0, 60.0)
-                    .margin(Edges::all(20.0))
-                    .background(Color::LIGHT_GRAY)
                     .child(
-                        // Logo (none / size defined by content)
-                        View::new()
-                            .padding(Edges::all(10.0))
-                            .child(Text::new().text("Logo").color(Color::BLUE)),
+                        Label::new()
+                            .label("Hello, world!")
+                            .font_size(16)
+                            .color(Color::BLACK),
                     )
                     .child(
-                        // Arama Çubuğu (grow)
-                        View::new()
-                            .flex_grow(1.0)
-                            .margin(Edges::all(5.0))
-                            .background(Color::DARK_GRAY) // visual separation for input
-                            .align_items(AlignItems::Center)
-                            .justify_content(JustifyContent::Center)
-                            .child(Text::new().text("Arama Çubuğu")),
+                        Label::new()
+                            .label("Hello, world!")
+                            .font_size(20)
+                            .color(Color::BLACK),
                     )
                     .child(
-                        // Profil (none / size defined by content)
-                        View::new()
-                            .padding(Edges::all(10.0))
-                            .child(Text::new().text("Profil").color(Color::BLUE)),
+                        Label::new()
+                            .label("Hello, world!")
+                            .font_size(24)
+                            .color(Color::BLACK),
+                    )
+                    .child(
+                        Label::new()
+                            .label("Hello, world!")
+                            .font_size(28)
+                            .color(Color::BLACK),
+                    )
+                    .child(
+                        Label::new()
+                            .label("Hello, world!")
+                            .font_size(32)
+                            .color(Color::BLACK),
+                    )
+                    .child(
+                        Label::new()
+                            .label("Hello, world!")
+                            .font_size(36)
+                            .color(Color::BLACK),
+                    )
+                    .child(
+                        Label::new()
+                            .label("Hello, world!")
+                            .font_size(40)
+                            .color(Color::BLACK),
+                    )
+                    .child(
+                        Label::new()
+                            .label("Hello, world!")
+                            .font_size(44)
+                            .color(Color::BLACK),
+                    )
+                    .child(
+                        Label::new()
+                            .label("Hello, world!")
+                            .font_size(48)
+                            .color(Color::BLACK),
+                    )
+                    .child(
+                        Label::new()
+                            .label("Hello, world!")
+                            .font_size(52)
+                            .color(Color::BLACK),
+                    )
+                    .child(
+                        Label::new()
+                            .label("Hello, world!")
+                            .font_size(56)
+                            .color(Color::BLACK),
+                    )
+                    .child(
+                        Label::new()
+                            .label("Hello, world!")
+                            .font_size(60)
+                            .color(Color::BLACK),
                     ),
             ),
     );
 
     app.add_node(root);
 
-    #[cfg(target_arch = "wasm32")]
-    {
-        if let Err(e) = app.run() {
-            eprintln!("Error running app: {:?}", e);
-        }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        app.run()?;
+    if let Err(e) = app.run() {
+        eprintln!("Error running app: {:?}", e);
     }
 
     Ok(())

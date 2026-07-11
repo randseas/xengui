@@ -15,7 +15,7 @@ macro_rules! props {
     };
 }
 
-pub struct Text {
+pub struct Label {
     dirty: bool,
     content: SmolStr,
     font: Option<SmolStr>,
@@ -23,7 +23,7 @@ pub struct Text {
     layout_box: LayoutBox,
 }
 
-impl Text {
+impl Label {
     pub fn new() -> Self {
         Self {
             dirty: true,
@@ -35,8 +35,8 @@ impl Text {
     }
 
     // Builder methods
-    pub fn text(mut self, text: impl Into<SmolStr>) -> Self {
-        self.content = text.into();
+    pub fn label(mut self, label: impl Into<SmolStr>) -> Self {
+        self.content = label.into();
         self.set_dirty(true);
         self
     }
@@ -48,13 +48,13 @@ impl Text {
     }
 }
 
-impl Default for Text {
+impl Default for Label {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl StyleBuilder for Text {
+impl StyleBuilder for Label {
     fn style_mut(&mut self) -> &mut Style {
         &mut self.style
     }
@@ -64,7 +64,7 @@ impl StyleBuilder for Text {
     }
 }
 
-impl Widget for Text {
+impl Widget for Label {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

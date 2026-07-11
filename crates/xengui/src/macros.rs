@@ -8,9 +8,9 @@ pub trait WidgetContent: Sized {
     fn with_content(self, content: impl Into<smol_str::SmolStr>) -> Self;
 }
 
-impl WidgetContent for crate::Text {
+impl WidgetContent for crate::Label {
     fn with_content(self, content: impl Into<smol_str::SmolStr>) -> Self {
-        self.text(content)
+        self.label(content)
     }
 }
 

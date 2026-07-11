@@ -2,12 +2,7 @@
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Length {
-    /// Sabit uzunluk (mantıksal piksel).
     Px(f32),
-    /// Üst elemanın ilgili boyutuna göre yüzde (0.0..=100.0).
-    /// Sadece width/height, padding, margin, flex_basis, gap gibi
-    /// layout alanlarında anlamlıdır; border width/radius'ta göz ardı
-    /// edilip ham sayı piksel olarak kullanılır.
     Percent(f32),
 }
 
@@ -18,14 +13,12 @@ impl Default for Length {
 }
 
 impl Length {
-    /// Piksel cinsinden uzunluk oluşturur.
-    pub const fn pixels(px: f32) -> Self {
-        Self::Px(px)
+    pub fn px<T: Into<f32>>(value: T) -> Self {
+        Self::Px(value.into())
     }
 
-    /// Yüzde cinsinden uzunluk oluşturur (0.0..=100.0 aralığında).
-    pub const fn percent(pct: f32) -> Self {
-        Self::Percent(pct)
+    pub fn percent<T: Into<f32>>(value: T) -> Self {
+        Self::Percent(value.into())
     }
 
     /// Ham sayısal değeri döner (Px için piksel, Percent için 0..100 arası sayı).
@@ -47,62 +40,16 @@ impl Length {
     }
 }
 
-impl From<f32> for Length {
-    fn from(value: f32) -> Self {
-        Self::Px(value)
-    }
+macro_rules! impl_length_from {
+    ($($t:ty),*) => {
+        $(
+            impl From<$t> for Length {
+                fn from(value: $t) -> Self {
+                    Self::Px(value as f32)
+                }
+            }
+        )*
+    };
 }
 
-impl From<f64> for Length {
-    fn from(value: f64) -> Self {
-        Self::Px(value as f32)
-    }
-}
-
-impl From<u8> for Length {
-    fn from(value: u8) -> Self {
-        Self::Px(value as f32)
-    }
-}
-
-impl From<u16> for Length {
-    fn from(value: u16) -> Self {
-        Self::Px(value as f32)
-    }
-}
-
-impl From<u32> for Length {
-    fn from(value: u32) -> Self {
-        Self::Px(value as f32)
-    }
-}
-
-impl From<usize> for Length {
-    fn from(value: usize) -> Self {
-        Self::Px(value as f32)
-    }
-}
-
-impl From<i8> for Length {
-    fn from(value: i8) -> Self {
-        Self::Px(value as f32)
-    }
-}
-
-impl From<i16> for Length {
-    fn from(value: i16) -> Self {
-        Self::Px(value as f32)
-    }
-}
-
-impl From<i32> for Length {
-    fn from(value: i32) -> Self {
-        Self::Px(value as f32)
-    }
-}
-
-impl From<isize> for Length {
-    fn from(value: isize) -> Self {
-        Self::Px(value as f32)
-    }
-}
+impl_length_from!(u8, u16, u32, u64, usize, i8, i16, i32, i64, isize, f32, f64);
