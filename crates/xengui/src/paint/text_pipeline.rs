@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{
-    FontDatabase, FontDescriptor, FontStyle, FontWeight, TextCommand, TextMetrics, TextRasterizer,
-};
+use crate::{FontDatabase, FontStyle, FontWeight, TextCommand};
 use wgpu_glyph::{GlyphBrushBuilder, Section, Text, ab_glyph};
 
 pub struct TextPipeline {
@@ -191,25 +189,5 @@ impl TextPipeline {
         self.glyph_brush
             .draw_queued(device, staging_belt, encoder, view, width, height)
             .map_err(|e| e.to_string())
-    }
-}
-
-impl TextRasterizer for TextPipeline {
-    fn measure(&self, text: &str, font: &FontDescriptor) -> TextMetrics {
-        let (width, height) = self.measure(
-            text,
-            font.family.as_deref(),
-            font.size,
-            font.weight,
-            font.style,
-            font.letter_spacing,
-        );
-
-        TextMetrics { width, height }
-    }
-
-    fn rasterize(&mut self, ch: char, font: &FontDescriptor) -> crate::GlyphBitmap {
-
-        
     }
 }
