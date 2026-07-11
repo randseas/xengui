@@ -97,8 +97,7 @@ impl XenRenderer {
             .iter()
             .copied()
             .find(|f| {
-                f == &wgpu::TextureFormat::Bgra8UnormSrgb
-                    || f == &wgpu::TextureFormat::Rgba8UnormSrgb
+                f == &wgpu::TextureFormat::Bgra8Unorm || f == &wgpu::TextureFormat::Rgba8Unorm
             })
             .unwrap_or(surface_caps.formats[0]);
 

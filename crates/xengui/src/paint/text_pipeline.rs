@@ -8,6 +8,19 @@ pub struct TextPipeline {
 }
 
 impl TextPipeline {
+    /// Snaps a physical pixel size to the nearest whole pixel, biased
+    /// upward for small sizes.
+    ///
+    /// Without hinting, small glyphs (roughly under ~16px) lose enough
+    /// stroke width on a plain `round()` that stems and serifs can vanish
+    /// entirely at certain sizes. Rounding those up rather than to nearest
+    /// keeps thin strokes from dropping below one rasterized pixel, which
+    /// reads as sharper even though it's technically less precise.
+    #[inline]
+    fn snap(px: f32) -> f32 {
+        if px <= 20.0 { px.ceil() } else { px.round() }
+    }
+
     pub fn new(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
@@ -77,11 +90,17 @@ impl TextPipeline {
             winit::window::Theme::Light => crate::Color::BLACK,
         });
 
-        let scale = command
-            .style
-            .font_size
-            .map(|s| s.to_physical(scale_factor))
-            .unwrap_or(20.0 * scale_factor);
+        // Font size is also snapped: a non-integer physical pixel size means
+        // every glyph in the run is rasterized at a slightly different
+        // scale than a whole-pixel grid, which independently softens edges
+        // even when the origin is snapped.
+        let scale = Self::snap(
+            command
+                .style
+                .font_size
+                .map(|s| s.to_physical(scale_factor))
+                .unwrap_or(20.0 * scale_factor),
+        );
 
         let weight = command.style.font_weight.unwrap_or_default();
         let style = command.style.font_style.unwrap_or_default();
@@ -96,9 +115,11 @@ impl TextPipeline {
             .unwrap_or(0.0);
 
         let rgba = [color.r(), color.g(), color.b(), color.a()];
+        let snapped_position = (
+            Self::snap(command.position.0),
+            Self::snap(command.position.1),
+        );
 
-        // Hızlı yol: harf aralığı yoksa tek section yeterli (glyph_brush kendi
-        // shaping'ini uygular, en doğru sonuç budur).
         if letter_spacing.abs() < f32::EPSILON {
             let mut text = Text::new(&command.text).with_color(rgba).with_scale(scale);
             if let Some(id) = font_id {
@@ -106,17 +127,12 @@ impl TextPipeline {
             }
             self.glyph_brush.queue(
                 Section::default()
-                    .with_screen_position(command.position)
+                    .with_screen_position(snapped_position)
                     .add_text(text),
             );
             return;
         }
 
-        // Harf aralığı varsa: her karakteri ayrı section olarak, manuel
-        // kümülatif x ofsetiyle kuyruklarız. `measure()` ile BİREBİR aynı
-        // ilerleme (advance) mantığını kullanmak zorunludur, aksi halde
-        // layout kutusu ile gerçek çizim arasında (daha önce düzelttiğimiz
-        // font_size uyuşmazlığı gibi) bir sapma oluşur.
         let font_arc = self
             .font_db
             .resolve_font(command.font.as_deref(), weight, style)
@@ -126,7 +142,7 @@ impl TextPipeline {
             font_arc.as_scaled(PxScale::from(scale))
         };
 
-        let mut cursor_x = command.position.0;
+        let mut cursor_x = snapped_position.0;
         let mut buf = [0u8; 4];
 
         for ch in command.text.chars() {
@@ -138,7 +154,9 @@ impl TextPipeline {
 
             self.glyph_brush.queue(
                 Section::default()
-                    .with_screen_position((cursor_x, command.position.1))
+                    // Snap each per-glyph cursor too, not just the run origin —
+                    // cumulative advances quickly drift off the pixel grid.
+                    .with_screen_position((Self::snap(cursor_x), snapped_position.1))
                     .add_text(text),
             );
 
@@ -160,7 +178,10 @@ impl TextPipeline {
         use wgpu_glyph::ab_glyph::{Font, PxScale, ScaleFont};
 
         let font_arc = self.font_db.resolve_font(font, weight, style);
-        let scaled = font_arc.as_scaled(PxScale::from(font_size));
+        // Must match the snapping done in `draw()`, otherwise the layout
+        // box (computed here) and the actually-rendered glyph run (drawn
+        // with a rounded scale) diverge by a pixel or two.
+        let scaled = font_arc.as_scaled(PxScale::from(Self::snap(font_size)));
 
         let chars: Vec<char> = text.chars().collect();
         let mut width = 0.0;

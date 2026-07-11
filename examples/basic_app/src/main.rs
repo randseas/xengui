@@ -23,6 +23,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut app = App::new(config);
 
+    app.with_font(
+        "Inter_Regular",
+        include_bytes!("..\\fonts\\Inter_Regular.ttf").to_vec(),
+    );
+
     let root = Box::new(
         View::new()
             .display(Display::Flex)
@@ -43,72 +48,84 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .child(
                         Label::new()
                             .label("Hello, world!")
-                            .font_size(16)
+                            .font("Inter_Regular")
+                            .font_size(18)
                             .color(Color::BLACK),
                     )
                     .child(
                         Label::new()
                             .label("Hello, world!")
+                            .font("Inter_Regular")
                             .font_size(20)
                             .color(Color::BLACK),
                     )
                     .child(
                         Label::new()
                             .label("Hello, world!")
+                            .font("Inter_Regular")
                             .font_size(24)
                             .color(Color::BLACK),
                     )
                     .child(
                         Label::new()
                             .label("Hello, world!")
+                            .font("Inter_Regular")
                             .font_size(28)
                             .color(Color::BLACK),
                     )
                     .child(
                         Label::new()
                             .label("Hello, world!")
+                            .font("Inter_Regular")
                             .font_size(32)
                             .color(Color::BLACK),
                     )
                     .child(
                         Label::new()
                             .label("Hello, world!")
+                            .font("Inter_Regular")
                             .font_size(36)
                             .color(Color::BLACK),
                     )
                     .child(
                         Label::new()
                             .label("Hello, world!")
+                            .font("Inter_Regular")
                             .font_size(40)
                             .color(Color::BLACK),
                     )
                     .child(
                         Label::new()
                             .label("Hello, world!")
+                            .font("Inter_Regular")
                             .font_size(44)
                             .color(Color::BLACK),
                     )
                     .child(
                         Label::new()
                             .label("Hello, world!")
+                            .font("Inter_Regular")
                             .font_size(48)
                             .color(Color::BLACK),
                     )
                     .child(
                         Label::new()
                             .label("Hello, world!")
+                            .font("Inter_Regular")
                             .font_size(52)
                             .color(Color::BLACK),
                     )
                     .child(
                         Label::new()
                             .label("Hello, world!")
+                            .font("Inter_Regular")
                             .font_size(56)
                             .color(Color::BLACK),
                     )
                     .child(
                         Label::new()
                             .label("Hello, world!")
+                            .font("Inter_Regular")
                             .font_size(60)
                             .color(Color::BLACK),
                     ),
