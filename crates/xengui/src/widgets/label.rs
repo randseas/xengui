@@ -118,7 +118,7 @@ impl Widget for Label {
         });
     }
 
-    fn measure(&self, ctx: &LayoutContext) -> (f32, f32) {
+    fn measure(&self, ctx: &mut LayoutContext) -> (f32, f32) {
         let scale_factor = ctx.scale_factor;
 
         let font_size = self

@@ -1,8 +1,5 @@
-
-mod font_database;
-mod glyph;
 mod font;
+mod glyph;
 
-pub use font_database::*;
-pub use glyph::*;
 pub use font::*;
+pub use glyph::*;

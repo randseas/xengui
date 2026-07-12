@@ -26,16 +26,20 @@ impl XenRenderer {
         user_fonts: Vec<(String, Vec<u8>)>,
         debug: bool,
     ) -> Result<Self, String> {
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            #[cfg(target_os = "windows")]
-            backends: wgpu::Backends::DX12,
-            #[cfg(target_os = "macos")]
-            backends: wgpu::Backends::METAL,
-            #[cfg(target_os = "linux")]
-            backends: wgpu::Backends::VULKAN,
-            #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-            backends: wgpu::Backends::PRIMARY,
-            ..Default::default()
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: if cfg!(target_os = "windows") {
+                wgpu::Backends::DX12
+            } else if cfg!(target_os = "macos") {
+                wgpu::Backends::METAL
+            } else if cfg!(target_os = "linux") {
+                wgpu::Backends::VULKAN
+            } else {
+                wgpu::Backends::PRIMARY
+            },
+            flags: wgpu::InstanceFlags::default(),
+            memory_budget_thresholds: wgpu::MemoryBudgetThresholds::default(),
+            backend_options: wgpu::BackendOptions::default(),
+            display: None,
         });
 
         let surface = instance
@@ -101,7 +105,7 @@ impl XenRenderer {
             })
             .unwrap_or(surface_caps.formats[0]);
 
-        let text_pipeline = TextPipeline::new(&device, surface_format, user_fonts)?;
+        let text_pipeline = TextPipeline::new(&device, &queue, surface_format, user_fonts)?;
         let rect_pipeline = RectPipeline::new(&device, surface_format);
 
         let alpha_mode = surface_caps
@@ -127,6 +131,7 @@ impl XenRenderer {
             desired_maximum_frame_latency: 2,
             alpha_mode,
             view_formats: vec![],
+            color_space: wgpu::SurfaceColorSpace::Auto,
         };
         surface.configure(&device, &config);
 
@@ -152,22 +157,28 @@ impl XenRenderer {
         theme: &Option<winit::window::Theme>,
     ) {
         let frame = match self.surface.get_current_texture() {
-            Ok(frame) => frame,
-            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+            wgpu::CurrentSurfaceTexture::Success(surface_texture) => surface_texture,
+            wgpu::CurrentSurfaceTexture::Suboptimal(surface_texture) => surface_texture,
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                 log::warn!("Surface lost/outdated, reconfiguring.");
                 self.surface.configure(&self.device, &self.config);
                 return; // bir sonraki redraw'da yeni surface ile tekrar denenecek
             }
-            Err(wgpu::SurfaceError::OutOfMemory) => {
-                log::error!("GPU out of memory, cannot continue.");
-                std::process::exit(1);
-            }
-            Err(wgpu::SurfaceError::Timeout) => {
+            wgpu::CurrentSurfaceTexture::Timeout => {
                 log::debug!("Surface timeout, skipping frame.");
                 return;
             }
-            Err(e) => {
-                log::warn!("Unhandled surface error: {e:?}");
+            wgpu::CurrentSurfaceTexture::Occluded => {
+                log::debug!("Surface occluded, skipping frame.");
+                return;
+            }
+            wgpu::CurrentSurfaceTexture::Validation => {
+                log::warn!("Surface validation error, skipping frame.");
+                return;
+            }
+            #[allow(unreachable_patterns)]
+            _ => {
+                log::warn!("Unhandled surface texture state, skipping frame.");
                 return;
             }
         };
@@ -198,14 +209,14 @@ impl XenRenderer {
             });
 
             // Layout Pass — artık taffy ile (flex/grid destekli).
-            let layout_ctx = LayoutContext {
-                text: &self.text_pipeline,
+            let mut layout_ctx = LayoutContext {
+                text: &mut self.text_pipeline,
                 scale_factor: self.window.scale_factor() as f32,
                 debug: self.debug,
             };
             LayoutEngine::layout(
                 tree,
-                &layout_ctx,
+                &mut layout_ctx,
                 &self.render_cache,
                 self.config.width as f32,
                 self.config.height as f32,
@@ -268,7 +279,7 @@ impl XenRenderer {
             loop {
                 match self.text_pipeline.flush(
                     &self.device,
-                    &mut self.staging_belt,
+                    &self.queue,
                     &mut encoder,
                     &view,
                     frame.texture.width(),
@@ -302,7 +313,7 @@ impl XenRenderer {
         self.staging_belt.finish();
         // complete pipeline and presentate
         self.queue.submit(Some(encoder.finish()));
-        frame.present();
+        self.queue.present(frame);
         self.staging_belt.recall();
     }
 

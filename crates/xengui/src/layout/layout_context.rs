@@ -2,7 +2,7 @@
 use crate::TextPipeline;
 
 pub struct LayoutContext<'a> {
-    pub text: &'a TextPipeline,
+    pub text: &'a mut TextPipeline,
     pub scale_factor: f32,
     pub debug: bool,
 }

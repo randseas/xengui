@@ -8,17 +8,33 @@ use taffy::style::Style as TaffyStyle;
 
 /// `crate::Length` (Px/Percent) değerini, atandığı taffy alanının tipine
 /// (Dimension / LengthPercentage / LengthPercentageAuto) çevirir.
-fn dim<T>(l: crate::Length) -> T
+///
+/// `Px` değerleri burada `scale_factor` ile çarpılarak PHYSICAL piksele
+/// çevrilir. Neden gerekli: viewport boyutu (bkz. `layout_engine.rs`,
+/// `renderer.rs::render_frame`) zaten `surface.config.width/height`, yani
+/// PHYSICAL piksel cinsinden taffy'e veriliyor; metin ölçümü de
+/// (`TextPipeline::measure`/`draw`) `font_size.to_physical(scale_factor)`
+/// ile PHYSICAL piksel kullanıyor. Eğer padding/margin/size/gap/border gibi
+/// diğer tüm Px değerleri LOGICAL kalırsa, Hi-DPI (scale_factor != 1.0)
+/// ekranlarda box-model ile içerik arasında birim tutarsızlığı oluşur:
+/// kutular yanlış boyutlanır ve flex/grid çözümü sonucunda ortaya çıkan
+/// x/y konumları "yarım fiziksel piksel" gibi tuhaf değerlere düşebilir.
+/// `TextPipeline::draw` son anda pozisyonu tam piksele snap etse de, kutu
+/// boyutlarının kendisi yanlışsa içerik gerçek alanına doğru
+/// oturtulamaz — bu da dolaylı olarak görünen netliği etkiler. `Percent`
+/// ölçek-bağımsızdır (üst elemana göre çözülür), bu yüzden scale
+/// uygulanmaz.
+fn dim<T>(l: crate::Length, scale_factor: f32) -> T
 where
     T: taffy::style_helpers::FromLength + taffy::style_helpers::FromPercent,
 {
     match l {
-        crate::Length::Px(v) => length(v),
+        crate::Length::Px(v) => length(v * scale_factor),
         crate::Length::Percent(v) => percent(v / 100.0), // taffy 0.0..=1.0 bekler
     }
 }
 
-pub fn style_to_taffy(style: &Style) -> TaffyStyle {
+pub fn style_to_taffy(style: &Style, scale_factor: f32) -> TaffyStyle {
     let mut t = TaffyStyle {
         display: match style.display.unwrap_or_default() {
             XDisplay::Flex => taffy::style::Display::Flex,
@@ -57,7 +73,7 @@ pub fn style_to_taffy(style: &Style) -> TaffyStyle {
         t.flex_shrink = v;
     }
     if let Some(v) = style.flex_basis {
-        t.flex_basis = dim(v);
+        t.flex_basis = dim(v, scale_factor);
     }
 
     if let Some(align) = style.align_items {
@@ -75,53 +91,63 @@ pub fn style_to_taffy(style: &Style) -> TaffyStyle {
 
     if let Some((gx, gy)) = style.gap {
         t.gap = Size {
-            width: dim(gx),
-            height: dim(gy),
+            width: dim(gx, scale_factor),
+            height: dim(gy, scale_factor),
         };
     }
 
     if let Some(size) = &style.size {
         t.size = Size {
-            width: dim(size.width),
-            height: dim(size.height),
+            width: dim(size.width, scale_factor),
+            height: dim(size.height, scale_factor),
         };
     }
     if let Some(size) = &style.min_size {
         t.min_size = Size {
-            width: dim(size.width),
-            height: dim(size.height),
+            width: dim(size.width, scale_factor),
+            height: dim(size.height, scale_factor),
         };
     }
     if let Some(size) = &style.max_size {
         t.max_size = Size {
-            width: dim(size.width),
-            height: dim(size.height),
+            width: dim(size.width, scale_factor),
+            height: dim(size.height, scale_factor),
         };
     }
 
     if let Some(p) = &style.padding {
         t.padding = Rect {
-            left: dim(p.left),
-            right: dim(p.right),
-            top: dim(p.top),
-            bottom: dim(p.bottom),
+            left: dim(p.left, scale_factor),
+            right: dim(p.right, scale_factor),
+            top: dim(p.top, scale_factor),
+            bottom: dim(p.bottom, scale_factor),
         };
     }
 
     if let Some(m) = &style.margin {
         t.margin = Rect {
-            left: dim(m.left),
-            right: dim(m.right),
-            top: dim(m.top),
-            bottom: dim(m.bottom),
+            left: dim(m.left, scale_factor),
+            right: dim(m.right, scale_factor),
+            top: dim(m.top, scale_factor),
+            bottom: dim(m.bottom, scale_factor),
         };
     }
 
     // Görsel border zaten rect_pipeline'da SDF ile çiziliyor; burada border
     // genişliğini taffy'nin box-model hesaplamasına da veriyoruz ki içerik
-    // border'ın altında ezilmesin (CSS border-box davranışı).
+    // border'ın altında ezilmesin (CSS border-box davranışı). Box-model
+    // artık PHYSICAL piksel kullandığından burası da scale_factor ile
+    // çarpılıyor.
+    //
+    // NOT: `RectCommand.border_width`/`border_radius` (bkz. `view.rs`,
+    // `button.rs`, `rect_pipeline.rs`) bu değeri HÂLÂ ham (unscaled)
+    // `Length` olarak taşıyor, çünkü `PaintContext`'in şu an scale_factor'e
+    // erişimi yok. scale_factor == 1.0 iken (çoğu masaüstü/varsayılan
+    // durum) bu bir sorun yaratmaz; Hi-DPI'da görsel border kalınlığının da
+    // fiziksel piksele çekilmesi ayrı bir değişiklik gerektirir (paint
+    // pipeline'a scale_factor akıtılması) — bu PR'ın kapsamı dışında.
     if let Some(b) = &style.border {
-        let w = length(b.width.value());
+        let w = length(b.width.value() * scale_factor);
         t.border = Rect {
             left: w,
             right: w,
@@ -131,10 +157,16 @@ pub fn style_to_taffy(style: &Style) -> TaffyStyle {
     }
 
     if let Some(cols) = &style.grid_template_columns {
-        t.grid_template_columns = cols.iter().map(map_grid_track).collect();
+        t.grid_template_columns = cols
+            .iter()
+            .map(|track| map_grid_track(track, scale_factor))
+            .collect();
     }
     if let Some(rows) = &style.grid_template_rows {
-        t.grid_template_rows = rows.iter().map(map_grid_track).collect();
+        t.grid_template_rows = rows
+            .iter()
+            .map(|track| map_grid_track(track, scale_factor))
+            .collect();
     }
     if let Some(p) = style.grid_column {
         t.grid_column = Line {
@@ -173,9 +205,12 @@ fn map_justify(j: XJustify) -> JustifyContent {
     }
 }
 
-fn map_grid_track(track: &crate::GridTrack) -> taffy::style::GridTemplateComponent<String> {
+fn map_grid_track(
+    track: &crate::GridTrack,
+    scale_factor: f32,
+) -> taffy::style::GridTemplateComponent<String> {
     let sizing_function = match track {
-        crate::GridTrack::Px(px) => length(*px),
+        crate::GridTrack::Px(px) => length(*px * scale_factor),
         crate::GridTrack::Fr(f) => fr(*f),
         crate::GridTrack::Auto => auto(),
     };

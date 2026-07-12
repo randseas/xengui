@@ -113,7 +113,7 @@ impl Widget for View {
     /// çağrılır (bkz. layout_engine.rs::build_taffy_node). Bu durumda 0x0
     /// döner; gerçek boyutlandırma taffy tarafından style/children'a göre
     /// yapılır.
-    fn measure(&self, _ctx: &LayoutContext) -> (f32, f32) {
+    fn measure(&self, _ctx: &mut LayoutContext) -> (f32, f32) {
         (0.0, 0.0)
     }
 

@@ -39,7 +39,7 @@ pub trait Widget: Any {
         None
     }
 
-    fn measure(&self, ctx: &LayoutContext) -> (f32, f32);
+    fn measure(&self, ctx: &mut LayoutContext) -> (f32, f32);
 
     fn layout(&mut self, rect: LayoutBox);
 

@@ -9,7 +9,7 @@ impl LayoutEngine {
     /// ağaca (children dahil) `layout()` çağrısıyla geri yazar.
     pub fn layout(
         tree: &mut [Box<dyn Widget>],
-        ctx: &LayoutContext,
+        ctx: &mut LayoutContext,
         cache: &RenderCache,
         viewport_width: f32,
         viewport_height: f32,
@@ -57,21 +57,17 @@ impl LayoutEngine {
 fn build_taffy_node(
     widget: &dyn Widget,
     taffy: &mut TaffyTree<()>,
-    ctx: &LayoutContext,
+    ctx: &mut LayoutContext,
     cache: &RenderCache,
     path: &str,
 ) -> NodeId {
-    let mut style = style_to_taffy(widget.style());
+    let mut style = style_to_taffy(widget.style(), ctx.scale_factor);
     let children = widget.children();
 
     if children.is_empty() {
         let auto_w = style.size.width == taffy::style::Dimension::auto();
         let auto_h = style.size.height == taffy::style::Dimension::auto();
 
-        // Kullanıcı açıkça width/height vermemişse, widget'ın kendi içerik
-        // boyutunu kullan (ör. Text için font shaping sonucu). Dirty
-        // değilse ve önceki frame'den cache'lenmiş bir boyut varsa, pahalı
-        // measure() tekrar çağrılmaz.
         if auto_w && auto_h {
             let (w, h) = if widget.is_dirty() {
                 widget.measure(ctx)
@@ -119,9 +115,10 @@ fn apply_layout(
     });
 
     if let Some(children) = widget.children_mut()
-        && let Ok(child_ids) = taffy.children(node_id) {
-            for (child, child_id) in children.iter_mut().zip(child_ids) {
-                apply_layout(child.as_mut(), taffy, child_id, abs_x, abs_y);
-            }
+        && let Ok(child_ids) = taffy.children(node_id)
+    {
+        for (child, child_id) in children.iter_mut().zip(child_ids) {
+            apply_layout(child.as_mut(), taffy, child_id, abs_x, abs_y);
         }
+    }
 }
