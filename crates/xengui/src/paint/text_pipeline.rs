@@ -41,7 +41,8 @@ impl TextPipeline {
     /// reads as sharper even though it's technically less precise.
     #[inline]
     fn snap(px: f32) -> f32 {
-        if px <= 20.0 { px.ceil() } else { px.round() }
+        //if px <= 20.0 { px.ceil() } else { px.round() }
+        px.round()
     }
 
     pub fn new(
@@ -154,7 +155,7 @@ impl TextPipeline {
             style,
         );
 
-        let metrics = Metrics::new(scale, scale * 1.2);
+        let metrics = Metrics::new(scale, scale * 1.25);
         let mut buffer = GlyphonBuffer::new(&mut self.font_system, metrics);
         buffer.set_size(Some(f32::MAX), Some(f32::MAX));
         buffer.set_text(text, &attrs, Shaping::Advanced, None);

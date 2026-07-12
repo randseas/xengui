@@ -80,6 +80,13 @@ fn build_taffy_node(
                 width: length(w),
                 height: length(h),
             };
+            // CSS flexbox `min-width: auto` behavior
+            if style.min_size.width == taffy::style::Dimension::auto() {
+                style.min_size.width = length(w);
+            }
+            if style.min_size.height == taffy::style::Dimension::auto() {
+                style.min_size.height = length(h);
+            }
         }
         taffy.new_leaf(style).expect("taffy leaf oluşturulamadı")
     } else {

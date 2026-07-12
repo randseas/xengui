@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use xengui::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -28,6 +29,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         include_bytes!("..\\fonts\\Inter_Regular.ttf").to_vec(),
     );
 
+    let mut inner = View::new()
+        .flex_direction(FlexDirection::Column)
+        .width(Length::Percent(100.0))
+        .height(Length::Percent(100.0))
+        .align_items(AlignItems::Start)
+        .justify_content(JustifyContent::Start);
+
+    for size in [14, 16, 18, 20, 24] {
+        inner = inner.child(
+            Label::new()
+                .label("The quick brown fox jumps over the lazy dog.")
+                .font("Inter_Regular")
+                .font_size(size)
+                .color(Color::BLACK),
+        );
+    }
+
     let root = Box::new(
         View::new()
             .display(Display::Flex)
@@ -38,49 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .height(Length::Percent(100.0))
             .background(Color::WHITE)
             .padding(Edges::all(15))
-            .child(
-                View::new()
-                    .flex_direction(FlexDirection::Column)
-                    .width(Length::Percent(100.0))
-                    .height(Length::Percent(100.0))
-                    .align_items(AlignItems::Start)
-                    .justify_content(JustifyContent::Start)
-                    .child(
-                        Label::new()
-                            .label("The quick brown fox jumps over the lazy dog.")
-                            .font("Inter_Regular")
-                            .font_size(14)
-                            .color(Color::BLACK),
-                    )
-                    .child(
-                        Label::new()
-                            .label("The quick brown fox jumps over the lazy dog.")
-                            .font("Inter_Regular")
-                            .font_size(16)
-                            .color(Color::BLACK),
-                    )
-                    .child(
-                        Label::new()
-                            .label("The quick brown fox jumps over the lazy dog.")
-                            .font("Inter_Regular")
-                            .font_size(18)
-                            .color(Color::BLACK),
-                    )
-                    .child(
-                        Label::new()
-                            .label("The quick brown fox jumps over the lazy dog.")
-                            .font("Inter_Regular")
-                            .font_size(20)
-                            .color(Color::BLACK),
-                    )
-                    .child(
-                        Label::new()
-                            .label("The quick brown fox jumps over the lazy dog.")
-                            .font("Inter_Regular")
-                            .font_size(24)
-                            .color(Color::BLACK),
-                    ),
-            ),
+            .child(inner),
     );
 
     app.add_node(root);
