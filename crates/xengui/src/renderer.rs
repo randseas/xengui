@@ -242,7 +242,6 @@ impl XenRenderer {
             }
             self.render_cache.retain_keys(&live_keys);
 
-            // Commit fazı: dirty flag'leri sıfırla (children dahil).
             for node in tree.iter_mut() {
                 reset_dirty_recursive(node.as_mut());
             }
@@ -331,7 +330,7 @@ impl XenRenderer {
             self.config.height = size.height.max(1);
             self.surface.configure(&self.device, &self.config);
             for node in tree.iter_mut() {
-                node.set_dirty(true);
+                set_dirty_recursive(node.as_mut());
             }
             self.render_frame(tree, theme);
         }
@@ -382,6 +381,15 @@ fn reset_dirty_recursive(widget: &mut dyn Widget) {
     if let Some(children) = widget.children_mut() {
         for child in children.iter_mut() {
             reset_dirty_recursive(child.as_mut());
+        }
+    }
+}
+
+fn set_dirty_recursive(widget: &mut dyn Widget) {
+    widget.set_dirty(true);
+    if let Some(children) = widget.children_mut() {
+        for child in children.iter_mut() {
+            set_dirty_recursive(child.as_mut());
         }
     }
 }

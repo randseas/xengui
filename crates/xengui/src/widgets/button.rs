@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background, Interaction, LayoutBox, LayoutContext, PaintContext, RectCommand, Style,
-    StyleBuilder, TextCommand, Widget, WidgetContent
+    StyleBuilder, TextCommand, Widget, WidgetContent,
 };
 use smol_str::SmolStr;
 use std::cell::Cell;
@@ -236,7 +236,7 @@ impl Widget for Button {
 
         self.content_size.set((text_w, text_h));
 
-        let padding = &self.style.padding.unwrap();
+        let padding = &self.style.padding.unwrap_or_default();
 
         (
             text_w + padding.left.value() + padding.right.value(),
@@ -266,7 +266,7 @@ impl Widget for Button {
         }
 
         let (content_w, content_h) = self.content_size.get();
-        let padding = self.style.padding.unwrap();
+        let padding = self.style.padding.unwrap_or_default();
         let text_x = self.layout_box.x
             + padding.left.value()
             + (self.layout_box.width - padding.left.value() - padding.right.value() - content_w)
