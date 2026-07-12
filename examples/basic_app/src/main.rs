@@ -43,90 +43,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .flex_direction(FlexDirection::Column)
                     .width(Length::Percent(100.0))
                     .height(Length::Percent(100.0))
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
+                    .align_items(AlignItems::Start)
+                    .justify_content(JustifyContent::Start)
                     .child(
                         Label::new()
-                            .label("Hello, world!")
+                            .label("The quick brown fox jumps over the lazy dog.")
+                            .font("Inter_Regular")
+                            .font_size(14)
+                            .color(Color::BLACK),
+                    )
+                    .child(
+                        Label::new()
+                            .label("The quick brown fox jumps over the lazy dog.")
+                            .font("Inter_Regular")
+                            .font_size(16)
+                            .color(Color::BLACK),
+                    )
+                    .child(
+                        Label::new()
+                            .label("The quick brown fox jumps over the lazy dog.")
                             .font("Inter_Regular")
                             .font_size(18)
                             .color(Color::BLACK),
                     )
                     .child(
                         Label::new()
-                            .label("Hello, world!")
+                            .label("The quick brown fox jumps over the lazy dog.")
                             .font("Inter_Regular")
                             .font_size(20)
                             .color(Color::BLACK),
                     )
                     .child(
                         Label::new()
-                            .label("Hello, world!")
+                            .label("The quick brown fox jumps over the lazy dog.")
                             .font("Inter_Regular")
                             .font_size(24)
-                            .color(Color::BLACK),
-                    )
-                    .child(
-                        Label::new()
-                            .label("Hello, world!")
-                            .font("Inter_Regular")
-                            .font_size(28)
-                            .color(Color::BLACK),
-                    )
-                    .child(
-                        Label::new()
-                            .label("Hello, world!")
-                            .font("Inter_Regular")
-                            .font_size(32)
-                            .color(Color::BLACK),
-                    )
-                    .child(
-                        Label::new()
-                            .label("Hello, world!")
-                            .font("Inter_Regular")
-                            .font_size(36)
-                            .color(Color::BLACK),
-                    )
-                    .child(
-                        Label::new()
-                            .label("Hello, world!")
-                            .font("Inter_Regular")
-                            .font_size(40)
-                            .color(Color::BLACK),
-                    )
-                    .child(
-                        Label::new()
-                            .label("Hello, world!")
-                            .font("Inter_Regular")
-                            .font_size(44)
-                            .color(Color::BLACK),
-                    )
-                    .child(
-                        Label::new()
-                            .label("Hello, world!")
-                            .font("Inter_Regular")
-                            .font_size(48)
-                            .color(Color::BLACK),
-                    )
-                    .child(
-                        Label::new()
-                            .label("Hello, world!")
-                            .font("Inter_Regular")
-                            .font_size(52)
-                            .color(Color::BLACK),
-                    )
-                    .child(
-                        Label::new()
-                            .label("Hello, world!")
-                            .font("Inter_Regular")
-                            .font_size(56)
-                            .color(Color::BLACK),
-                    )
-                    .child(
-                        Label::new()
-                            .label("Hello, world!")
-                            .font("Inter_Regular")
-                            .font_size(60)
                             .color(Color::BLACK),
                     ),
             ),

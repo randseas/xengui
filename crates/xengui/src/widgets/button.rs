@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background, Interaction, LayoutBox, LayoutContext, PaintContext, RectCommand, Style,
-    StyleBuilder, TextCommand, Widget, WidgetContent,
+    StyleBuilder, TextCommand, Widget, WidgetContent
 };
 use smol_str::SmolStr;
 use std::cell::Cell;
@@ -218,6 +218,12 @@ impl Widget for Button {
             .map(|ls| ls.value().to_physical(scale_factor))
             .unwrap_or(0.0);
 
+        let line_height = self
+            .style
+            .line_height
+            .map(|lh| lh.value().to_physical(scale_factor))
+            .unwrap_or(0.0);
+
         let (text_w, text_h) = ctx.text.measure(
             &self.label,
             self.font.as_deref(),
@@ -225,6 +231,7 @@ impl Widget for Button {
             self.style.font_weight.unwrap_or_default(),
             self.style.font_style.unwrap_or_default(),
             letter_spacing,
+            line_height,
         );
 
         self.content_size.set((text_w, text_h));

@@ -68,9 +68,10 @@ impl TextPipeline {
 
             if font_system.db().faces().count() > before
                 && let Some(face) = font_system.db().faces().last()
-                    && let Some((family_name, _)) = face.families.first() {
-                        user_font_map.insert(name.clone(), family_name.clone());
-                    }
+                && let Some((family_name, _)) = face.families.first()
+            {
+                user_font_map.insert(name.clone(), family_name.clone());
+            }
         }
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -179,6 +180,7 @@ impl TextPipeline {
         weight: FontWeight,
         style: FontStyle,
         scale: f32,
+        line_height: f32,
     ) -> (f32, f32) {
         let attrs = Self::resolve_attrs(
             &self.user_font_map,
@@ -187,8 +189,12 @@ impl TextPipeline {
             weight,
             style,
         );
-
-        let metrics = Metrics::new(scale, scale * 1.2);
+        let final_line_height = if line_height > 0.0 {
+            line_height
+        } else {
+            scale * 1.2
+        };
+        let metrics = Metrics::new(scale, final_line_height);
         let mut buffer = GlyphonBuffer::new(&mut self.font_system, metrics);
         buffer.set_size(Some(f32::MAX), Some(f32::MAX));
         buffer.set_text(text, &attrs, Shaping::Advanced, None);
@@ -227,6 +233,12 @@ impl TextPipeline {
             .style
             .letter_spacing
             .map(|ls| ls.value().to_physical(scale_factor))
+            .unwrap_or(0.0);
+
+        let line_height = command
+            .style
+            .line_height
+            .map(|lh| lh.value().to_physical(scale_factor))
             .unwrap_or(0.0);
 
         let glyphon_color = GlyphonColor::rgba(
@@ -272,12 +284,19 @@ impl TextPipeline {
                 glyphon_color,
             );
 
-            let (advance, _) =
-                self.measure_raw(ch_str, command.font.as_deref(), weight, style, scale);
+            let (advance, _) = self.measure_raw(
+                ch_str,
+                command.font.as_deref(),
+                weight,
+                style,
+                scale,
+                line_height,
+            );
             cursor_x += advance + letter_spacing;
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn measure(
         &mut self,
         text: &str,
@@ -286,13 +305,14 @@ impl TextPipeline {
         weight: FontWeight,
         style: FontStyle,
         letter_spacing: f32,
+        line_height: f32,
     ) -> (f32, f32) {
         // Must match the snapping done in `draw()`, otherwise the layout
         // box (computed here) and the actually-rendered glyph run diverge
         // by a pixel or two.
         let scale = Self::snap(font_size);
 
-        let (width, height) = self.measure_raw(text, font, weight, style, scale);
+        let (width, height) = self.measure_raw(text, font, weight, style, scale, line_height);
 
         let extra = if text.is_empty() {
             0.0

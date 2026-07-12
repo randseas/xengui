@@ -133,6 +133,12 @@ impl Widget for Label {
             .map(|ls| ls.value().to_physical(scale_factor))
             .unwrap_or(0.0);
 
+        let line_height = self
+            .style
+            .line_height
+            .map(|lh| lh.value().to_physical(scale_factor))
+            .unwrap_or(0.0);
+
         ctx.text.measure(
             &self.content,
             self.font.as_deref(),
@@ -140,6 +146,7 @@ impl Widget for Label {
             self.style.font_weight.unwrap_or_default(),
             self.style.font_style.unwrap_or_default(),
             letter_spacing,
+            line_height,
         )
     }
 
