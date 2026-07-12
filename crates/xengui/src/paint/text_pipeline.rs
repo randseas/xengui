@@ -134,6 +134,7 @@ impl TextPipeline {
             .style(convert_style(style))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn queue_run(
         &mut self,
         text: &str,
