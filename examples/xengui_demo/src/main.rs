@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .background(Color::WHITE)
                                 .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
                                 .focus_style(|s|
-                                    s.border(Border::new(1.5, Color::BLUE_500, Length::px(8.0)))
+                                    s.border(Border::new(2, Color::BLUE_500, Length::px(8.0)))
                                 )
                                 .max_length(50)
                                 .on_change(move |value, _ctx| set_text.set(value.to_string()))
