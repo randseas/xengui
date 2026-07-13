@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct LayoutBox {
     pub x: f32,
@@ -7,12 +8,9 @@ pub struct LayoutBox {
 }
 
 impl LayoutBox {
-    /// Rounded rectangle hit-test.
-    /// Radius 0 ise klasik rectangle testi yapar.
     pub fn contains_rounded(&self, point: (f32, f32), radius: f32) -> bool {
         let (px, py) = point;
 
-        // Önce bounding box kontrolü
         if px < self.x || px > self.x + self.width || py < self.y || py > self.y + self.height {
             return false;
         }
@@ -23,7 +21,6 @@ impl LayoutBox {
 
         let r = radius.min(self.width * 0.5).min(self.height * 0.5);
 
-        // Merkez bölgeleri direkt kabul et
         if px >= self.x + r && px <= self.x + self.width - r {
             return true;
         }
@@ -32,7 +29,6 @@ impl LayoutBox {
             return true;
         }
 
-        // Köşe circle testleri
         let (cx, cy) = if px < self.x + r {
             if py < self.y + r {
                 (self.x + r, self.y + r) // top-left

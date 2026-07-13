@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{LayoutBox, LayoutContext, RenderCache, Widget, style_to_taffy};
+use crate::{ LayoutBox, LayoutContext, RenderCache, Widget, style_to_taffy };
 use taffy::prelude::*;
 
 pub struct LayoutEngine;
 
 impl LayoutEngine {
-    /// `tree`'yi taffy ile layout eder, sonuçları (mutlak x/y dahil) tüm
-    /// ağaca (children dahil) `layout()` çağrısıyla geri yazar.
     pub fn layout(
         tree: &mut [Box<dyn Widget>],
         ctx: &mut LayoutContext,
-        cache: &RenderCache,
+        cache: &mut RenderCache,
         viewport_width: f32,
-        viewport_height: f32,
+        viewport_height: f32
     ) {
         let mut taffy: TaffyTree<()> = TaffyTree::new();
 
@@ -22,9 +20,6 @@ impl LayoutEngine {
             .map(|(i, w)| build_taffy_node(w.as_ref(), &mut taffy, ctx, cache, &i.to_string()))
             .collect();
 
-        // Sanal kök: eski davranışla (dikey stack) geriye dönük uyum için
-        // varsayılan flex-column; kök seviyesindeki View'lere flex_direction
-        // vererek bu değiştirilebilir (kök View'i tek child olarak verirseniz).
         let root_style = taffy::style::Style {
             display: taffy::style::Display::Flex,
             flex_direction: taffy::style::FlexDirection::Column,
@@ -36,17 +31,14 @@ impl LayoutEngine {
         };
         let root_id = taffy
             .new_with_children(root_style, &child_ids)
-            .expect("taffy kök düğümü oluşturulamadı");
+            .expect("cannot create taffy root node");
 
         taffy
-            .compute_layout(
-                root_id,
-                Size {
-                    width: AvailableSpace::Definite(viewport_width),
-                    height: AvailableSpace::Definite(viewport_height),
-                },
-            )
-            .expect("taffy layout hesaplanamadı");
+            .compute_layout(root_id, Size {
+                width: AvailableSpace::Definite(viewport_width),
+                height: AvailableSpace::Definite(viewport_height),
+            })
+            .expect("cannot calculate taffy layout");
 
         for (widget, node_id) in tree.iter_mut().zip(child_ids) {
             apply_layout(widget.as_mut(), &taffy, node_id, 0.0, 0.0);
@@ -58,8 +50,8 @@ fn build_taffy_node(
     widget: &dyn Widget,
     taffy: &mut TaffyTree<()>,
     ctx: &mut LayoutContext,
-    cache: &RenderCache,
-    path: &str,
+    cache: &mut RenderCache,
+    path: &str
 ) -> NodeId {
     let mut style = style_to_taffy(widget.style(), ctx.scale_factor);
     let children = widget.children();
@@ -70,17 +62,20 @@ fn build_taffy_node(
 
         if auto_w && auto_h {
             let (w, h) = if widget.is_dirty() {
-                widget.measure(ctx)
+                let size = widget.measure(ctx);
+                cache.store_measure(path, size);
+                size
             } else {
-                cache
-                    .cached_size(path)
-                    .unwrap_or_else(|| widget.measure(ctx))
+                cache.cached_measure(path).unwrap_or_else(|| {
+                    let size = widget.measure(ctx);
+                    cache.store_measure(path, size);
+                    size
+                })
             };
             style.size = Size {
                 width: length(w),
                 height: length(h),
             };
-            // CSS flexbox `min-width: auto` behavior
             if style.min_size.width == taffy::style::Dimension::auto() {
                 style.min_size.width = length(w);
             }
@@ -88,16 +83,14 @@ fn build_taffy_node(
                 style.min_size.height = length(h);
             }
         }
-        taffy.new_leaf(style).expect("taffy leaf oluşturulamadı")
+        taffy.new_leaf(style).expect("cannot create taffy leaf")
     } else {
         let child_ids: Vec<NodeId> = children
             .iter()
             .enumerate()
             .map(|(i, c)| build_taffy_node(c.as_ref(), taffy, ctx, cache, &format!("{path}.{i}")))
             .collect();
-        taffy
-            .new_with_children(style, &child_ids)
-            .expect("taffy düğümü oluşturulamadı")
+        taffy.new_with_children(style, &child_ids).expect("cannot create taffy node")
     }
 }
 
@@ -106,11 +99,9 @@ fn apply_layout(
     taffy: &TaffyTree<()>,
     node_id: NodeId,
     parent_x: f32,
-    parent_y: f32,
+    parent_y: f32
 ) {
-    let layout = taffy
-        .layout(node_id)
-        .expect("taffy layout sonucu bulunamadı");
+    let layout = taffy.layout(node_id).expect("cannot find taffy layout result");
     let abs_x = parent_x + layout.location.x;
     let abs_y = parent_y + layout.location.y;
 
@@ -121,9 +112,7 @@ fn apply_layout(
         height: layout.size.height,
     });
 
-    if let Some(children) = widget.children_mut()
-        && let Ok(child_ids) = taffy.children(node_id)
-    {
+    if let Some(children) = widget.children_mut() && let Ok(child_ids) = taffy.children(node_id) {
         for (child, child_id) in children.iter_mut().zip(child_ids) {
             apply_layout(child.as_mut(), taffy, child_id, abs_x, abs_y);
         }

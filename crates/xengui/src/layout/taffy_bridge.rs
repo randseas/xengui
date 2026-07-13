@@ -1,36 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    AlignItems as XAlign, Display as XDisplay, FlexDirection as XFlexDir, FlexWrap as XFlexWrap,
-    JustifyContent as XJustify, Position as XPosition, Style,
+    AlignItems as XAlign,
+    Display as XDisplay,
+    FlexDirection as XFlexDir,
+    FlexWrap as XFlexWrap,
+    JustifyContent as XJustify,
+    Position as XPosition,
+    Style,
 };
 use taffy::prelude::*;
 use taffy::style::Style as TaffyStyle;
 
-/// `crate::Length` (Px/Percent) değerini, atandığı taffy alanının tipine
-/// (Dimension / LengthPercentage / LengthPercentageAuto) çevirir.
-///
-/// `Px` değerleri burada `scale_factor` ile çarpılarak PHYSICAL piksele
-/// çevrilir. Neden gerekli: viewport boyutu (bkz. `layout_engine.rs`,
-/// `renderer.rs::render_frame`) zaten `surface.config.width/height`, yani
-/// PHYSICAL piksel cinsinden taffy'e veriliyor; metin ölçümü de
-/// (`TextPipeline::measure`/`draw`) `font_size.to_physical(scale_factor)`
-/// ile PHYSICAL piksel kullanıyor. Eğer padding/margin/size/gap/border gibi
-/// diğer tüm Px değerleri LOGICAL kalırsa, Hi-DPI (scale_factor != 1.0)
-/// ekranlarda box-model ile içerik arasında birim tutarsızlığı oluşur:
-/// kutular yanlış boyutlanır ve flex/grid çözümü sonucunda ortaya çıkan
-/// x/y konumları "yarım fiziksel piksel" gibi tuhaf değerlere düşebilir.
-/// `TextPipeline::draw` son anda pozisyonu tam piksele snap etse de, kutu
-/// boyutlarının kendisi yanlışsa içerik gerçek alanına doğru
-/// oturtulamaz — bu da dolaylı olarak görünen netliği etkiler. `Percent`
-/// ölçek-bağımsızdır (üst elemana göre çözülür), bu yüzden scale
-/// uygulanmaz.
 fn dim<T>(l: crate::Length, scale_factor: f32) -> T
-where
-    T: taffy::style_helpers::FromLength + taffy::style_helpers::FromPercent,
+    where T: taffy::style_helpers::FromLength + taffy::style_helpers::FromPercent
 {
     match l {
         crate::Length::Px(v) => length(v * scale_factor),
-        crate::Length::Percent(v) => percent(v / 100.0), // taffy 0.0..=1.0 bekler
+        crate::Length::Percent(v) => percent(v / 100.0),
     }
 }
 
@@ -133,19 +119,6 @@ pub fn style_to_taffy(style: &Style, scale_factor: f32) -> TaffyStyle {
         };
     }
 
-    // Görsel border zaten rect_pipeline'da SDF ile çiziliyor; burada border
-    // genişliğini taffy'nin box-model hesaplamasına da veriyoruz ki içerik
-    // border'ın altında ezilmesin (CSS border-box davranışı). Box-model
-    // artık PHYSICAL piksel kullandığından burası da scale_factor ile
-    // çarpılıyor.
-    //
-    // NOT: `RectCommand.border_width`/`border_radius` (bkz. `view.rs`,
-    // `button.rs`, `rect_pipeline.rs`) bu değeri HÂLÂ ham (unscaled)
-    // `Length` olarak taşıyor, çünkü `PaintContext`'in şu an scale_factor'e
-    // erişimi yok. scale_factor == 1.0 iken (çoğu masaüstü/varsayılan
-    // durum) bu bir sorun yaratmaz; Hi-DPI'da görsel border kalınlığının da
-    // fiziksel piksele çekilmesi ayrı bir değişiklik gerektirir (paint
-    // pipeline'a scale_factor akıtılması) — bu PR'ın kapsamı dışında.
     if let Some(b) = &style.border {
         let w = length(b.width.value() * scale_factor);
         t.border = Rect {
@@ -207,7 +180,7 @@ fn map_justify(j: XJustify) -> JustifyContent {
 
 fn map_grid_track(
     track: &crate::GridTrack,
-    scale_factor: f32,
+    scale_factor: f32
 ) -> taffy::style::GridTemplateComponent<String> {
     let sizing_function = match track {
         crate::GridTrack::Px(px) => length(*px * scale_factor),

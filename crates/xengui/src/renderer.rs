@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    DrawCommand, LayoutContext, LayoutEngine, PaintContext, RectPipeline, RenderCache,
-    TextPipeline, Widget,
+    DrawCommand,
+    ImagePipeline,
+    LayoutContext,
+    LayoutEngine,
+    PaintContext,
+    RectPipeline,
+    RenderCache,
+    TextPipeline,
+    Widget,
 };
-use std::{collections::HashSet, sync::Arc};
+use std::{ collections::HashSet, sync::Arc };
 use winit::window::Window;
 
 pub struct XenRenderer {
@@ -15,6 +22,7 @@ pub struct XenRenderer {
     pub config: wgpu::SurfaceConfiguration,
     pub text_pipeline: TextPipeline,
     pub rect_pipeline: RectPipeline,
+    pub image_pipeline: ImagePipeline,
     pub render_cache: RenderCache,
     pub debug: bool,
 }
@@ -24,7 +32,7 @@ impl XenRenderer {
     pub fn new(
         window: Arc<Window>,
         user_fonts: Vec<(String, Vec<u8>)>,
-        debug: bool,
+        debug: bool
     ) -> Result<Self, String> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: if cfg!(target_os = "windows") {
@@ -46,13 +54,13 @@ impl XenRenderer {
             .create_surface(window.clone())
             .map_err(|e| format!("Cannot create surface: {}", e))?;
 
-        let adapter =
-            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
-                .expect("Cannot find a compatible adapter");
+        let adapter = pollster
+            ::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+            .expect("Cannot find a compatible adapter");
 
-        let (device, queue) =
-            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
-                .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
+        let (device, queue) = pollster
+            ::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+            .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
 
         Self::init_common(window, surface, adapter, device, queue, user_fonts, debug)
     }
@@ -61,26 +69,26 @@ impl XenRenderer {
     pub async fn new(
         window: Arc<Window>,
         user_fonts: Vec<(String, Vec<u8>)>,
-        debug: bool,
+        debug: bool
     ) -> Result<Self, String> {
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
-            ..Default::default()
+            flags: wgpu::InstanceFlags::default(),
+            memory_budget_thresholds: wgpu::MemoryBudgetThresholds::default(),
+            backend_options: wgpu::BackendOptions::default(),
+            display: None,
         });
 
         let surface = instance
             .create_surface(window.clone())
             .map_err(|e| format!("Cannot create surface: {}", e))?;
 
-        // Zero-blocking async pipeline for the browser event loop
         let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions::default())
-            .await
+            .request_adapter(&wgpu::RequestAdapterOptions::default()).await
             .expect("Cannot find a compatible adapter");
 
         let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor::default())
-            .await
+            .request_device(&wgpu::DeviceDescriptor::default()).await
             .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
 
         Self::init_common(window, surface, adapter, device, queue, user_fonts, debug)
@@ -93,11 +101,10 @@ impl XenRenderer {
         device: wgpu::Device,
         queue: wgpu::Queue,
         user_fonts: Vec<(String, Vec<u8>)>,
-        debug: bool,
+        debug: bool
     ) -> Result<Self, String> {
         let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps
-            .formats
+        let surface_format = surface_caps.formats
             .iter()
             .copied()
             .find(|f| {
@@ -107,14 +114,14 @@ impl XenRenderer {
 
         let text_pipeline = TextPipeline::new(&device, &queue, surface_format, user_fonts)?;
         let rect_pipeline = RectPipeline::new(&device, surface_format);
+        let image_pipeline = ImagePipeline::new(&device, surface_format);
 
-        let alpha_mode = surface_caps
-            .alpha_modes
+        let alpha_mode = surface_caps.alpha_modes
             .iter()
             .copied()
             .find(|&a| {
-                a == wgpu::CompositeAlphaMode::PreMultiplied
-                    || a == wgpu::CompositeAlphaMode::PostMultiplied
+                a == wgpu::CompositeAlphaMode::PreMultiplied ||
+                    a == wgpu::CompositeAlphaMode::PostMultiplied
             })
             .unwrap_or(wgpu::CompositeAlphaMode::Auto);
 
@@ -146,6 +153,7 @@ impl XenRenderer {
             config,
             text_pipeline,
             rect_pipeline,
+            image_pipeline,
             render_cache: RenderCache::new(),
             debug,
         })
@@ -154,7 +162,7 @@ impl XenRenderer {
     pub fn render_frame(
         &mut self,
         tree: &mut [Box<dyn Widget>],
-        theme: &Option<winit::window::Theme>,
+        theme: &Option<winit::window::Theme>
     ) {
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(surface_texture) => surface_texture,
@@ -162,7 +170,7 @@ impl XenRenderer {
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                 log::warn!("Surface lost/outdated, reconfiguring.");
                 self.surface.configure(&self.device, &self.config);
-                return; // bir sonraki redraw'da yeni surface ile tekrar denenecek
+                return;
             }
             wgpu::CurrentSurfaceTexture::Timeout => {
                 log::debug!("Surface timeout, skipping frame.");
@@ -191,24 +199,27 @@ impl XenRenderer {
                 None => wgpu::Color::WHITE,
             };
 
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(background_color),
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
+            let mut render_pass = encoder.begin_render_pass(
+                &(wgpu::RenderPassDescriptor {
+                    label: Some("Render Pass"),
+                    color_attachments: &[
+                        Some(wgpu::RenderPassColorAttachment {
+                            view: &view,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(background_color),
+                                store: wgpu::StoreOp::Store,
+                            },
+                            depth_slice: None,
+                        }),
+                    ],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                })
+            );
 
-            // Layout Pass — artık taffy ile (flex/grid destekli).
             let mut layout_ctx = LayoutContext {
                 text: &mut self.text_pipeline,
                 scale_factor: self.window.scale_factor() as f32,
@@ -217,16 +228,11 @@ impl XenRenderer {
             LayoutEngine::layout(
                 tree,
                 &mut layout_ctx,
-                &self.render_cache,
+                &mut self.render_cache,
                 self.config.width as f32,
-                self.config.height as f32,
+                self.config.height as f32
             );
 
-            // Paint Pass — TÜM ağaç (children dahil) recursive gezilir.
-            // Cache key'i artık `Widget::key()`'e değil, ağaçtaki konuma
-            // (path, ör. "0.1.2") dayanır; bu, key() hiç set edilmemiş
-            // widget'larda (View gibi) önceki `.unwrap()` panic'ini de
-            // kalıcı olarak ortadan kaldırır.
             let mut commands = Vec::new();
             let mut live_keys: HashSet<String> = HashSet::new();
 
@@ -237,7 +243,7 @@ impl XenRenderer {
                     &mut self.render_cache,
                     &mut commands,
                     &mut live_keys,
-                    self.debug,
+                    self.debug
                 );
             }
             self.render_cache.retain_keys(&live_keys);
@@ -247,11 +253,13 @@ impl XenRenderer {
             }
 
             let mut rect_cmds = Vec::with_capacity(commands.len());
+            let mut image_cmds = Vec::new();
             let mut text_cmds = Vec::new();
             for command in commands.into_iter() {
                 match command {
                     DrawCommand::Rect(cmd) => rect_cmds.push(cmd),
                     DrawCommand::Text(cmd) => text_cmds.push(cmd),
+                    DrawCommand::Image(cmd) => image_cmds.push(*cmd),
                 }
             }
 
@@ -261,13 +269,21 @@ impl XenRenderer {
                 &mut render_pass,
                 self.config.width,
                 self.config.height,
-                &rect_cmds,
+                &rect_cmds
+            );
+
+            self.image_pipeline.draw_batch(
+                &self.device,
+                &self.queue,
+                &mut render_pass,
+                self.config.width,
+                self.config.height,
+                &image_cmds
             );
 
             let resolved_theme = theme.unwrap_or(winit::window::Theme::Dark);
             for cmd in &text_cmds {
-                self.text_pipeline
-                    .draw(self.window.scale_factor() as f32, resolved_theme, cmd);
+                self.text_pipeline.draw(self.window.scale_factor() as f32, resolved_theme, cmd);
             }
 
             drop(render_pass);
@@ -276,27 +292,29 @@ impl XenRenderer {
 
             let mut attempts = 0;
             loop {
-                match self.text_pipeline.flush(
-                    &self.device,
-                    &self.queue,
-                    &mut encoder,
-                    &view,
-                    frame.texture.width(),
-                    frame.texture.height(),
-                ) {
-                    Ok(()) => break,
+                match
+                    self.text_pipeline.flush(
+                        &self.device,
+                        &self.queue,
+                        &mut encoder,
+                        &view,
+                        frame.texture.width(),
+                        frame.texture.height()
+                    )
+                {
+                    Ok(()) => {
+                        break;
+                    }
                     Err(e) if attempts < MAX_TEXT_FLUSH_RETRIES => {
                         attempts += 1;
                         log::warn!(
                             "Text cache resize, retrying flush ({attempts}/{MAX_TEXT_FLUSH_RETRIES}): {e}"
                         );
-                        // glyph_brush zaten queue'yu ve texture'ı büyüttü; aynı komutları
-                        // yeniden queue'lamamız gerekir çünkü draw_queued başarısız kalanı boşaltmış olabilir.
                         for cmd in &text_cmds {
                             self.text_pipeline.draw(
                                 self.window.scale_factor() as f32,
                                 resolved_theme,
-                                cmd,
+                                cmd
                             );
                         }
                     }
@@ -320,10 +338,10 @@ impl XenRenderer {
         &mut self,
         tree: &mut [Box<dyn Widget>],
         theme: &Option<winit::window::Theme>,
-        size: winit::dpi::PhysicalSize<u32>,
+        size: winit::dpi::PhysicalSize<u32>
     ) {
         if size.width == self.config.width && size.height == self.config.height {
-            return; // aynı boyutla gelen tekrarlı event'i atla
+            return;
         }
         if size.width > 0 && size.height > 0 {
             self.config.width = size.width.max(1);
@@ -337,17 +355,13 @@ impl XenRenderer {
     }
 }
 
-/// Bir widget'ı ve TÜM alt ağacını (children) recursive olarak paint eder.
-/// Dirty olmayan ve layout box'ı değişmemiş dallar için cache'ten aynen
-/// yeniden kullanılır — RenderCache'in sağladığı optimizasyon artık tek
-/// seviyeli değil, tüm ağaç derinliğinde çalışıyor.
 fn paint_recursive(
     widget: &dyn Widget,
     path: &str,
     cache: &mut RenderCache,
     commands: &mut Vec<DrawCommand>,
     live_keys: &mut HashSet<String>,
-    debug: bool,
+    debug: bool
 ) {
     live_keys.insert(path.to_string());
     let layout_box = *widget.layout_box();
@@ -365,14 +379,7 @@ fn paint_recursive(
     }
 
     for (i, child) in widget.children().iter().enumerate() {
-        paint_recursive(
-            child.as_ref(),
-            &format!("{path}.{i}"),
-            cache,
-            commands,
-            live_keys,
-            debug,
-        );
+        paint_recursive(child.as_ref(), &format!("{path}.{i}"), cache, commands, live_keys, debug);
     }
 }
 
