@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    LayoutBox,
-    LayoutContext,
-    PaintContext,
-    RectCommand,
-    Style,
-    StyleBuilder,
-    TextCommand,
-    Widget,
+    LayoutBox, LayoutContext, PaintContext, RectCommand, Style, StyleBuilder, TextCommand, Widget,
 };
 use smol_str::SmolStr;
 
@@ -28,6 +21,7 @@ pub struct Label {
     font: Option<SmolStr>,
     style: Style,
     layout_box: LayoutBox,
+    selectable: bool,
 }
 
 impl Label {
@@ -38,6 +32,7 @@ impl Label {
             font: None,
             style: Style::default(),
             layout_box: LayoutBox::default(),
+            selectable: false,
         }
     }
 
@@ -50,6 +45,12 @@ impl Label {
 
     pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
         self.font = Some(font.into());
+        self.set_dirty(true);
+        self
+    }
+
+    pub fn selectable(mut self, selectable: bool) -> Self {
+        self.selectable = selectable;
         self.set_dirty(true);
         self
     }

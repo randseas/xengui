@@ -64,6 +64,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .padding(Edges::symmetric(10, 8))
                                 .background(Color::WHITE)
                                 .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
+                                .hover_style(|s|
+                                    s.border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
+                                )
                                 .focus_style(|s|
                                     s.border(Border::new(2, Color::BLUE_500, Length::px(8.0)))
                                 )
