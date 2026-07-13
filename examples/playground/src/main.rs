@@ -1,44 +1,115 @@
+// SPDX-License-Identifier: Apache-2.0
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use xengui::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(target_arch = "wasm32")]
+    console_error_panic_hook::set_once();
+
     let config = AppConfig {
-        title: "My XenGui App".into(),
+        #[cfg(not(target_arch = "wasm32"))]
+        title: "XenGui App".into(),
+        #[cfg(not(target_arch = "wasm32"))]
         width: 640,
+        #[cfg(not(target_arch = "wasm32"))]
         height: 480,
-        position: WindowPosition::Center,
+        #[cfg(not(target_arch = "wasm32"))]
+        position: xengui::WindowPosition::Center,
         ..Default::default()
     };
 
     let mut app = App::new(config);
 
+    app.with_font(
+        "Noto_Sans_Regular",
+        include_bytes!(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/fonts/NotoSans-VariableFont.ttf")
+        ).to_vec()
+    );
+
     app.render(|| {
-        let (counter, set_counter) = use_state::<i32>(0);
+        let (counter, set_counter) = use_state::<i32>(12);
+        let name = "Ferris";
 
         Box::new(
             View::new()
                 .display(Display::Flex)
                 .flex_direction(FlexDirection::Column)
-                .align_items(AlignItems::Center)
-                .justify_content(JustifyContent::Center)
+                .justify_content(JustifyContent::Start)
+                .align_items(AlignItems::Start)
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
                 .background(Color::WHITE)
+                .padding(Edges::all(15))
                 .child(
-                    Label::new()
-                        .label(format!("Count: {counter}"))
-                        .font_size(20)
-                        .color(Color::NEUTRAL_700)
-                )
-                .child(
-                    Button::new()
-                        .label("Increment")
-                        .padding(Edges::symmetric(12, 8))
-                        .background(Color::NEUTRAL_200)
-                        .on_click(move |_ctx| set_counter.set(counter + 1))
+                    View::new()
+                        .flex_direction(FlexDirection::Column)
+                        .width(Length::Percent(100.0))
+                        .height(Length::Percent(100.0))
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::Center)
+                        .child(
+                            Label::new()
+                                .label("My XenGui Application")
+                                .margin(Edges::only(0, 0, 0, 5))
+                                .font_size(20)
+                                .color(Color::NEUTRAL_500)
+                        )
+                        .child(
+                            Button::new()
+                                .label("Increment")
+                                .font_size(16)
+                                .color(Color::NEUTRAL_500)
+                                .background(Color::NEUTRAL_200)
+                                .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
+                                .padding(Edges::only(9, 4, 9, 7))
+                                .margin(Edges::symmetric(0, 5))
+                                .on_click(move |_ctx| set_counter.set(counter + 1))
+                                .hover_style(|s|
+                                    s
+                                        .background(Color::NEUTRAL_200)
+                                        .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
+                                        .color(Color::NEUTRAL_600)
+                                )
+                                .pressed_style(|s|
+                                    s
+                                        .background(Color::NEUTRAL_200)
+                                        .border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
+                                        .color(Color::NEUTRAL_700)
+                                )
+                                .disabled_style(|s|
+                                    s.background(Color::NEUTRAL_100).color(Color::NEUTRAL_400)
+                                )
+                        )
+                        .child(
+                            Label::new()
+                                .label(format!("Hello {name}, age {counter}"))
+                                .font_size(16)
+                                .color(Color::NEUTRAL_500)
+                        )
+                        .child(
+                            View::new().child(
+                                Image::new()
+                                    .bytes(
+                                        include_bytes!(
+                                            concat!(
+                                                env!("CARGO_MANIFEST_DIR"),
+                                                "/assets/ferris.png"
+                                            )
+                                        )
+                                    )
+                                    .object_fit(ObjectFit::Fill)
+                                    .width(160)
+                                    .height(105)
+                            )
+                        )
                 )
         )
     });
 
-    app.run()?;
+    if let Err(e) = app.run() {
+        eprintln!("Error running app: {:?}", e);
+    }
+
     Ok(())
 }
