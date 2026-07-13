@@ -1,40 +1,105 @@
 // SPDX-License-Identifier: Apache-2.0
+use smol_str::SmolStr;
 use std::any::Any;
-use std::cell::RefCell;
+use std::cell::{ Cell, RefCell };
+use std::collections::{ HashMap, HashSet };
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 use winit::window::Window;
 
-thread_local! {
-    static HOOK_STORE: RefCell<HookStore> = RefCell::new(HookStore::new());
-    static REDRAW_HANDLE: RefCell<Option<Arc<Window>>> = const { RefCell::new(None) };
-}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ComponentId(SmolStr);
 
-struct HookStore {
-    slots: Vec<Rc<RefCell<Box<dyn Any>>>>,
-    cursor: usize,
-    dirty: bool,
-}
+impl ComponentId {
+    pub fn root() -> Self {
+        Self(SmolStr::new("root"))
+    }
 
-impl HookStore {
-    fn new() -> Self {
-        Self {
-            slots: Vec::new(),
-            cursor: 0,
-            dirty: false,
-        }
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct ComponentKey(SmolStr);
+
+impl From<&str> for ComponentKey {
+    fn from(v: &str) -> Self {
+        Self(SmolStr::new(v))
+    }
+}
+
+impl From<String> for ComponentKey {
+    fn from(v: String) -> Self {
+        Self(SmolStr::new(v))
+    }
+}
+
+impl From<SmolStr> for ComponentKey {
+    fn from(v: SmolStr) -> Self {
+        Self(v)
+    }
+}
+
+macro_rules! impl_component_key_from_int {
+    ($($t:ty),*) => {
+        $(
+            impl From<$t> for ComponentKey {
+                fn from(v: $t) -> Self {
+                    Self(SmolStr::new(v.to_string()))
+                }
+            }
+        )*
+    };
+}
+impl_component_key_from_int!(u8, u16, u32, u64, usize, i8, i16, i32, i64, isize);
+
+struct ComponentState {
+    slots: Vec<Rc<RefCell<Box<dyn Any>>>>,
+    cursor: usize,
+}
+
+impl ComponentState {
+    fn new() -> Self {
+        Self { slots: Vec::new(), cursor: 0 }
+    }
+}
+
+thread_local! {
+    static HOOK_STORE: RefCell<HashMap<ComponentId, ComponentState>> = RefCell::new(HashMap::new());
+
+    static COMPONENT_STACK: RefCell<Vec<ComponentId>> = const { RefCell::new(Vec::new()) };
+
+    static LIVE_COMPONENTS: RefCell<HashSet<ComponentId>> = RefCell::new(HashSet::new());
+
+    static DIRTY: Cell<bool> = const { Cell::new(false) };
+    static REDRAW_HANDLE: RefCell<Option<Arc<Window>>> = const { RefCell::new(None) };
+}
+
 pub(crate) fn begin_render() {
-    HOOK_STORE.with(|s| {
-        s.borrow_mut().cursor = 0;
+    LIVE_COMPONENTS.with(|s| s.borrow_mut().clear());
+    COMPONENT_STACK.with(|s| {
+        let mut s = s.borrow_mut();
+        debug_assert!(
+            s.is_empty(),
+            "xengui hooks: component stack boş değil - begin_render/end_render dengesiz çağrılmış olabilir"
+        );
+        s.clear();
+    });
+}
+
+pub(crate) fn end_render() {
+    LIVE_COMPONENTS.with(|live| {
+        let live = live.borrow();
+        HOOK_STORE.with(|store| {
+            store.borrow_mut().retain(|id, _| live.contains(id));
+        });
     });
 }
 
 pub(crate) fn take_dirty() -> bool {
-    HOOK_STORE.with(|s| std::mem::take(&mut s.borrow_mut().dirty))
+    DIRTY.with(|d| d.replace(false))
 }
 
 pub(crate) fn set_redraw_handle(window: Arc<Window>) {
@@ -51,13 +116,75 @@ fn request_redraw() {
     });
 }
 
+fn current_component_id() -> ComponentId {
+    COMPONENT_STACK.with(|s| {
+        s.borrow()
+            .last()
+            .cloned()
+            .unwrap_or_else(|| {
+                panic!(
+                    "use_state: bir component() kapsamı dışında çağrıldı. \
+                 use_state yalnızca App::render kök fonksiyonu içinde veya \
+                 component(key, ...) kapsamı içinde kullanılabilir."
+                )
+            })
+    })
+}
+
+fn push_component(key: ComponentKey) -> ComponentId {
+    let id = COMPONENT_STACK.with(|s| {
+        match s.borrow().last() {
+            Some(parent) => ComponentId(SmolStr::new(format!("{}/{}", parent.as_str(), key.0))),
+            None => ComponentId(key.0),
+        }
+    });
+
+    HOOK_STORE.with(|store| {
+        let mut store = store.borrow_mut();
+        let state = store.entry(id.clone()).or_insert_with(ComponentState::new);
+        state.cursor = 0;
+    });
+
+    let first_time_this_frame = LIVE_COMPONENTS.with(|s| s.borrow_mut().insert(id.clone()));
+    if !first_time_this_frame {
+        log::warn!(
+            "xengui: yinelenen bileşen anahtarı '{}' - aynı karede iki kez kullanıldı. \
+             Dinamik listelerde her öğeye benzersiz bir key verin (React'taki 'key' prop'u gibi).",
+            id.as_str()
+        );
+    }
+
+    COMPONENT_STACK.with(|s| s.borrow_mut().push(id.clone()));
+    id
+}
+
+fn pop_component() {
+    COMPONENT_STACK.with(|s| {
+        s.borrow_mut().pop();
+    });
+}
+
+/// component(key, render).
+///
+/// ```ignore
+/// let mut list_view = View::new().flex_direction(FlexDirection::Column);
+/// for item in &items {
+///     list_view = list_view.child(component(item.id, || {
+///         let (checked, set_checked) = use_state(false);
+///         Button::new()
+///             .label(if checked { "✓" } else { "" })
+///             .on_click(move |_ctx| set_checked.set(!checked))
+///     }));
+/// }
+/// ```
+pub fn component<R>(key: impl Into<ComponentKey>, render: impl FnOnce() -> R) -> R {
+    push_component(key.into());
+    let result = render();
+    pop_component();
+    result
+}
+
 /// useState(initial).
-///
-/// initial is used ONLY during the initial render; in subsequent renders, the
-/// existing slot value is preserved as-is.
-///
-/// Returns: (current_value, set_function). SetState<T> is Clone and
-/// 'static - it can be freely moved into closures like on_click.
 ///
 /// ```ignore
 /// let (count, set_count) = use_state(0i32);
@@ -69,36 +196,44 @@ fn request_redraw() {
 /// )
 /// ```
 pub fn use_state<T: Clone + 'static>(initial: T) -> (T, SetState<T>) {
-    HOOK_STORE.with(|store| {
-        let idx;
-        let slot;
-        {
-            let mut store = store.borrow_mut();
-            idx = store.cursor;
-            store.cursor += 1;
+    let id = current_component_id();
 
-            if idx == store.slots.len() {
-                store.slots.push(Rc::new(RefCell::new(Box::new(initial) as Box<dyn Any>)));
-            }
-            slot = store.slots[idx].clone();
+    let (slot, idx) = HOOK_STORE.with(|store| {
+        let mut store = store.borrow_mut();
+        let state = store
+            .get_mut(&id)
+            .expect("use_state: internal error - provided binding used without begin/push");
+
+        let idx = state.cursor;
+        state.cursor += 1;
+
+        if idx == state.slots.len() {
+            state.slots.push(Rc::new(RefCell::new(Box::new(initial) as Box<dyn Any>)));
         }
 
-        let value = slot
-            .borrow()
-            .downcast_ref::<T>()
-            .expect(
-                "use_state: hook order changed between renders - do not call use_state conditionally (inside if/loop)"
-            )
-            .clone();
+        (state.slots[idx].clone(), idx)
+    });
 
-        (
-            value,
-            SetState {
-                slot,
-                _marker: PhantomData,
-            },
-        )
-    })
+    let value = {
+        let borrowed = slot.borrow();
+        borrowed
+            .downcast_ref::<T>()
+            .unwrap_or_else(|| {
+                panic!(
+                    "use_state: hook order broken in component '{}' (slot #{idx}) - do not call use_state conditionally (inside an if/loop). In dynamic lists, wrap each item in a component (e.g., component(key, ...)) to give it its own isolated hook order.",
+                    id.as_str()
+                )
+            })
+            .clone()
+    };
+
+    (
+        value,
+        SetState {
+            slot,
+            _marker: PhantomData,
+        },
+    )
 }
 
 pub struct SetState<T> {
@@ -118,9 +253,7 @@ impl<T> Clone for SetState<T> {
 impl<T: 'static> SetState<T> {
     pub fn set(&self, value: T) {
         *self.slot.borrow_mut() = Box::new(value);
-        HOOK_STORE.with(|s| {
-            s.borrow_mut().dirty = true;
-        });
+        DIRTY.with(|d| d.set(true));
         request_redraw();
     }
 
@@ -129,7 +262,7 @@ impl<T: 'static> SetState<T> {
             let borrowed = self.slot.borrow();
             let current = borrowed
                 .downcast_ref::<T>()
-                .expect("use_state: SetState<T> used with wrong type");
+                .expect("use_state: SetState<T> used with the wrong type");
             f(current)
         };
         self.set(new_value);

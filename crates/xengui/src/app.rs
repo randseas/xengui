@@ -155,7 +155,8 @@ impl App {
         };
 
         crate::hooks::begin_render();
-        let new_root = builder();
+        let new_root = crate::hooks::component("root", || builder());
+        crate::hooks::end_render();
 
         crate::hooks::take_dirty();
 
@@ -557,9 +558,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     self.apply_event_ctx(ctx);
                 }
             }
-            WindowEvent::Focused(has_focus) if
-                !has_focus
-            => {
+            WindowEvent::Focused(has_focus) if !has_focus => {
                 self.input.pressed_path = None;
             }
             _ => (),

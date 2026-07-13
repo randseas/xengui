@@ -23,7 +23,7 @@ pub use widget::Widget;
 pub use input::*;
 pub use interaction::*;
 pub use text::*;
-pub use hooks::{ use_state, SetState };
+pub use hooks::{ component, use_state, ComponentId, ComponentKey, SetState };
 
 pub use app::{ App, AppConfig };
 pub use input::{ InputEvent, Key, KeyState };
