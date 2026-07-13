@@ -258,14 +258,16 @@ impl<T: 'static> SetState<T> {
         request_redraw();
     }
 
-    pub fn update(&self, f: impl FnOnce(&T) -> T) {
-        let new_value = {
-            let borrowed = self.slot.borrow();
+    pub fn update(&self, f: impl FnOnce(&mut T)) {
+        {
+            let mut borrowed = self.slot.borrow_mut();
             let current = borrowed
-                .downcast_ref::<T>()
+                .downcast_mut::<T>()
                 .expect("use_state: SetState<T> used with the wrong type");
-            f(current)
-        };
-        self.set(new_value);
+
+            f(current);
+        }
+        DIRTY.with(|d| d.set(true));
+        request_redraw();
     }
 }

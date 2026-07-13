@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    LayoutBox, LayoutContext, PaintContext, RectCommand, Style, StyleBuilder, TextCommand, Widget,
+    LayoutBox,
+    LayoutContext,
+    PaintContext,
+    RectCommand,
+    Style,
+    StyleBuilder,
+    TextCommand,
+    Widget,
 };
 use smol_str::SmolStr;
 
@@ -98,14 +105,7 @@ impl Widget for Label {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
-        if ctx.debug {
-            log::info!(
-                "paint -> '{}' x={} y={}",
-                self.content,
-                self.layout_box.x,
-                self.layout_box.y
-            );
-        }
+        log::trace!("paint -> '{}' x={} y={}", self.content, self.layout_box.x, self.layout_box.y);
 
         if self.style.background.is_some() {
             ctx.draw_rect(RectCommand {

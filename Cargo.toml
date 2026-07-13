@@ -36,6 +36,8 @@ image = { version = "0.25.10", default-features = false, features = [
     "webp",
     "gif",
 ] }
+env_logger = "0.11.11"
+console_log = "1.0.0"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

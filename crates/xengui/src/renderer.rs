@@ -24,16 +24,11 @@ pub struct XenRenderer {
     pub rect_pipeline: RectPipeline,
     pub image_pipeline: ImagePipeline,
     pub render_cache: RenderCache,
-    pub debug: bool,
 }
 
 impl XenRenderer {
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn new(
-        window: Arc<Window>,
-        user_fonts: Vec<(String, Vec<u8>)>,
-        debug: bool
-    ) -> Result<Self, String> {
+    pub fn new(window: Arc<Window>, user_fonts: Vec<(String, Vec<u8>)>) -> Result<Self, String> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: if cfg!(target_os = "windows") {
                 wgpu::Backends::DX12
@@ -62,14 +57,13 @@ impl XenRenderer {
             ::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
             .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
 
-        Self::init_common(window, surface, adapter, device, queue, user_fonts, debug)
+        Self::init_common(window, surface, adapter, device, queue, user_fonts)
     }
 
     #[cfg(target_arch = "wasm32")]
     pub async fn new(
         window: Arc<Window>,
-        user_fonts: Vec<(String, Vec<u8>)>,
-        debug: bool
+        user_fonts: Vec<(String, Vec<u8>)>
     ) -> Result<Self, String> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -91,7 +85,7 @@ impl XenRenderer {
             .request_device(&wgpu::DeviceDescriptor::default()).await
             .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
 
-        Self::init_common(window, surface, adapter, device, queue, user_fonts, debug)
+        Self::init_common(window, surface, adapter, device, queue, user_fonts)
     }
 
     fn init_common(
@@ -100,8 +94,7 @@ impl XenRenderer {
         adapter: wgpu::Adapter,
         device: wgpu::Device,
         queue: wgpu::Queue,
-        user_fonts: Vec<(String, Vec<u8>)>,
-        debug: bool
+        user_fonts: Vec<(String, Vec<u8>)>
     ) -> Result<Self, String> {
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps.formats
@@ -155,7 +148,6 @@ impl XenRenderer {
             rect_pipeline,
             image_pipeline,
             render_cache: RenderCache::new(),
-            debug,
         })
     }
 
@@ -223,8 +215,8 @@ impl XenRenderer {
             let mut layout_ctx = LayoutContext {
                 text: &mut self.text_pipeline,
                 scale_factor: self.window.scale_factor() as f32,
-                debug: self.debug,
             };
+
             LayoutEngine::layout(
                 tree,
                 &mut layout_ctx,
@@ -242,8 +234,7 @@ impl XenRenderer {
                     &i.to_string(),
                     &mut self.render_cache,
                     &mut commands,
-                    &mut live_keys,
-                    self.debug
+                    &mut live_keys
                 );
             }
             self.render_cache.retain_keys(&live_keys);
@@ -361,7 +352,6 @@ fn paint_recursive(
     cache: &mut RenderCache,
     commands: &mut Vec<DrawCommand>,
     live_keys: &mut HashSet<String>,
-    debug: bool
 ) {
     live_keys.insert(path.to_string());
     let layout_box = *widget.layout_box();
@@ -371,7 +361,7 @@ fn paint_recursive(
     } else {
         let mut local = Vec::new();
         {
-            let mut paint_ctx = PaintContext::new(&mut local, debug);
+            let mut paint_ctx = PaintContext::new(&mut local);
             widget.paint(&mut paint_ctx);
         }
         cache.store(path, layout_box, local.clone());
@@ -379,7 +369,7 @@ fn paint_recursive(
     }
 
     for (i, child) in widget.children().iter().enumerate() {
-        paint_recursive(child.as_ref(), &format!("{path}.{i}"), cache, commands, live_keys, debug);
+        paint_recursive(child.as_ref(), &format!("{path}.{i}"), cache, commands, live_keys);
     }
 }
 

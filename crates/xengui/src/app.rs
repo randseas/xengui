@@ -61,7 +61,6 @@ pub struct AppConfig {
     #[cfg(not(target_arch = "wasm32"))]
     pub position: WindowPosition,
 
-    pub debug: bool,
     pub fonts: Vec<(String, Vec<u8>)>,
 }
 
@@ -86,7 +85,6 @@ impl Default for AppConfig {
             #[cfg(not(target_arch = "wasm32"))]
             position: WindowPosition::Center,
 
-            debug: false,
             fonts: Vec::new(),
         }
     }
@@ -114,9 +112,7 @@ pub struct App {
 
 impl App {
     pub fn new(config: AppConfig) -> Self {
-        if config.debug {
-            log::info!("[INFO] XenGui Initialized");
-        }
+        log::info!(target: "xengui", "app initialized");
         Self {
             renderer: None,
             window: None,
@@ -276,7 +272,6 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
         }
 
-        // Web optimization: Ensure canvas automatically tracks viewport bounding box dimensions
         #[cfg(target_arch = "wasm32")]
         {
             self.config.theme = Some(winit::window::Theme::Dark);
@@ -331,17 +326,15 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let user_fonts = std::mem::take(&mut self.config.fonts);
-            match XenRenderer::new(window, user_fonts, self.config.debug) {
+            match XenRenderer::new(window, user_fonts) {
                 Ok(renderer) => {
                     self.renderer = Some(renderer);
-                    if self.config.debug {
-                        log::info!("[INFO] Application Resumed: GPU Context Ready.");
-                    }
+
+                    log::info!("application resumed, gpu context ready");
                 }
                 Err(e) => {
-                    if self.config.debug {
-                        log::info!("[CRITICAL] Cannot start GPU pipeline: {}", e);
-                    }
+                    log::info!("cannot start gpu pipeline: {}", e);
+
                     std::process::exit(1);
                 }
             }
@@ -353,25 +346,19 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 let window_clone = window.clone();
                 let proxy_clone = proxy.clone();
                 let user_fonts = std::mem::take(&mut self.config.fonts);
-                let debug = std::mem::take(&mut self.config.debug);
 
                 wasm_bindgen_futures::spawn_local(async move {
-                    match XenRenderer::new(window_clone, user_fonts, debug).await {
+                    match XenRenderer::new(window_clone, user_fonts).await {
                         Ok(renderer) => {
                             let _ = proxy_clone.send_event(XenEvent::RendererReady(renderer));
                         }
                         Err(e) => {
-                            log::error!("[CRITICAL] WASM renderer init failed: {e}");
-                            web_sys::console::error_1(
-                                &format!("XenRenderer init failed: {e}").into()
-                            );
+                            log::error!("wasm32(web) XenRenderer init failed: {e}");
                         }
                     }
                 });
             }
-            if self.config.debug {
-                log::info!("[INFO] Application Resumed on Web target.");
-            }
+            log::info!("application resumed, gpu context ready");
         }
     }
 
@@ -379,9 +366,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         match event {
             XenEvent::RendererReady(renderer) => {
                 self.renderer = Some(renderer);
-                if self.config.debug {
-                    log::info!("[INFO] Web GPU Context successfully attached to Event Loop.");
-                }
+                log::info!("web gpu context successfully attached to event loop");
                 if let Some(w) = &self.window {
                     w.request_redraw();
                 }
@@ -423,9 +408,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
             WindowEvent::ThemeChanged(new_theme) => {
                 self.config.theme = Some(new_theme);
-                if self.config.debug {
-                    log::info!("[INFO] Theme changed: {:?}", new_theme);
-                }
+                log::info!("theme changed: {:?}", new_theme);
                 for node in &mut self.root {
                     node.set_dirty(true);
                 }

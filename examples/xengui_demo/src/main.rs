@@ -4,7 +4,20 @@ use xengui::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_arch = "wasm32")]
-    console_error_panic_hook::set_once();
+    {
+        console_error_panic_hook::set_once();
+        let _ = console_log::init_with_level(log::Level::Info);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = env_logger::Builder
+            ::new()
+            .filter_module("xengui", log::LevelFilter::Trace)
+            .filter_level(log::LevelFilter::Warn)
+            .format_timestamp(None)
+            .try_init();
+    }
 
     let config = AppConfig {
         #[cfg(not(target_arch = "wasm32"))]
@@ -20,6 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut app = App::new(config);
 
+    #[cfg(target_arch = "wasm32")]
     app.with_font(
         "Noto_Sans_Regular",
         include_bytes!(
@@ -28,8 +42,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     app.render(|| {
+        let clipboard = Clipboard::default();
         let (text, set_text) = use_state(String::from("Ferris"));
         let (counter, set_counter) = use_state::<i32>(12);
+
+        let inc: SetState<i32> = set_counter.clone();
+        let dec: SetState<i32> = set_counter.clone();
 
         Box::new(
             View::new()
@@ -61,7 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .color(Color::NEUTRAL_500)
                                 .placeholder("Enter your name...")
                                 .font_size(16)
-                                .padding(Edges::symmetric(10, 8))
+                                .padding(Edges::only(10, 7, 10, 8))
                                 .background(Color::WHITE)
                                 .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
                                 .hover_style(|s|
@@ -72,7 +90,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 )
                                 .max_length(50)
                                 .on_change(move |value, _ctx| set_text.set(value.to_string()))
-                                .on_submit(move |value, _ctx| println!("Sent value: {value}"))
+                                .on_submit(move |value, _ctx| {
+                                    clipboard.set_text(value);
+                                    log::info!("clipboard -> copied: {value}");
+                                })
                         )
                         .child(
                             Label::new()
@@ -81,31 +102,99 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .color(Color::NEUTRAL_500)
                         )
                         .child(
-                            Button::new()
-                                .label("Increment")
-                                .font_size(16)
-                                .color(Color::NEUTRAL_500)
-                                .background(Color::NEUTRAL_200)
-                                .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
-                                .padding(Edges::only(9, 4, 9, 7))
-                                .margin(Edges::only(0, 10, 0, 0))
-                                .on_click(move |_ctx| set_counter.set(counter + 1))
-                                .hover_style(|s|
-                                    s
+                            View::new()
+                                .flex_direction(FlexDirection::Row)
+                                .gap(4, 0)
+                                .child(
+                                    Button::new()
+                                        .label("Increment")
+                                        .font_size(16)
+                                        .color(Color::NEUTRAL_500)
                                         .background(Color::NEUTRAL_200)
-                                        .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
-                                        .color(Color::NEUTRAL_600)
+                                        .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
+                                        .padding(Edges::only(9, 4, 9, 7))
+                                        .margin(Edges::only(0, 10, 0, 0))
+                                        .on_click(move |_ctx|
+                                            inc.update(|v| {
+                                                *v += 1;
+                                            })
+                                        )
+                                        .hover_style(|s|
+                                            s
+                                                .background(Color::NEUTRAL_200)
+                                                .border(
+                                                    Border::new(
+                                                        1,
+                                                        Color::NEUTRAL_300,
+                                                        Length::px(8.0)
+                                                    )
+                                                )
+                                                .color(Color::NEUTRAL_600)
+                                        )
+                                        .pressed_style(|s|
+                                            s
+                                                .background(Color::NEUTRAL_200)
+                                                .border(
+                                                    Border::new(
+                                                        1,
+                                                        Color::NEUTRAL_400,
+                                                        Length::px(8.0)
+                                                    )
+                                                )
+                                                .color(Color::NEUTRAL_700)
+                                        )
+                                        .disabled_style(|s|
+                                            s
+                                                .background(Color::NEUTRAL_100)
+                                                .color(Color::NEUTRAL_400)
+                                        )
                                 )
-                                .pressed_style(|s|
-                                    s
+                                .child(
+                                    Button::new()
+                                        .label("Decrement")
+                                        .font_size(16)
+                                        .color(Color::NEUTRAL_500)
                                         .background(Color::NEUTRAL_200)
-                                        .border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
-                                        .color(Color::NEUTRAL_700)
-                                )
-                                .disabled_style(|s|
-                                    s.background(Color::NEUTRAL_100).color(Color::NEUTRAL_400)
+                                        .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
+                                        .padding(Edges::only(9, 4, 9, 7))
+                                        .margin(Edges::only(0, 10, 0, 0))
+                                        .on_click(move |_ctx|
+                                            dec.update(|v| {
+                                                *v -= 1;
+                                            })
+                                        )
+                                        .hover_style(|s|
+                                            s
+                                                .background(Color::NEUTRAL_200)
+                                                .border(
+                                                    Border::new(
+                                                        1,
+                                                        Color::NEUTRAL_300,
+                                                        Length::px(8.0)
+                                                    )
+                                                )
+                                                .color(Color::NEUTRAL_600)
+                                        )
+                                        .pressed_style(|s|
+                                            s
+                                                .background(Color::NEUTRAL_200)
+                                                .border(
+                                                    Border::new(
+                                                        1,
+                                                        Color::NEUTRAL_400,
+                                                        Length::px(8.0)
+                                                    )
+                                                )
+                                                .color(Color::NEUTRAL_700)
+                                        )
+                                        .disabled_style(|s|
+                                            s
+                                                .background(Color::NEUTRAL_100)
+                                                .color(Color::NEUTRAL_400)
+                                        )
                                 )
                         )
+
                         .child(
                             View::new().child(
                                 Image::new()
