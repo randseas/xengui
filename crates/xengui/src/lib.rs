@@ -10,6 +10,8 @@ pub mod widgets;
 pub mod input;
 pub mod interaction;
 pub mod text;
+pub mod hooks;
+mod reconcile;
 
 pub use app::WindowPosition;
 pub use layout::*;
@@ -21,9 +23,10 @@ pub use widget::Widget;
 pub use input::*;
 pub use interaction::*;
 pub use text::*;
+pub use hooks::{ use_state, SetState };
 
-pub use app::{App, AppConfig};
-pub use input::{InputEvent, Key, KeyState};
+pub use app::{ App, AppConfig };
+pub use input::{ InputEvent, Key, KeyState };
 pub use style::{
     Color,
     Length,
@@ -34,6 +37,9 @@ pub use style::{
     FlexDirection,
     FlexWrap,
     FontStyle,
-    FontWeight
+    FontWeight,
 };
-pub use widgets::{Button, Label, View};
+pub use widgets::{ image_source_from_bytes, Button, Image, ImageSource, Label, ObjectFit, View };
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use widgets::image_source_from_path;
