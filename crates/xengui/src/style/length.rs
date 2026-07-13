@@ -21,7 +21,6 @@ impl Length {
         Self::Percent(value.into())
     }
 
-    /// Ham sayısal değeri döner (Px için piksel, Percent için 0..100 arası sayı).
     pub const fn value(&self) -> f32 {
         match self {
             Self::Px(v) => *v,
@@ -29,9 +28,6 @@ impl Length {
         }
     }
 
-    /// `Px` için piksel * scale_factor döner. `Percent` bir üst elemana göre
-    /// çözülmesi gerektiğinden burada scale_factor uygulanmadan ham yüzde
-    /// değeri döner; asıl çözümleme taffy/layout aşamasında yapılır.
     pub fn to_physical(self, scale_factor: f32) -> f32 {
         match self {
             Self::Px(v) => v * scale_factor,

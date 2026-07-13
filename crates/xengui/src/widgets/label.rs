@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    LayoutBox, LayoutContext, PaintContext, RectCommand, Style, StyleBuilder, TextCommand, Widget,
+    LayoutBox,
+    LayoutContext,
+    PaintContext,
+    RectCommand,
+    Style,
+    StyleBuilder,
+    TextCommand,
+    Widget,
 };
 use smol_str::SmolStr;
 
 #[macro_export]
 macro_rules! props {
-    ($($field:ident : $val:expr),* $(,)?) => {
+    ($($field:ident: $val:expr),* $(,)?) => {
         #[allow(clippy::needless_update)]
         TextProps {
             $( $field: Some(($val).into()), )*
@@ -95,7 +102,7 @@ impl Widget for Label {
                 "paint -> '{}' x={} y={}",
                 self.content,
                 self.layout_box.x,
-                self.layout_box.y,
+                self.layout_box.y
             );
         }
 
@@ -121,21 +128,15 @@ impl Widget for Label {
     fn measure(&self, ctx: &mut LayoutContext) -> (f32, f32) {
         let scale_factor = ctx.scale_factor;
 
-        let font_size = self
-            .style
-            .font_size
+        let font_size = self.style.font_size
             .map(|s| s.to_physical(scale_factor))
             .unwrap_or(20.0 * scale_factor);
 
-        let letter_spacing = self
-            .style
-            .letter_spacing
+        let letter_spacing = self.style.letter_spacing
             .map(|ls| ls.value().to_physical(scale_factor))
             .unwrap_or(0.0);
 
-        let line_height = self
-            .style
-            .line_height
+        let line_height = self.style.line_height
             .map(|lh| lh.value().to_physical(scale_factor))
             .unwrap_or(0.0);
 
@@ -146,7 +147,7 @@ impl Widget for Label {
             self.style.font_weight.unwrap_or_default(),
             self.style.font_style.unwrap_or_default(),
             letter_spacing,
-            line_height,
+            line_height
         )
     }
 
@@ -160,5 +161,14 @@ impl Widget for Label {
 
     fn children(&self) -> &[Box<dyn Widget>] {
         &[]
+    }
+
+    fn content_eq(&self, other: &dyn Widget) -> bool {
+        let Some(other) = other.as_any().downcast_ref::<Label>() else {
+            return false;
+        };
+        self.content == other.content &&
+            self.font == other.font &&
+            format!("{:?}", self.style) == format!("{:?}", other.style)
     }
 }

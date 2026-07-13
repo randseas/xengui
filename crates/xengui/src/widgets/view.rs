@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    Interaction, LayoutBox, LayoutContext, PaintContext, RectCommand, Style, StyleBuilder, Widget,
+    Interaction,
+    LayoutBox,
+    LayoutContext,
+    PaintContext,
+    RectCommand,
+    Style,
+    StyleBuilder,
+    Widget,
 };
 
 pub struct View {
@@ -27,20 +34,11 @@ impl View {
         self
     }
 
-    /// `true` verilirse bu View, üzerine tıklanınca `on_click`/`on_key`
-    /// hiç verilmemiş olsa bile focus alabilir hale gelir. Herhangi bir
-    /// interaction callback'i (`on_click`, `on_key`, `on_hover`, ...) zaten
-    /// set edildiyse otomatik olarak "aktif" sayılır (bkz.
-    /// `Interaction::is_active`); bunu ayrıca çağırmaya gerek yoktur —
-    /// sadece "salt focus alsın, başka bir şey yapmasın" durumları için
-    /// var.
     pub fn focusable(mut self, focusable: bool) -> Self {
         self.interaction.focusable = focusable;
         self
     }
 
-    /// `false` verilirse View event almayı bırakır (hover/press/focus/click
-    /// hiçbiri tetiklenmez).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.interaction.set_enabled(enabled);
         self
@@ -62,10 +60,6 @@ impl StyleBuilder for View {
     }
 }
 
-// on_click / on_hover / on_mouse_enter / on_mouse_leave / on_mouse_input /
-// on_key builder metodları burada üretiliyor (bkz. interaction.rs). Bunlardan
-// hiçbiri (ve focusable(true)) çağrılmadığı sürece View tamamen inert kalır
-// — mevcut davranışla birebir aynı.
 crate::impl_interaction_builders!(View);
 
 impl Widget for View {
@@ -109,10 +103,6 @@ impl Widget for View {
         Some(&mut self.interaction)
     }
 
-    /// Sadece boş (children'sız) VE explicit boyutu olmayan View'ler için
-    /// çağrılır (bkz. layout_engine.rs::build_taffy_node). Bu durumda 0x0
-    /// döner; gerçek boyutlandırma taffy tarafından style/children'a göre
-    /// yapılır.
     fn measure(&self, _ctx: &mut LayoutContext) -> (f32, f32) {
         (0.0, 0.0)
     }
@@ -136,10 +126,12 @@ impl Widget for View {
                 border_color: border.map(|b| b.color),
             });
         }
-        // Not: renderer.rs artık ağacı recursive gezdiği için burada
-        // children'ı elle paint etmeye gerek yok.
     }
 
-    // event() override edilmiyor: Widget trait'indeki varsayılan
-    // implementasyon interaction() üzerinden çalışıyor.
+    fn content_eq(&self, other: &dyn Widget) -> bool {
+        let Some(other) = other.as_any().downcast_ref::<View>() else {
+            return false;
+        };
+        format!("{:?}", self.style) == format!("{:?}", other.style)
+    }
 }

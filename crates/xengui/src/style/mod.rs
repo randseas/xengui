@@ -28,7 +28,7 @@ pub use line_height::LineHeight;
 pub use position::Position;
 pub use properties::Style;
 pub use size::Size;
-pub use style_builder::StyleBuilder;
+pub use style_builder::*;
 pub use text_align::TextAlign;
 pub use text_decoration::TextDecoration;
 pub use typography::*;

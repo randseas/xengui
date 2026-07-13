@@ -1,8 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 use super::{
-    AlignItems, Background, Border, Color, Display, Edges, FlexDirection, FlexWrap, FontStyle,
-    FontWeight, GridPlacement, GridTrack, JustifyContent, Length, LetterSpacing, LineHeight,
-    Position, Size, TextAlign, TextDecoration,
+    AlignItems,
+    Background,
+    Border,
+    Color,
+    Display,
+    Edges,
+    FlexDirection,
+    FlexWrap,
+    FontStyle,
+    FontWeight,
+    GridPlacement,
+    GridTrack,
+    JustifyContent,
+    Length,
+    LetterSpacing,
+    LineHeight,
+    Position,
+    Size,
+    TextAlign,
+    TextDecoration,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -28,7 +45,7 @@ pub struct Style {
     pub min_size: Option<Size>,
     pub max_size: Option<Size>,
 
-    // Layout stratejisi
+    // Layout
     pub display: Option<Display>,
     pub position: Option<Position>,
 
@@ -44,9 +61,57 @@ pub struct Style {
     pub align_content: Option<JustifyContent>,
     pub gap: Option<(Length, Length)>,
 
-    // Grid (basit)
+    // Grid
     pub grid_template_columns: Option<Vec<GridTrack>>,
     pub grid_template_rows: Option<Vec<GridTrack>>,
     pub grid_column: Option<GridPlacement>,
     pub grid_row: Option<GridPlacement>,
+}
+
+impl Style {
+    pub fn overlay(&self, patch: &Style) -> Style {
+        #[allow(clippy::unnecessary_lazy_evaluations)]
+        Style {
+            color: patch.color.or_else(|| self.color),
+            background: patch.background.clone().or_else(|| self.background.clone()),
+            font_size: patch.font_size.or_else(|| self.font_size),
+            font_weight: patch.font_weight.or_else(|| self.font_weight),
+            font_style: patch.font_style.or_else(|| self.font_style),
+            text_align: patch.text_align.or_else(|| self.text_align),
+            text_decoration: patch.text_decoration.or_else(|| self.text_decoration),
+            letter_spacing: patch.letter_spacing.or_else(|| self.letter_spacing),
+            line_height: patch.line_height.or_else(|| self.line_height),
+
+            padding: patch.padding.or_else(|| self.padding),
+            margin: patch.margin.or_else(|| self.margin),
+            border: patch.border.or_else(|| self.border),
+
+            size: patch.size.or_else(|| self.size),
+            min_size: patch.min_size.or_else(|| self.min_size),
+            max_size: patch.max_size.or_else(|| self.max_size),
+
+            display: patch.display.or_else(|| self.display),
+            position: patch.position.or_else(|| self.position),
+
+            flex_direction: patch.flex_direction.or_else(|| self.flex_direction),
+            flex_wrap: patch.flex_wrap.or_else(|| self.flex_wrap),
+            flex_grow: patch.flex_grow.or_else(|| self.flex_grow),
+            flex_shrink: patch.flex_shrink.or_else(|| self.flex_shrink),
+            flex_basis: patch.flex_basis.or_else(|| self.flex_basis),
+            align_items: patch.align_items.or_else(|| self.align_items),
+            align_self: patch.align_self.or_else(|| self.align_self),
+            justify_content: patch.justify_content.or_else(|| self.justify_content),
+            align_content: patch.align_content.or_else(|| self.align_content),
+            gap: patch.gap.or_else(|| self.gap),
+
+            grid_template_columns: patch.grid_template_columns
+                .clone()
+                .or_else(|| self.grid_template_columns.clone()),
+            grid_template_rows: patch.grid_template_rows
+                .clone()
+                .or_else(|| self.grid_template_rows.clone()),
+            grid_column: patch.grid_column.or(self.grid_column),
+            grid_row: patch.grid_row.or(self.grid_row),
+        }
+    }
 }

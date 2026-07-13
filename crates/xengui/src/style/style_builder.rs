@@ -1,9 +1,24 @@
-use crate::style::{FontStyle, FontWeight, LetterSpacing};
-
 // SPDX-License-Identifier: Apache-2.0
+use crate::style::{ FontStyle, FontWeight, LetterSpacing };
+
 use super::{
-    AlignItems, Background, Border, Color, Display, Edges, FlexDirection, FlexWrap, GridPlacement,
-    GridTrack, JustifyContent, Length, LineHeight, Position, Size, Style, TextAlign,
+    AlignItems,
+    Background,
+    Border,
+    Color,
+    Display,
+    Edges,
+    FlexDirection,
+    FlexWrap,
+    GridPlacement,
+    GridTrack,
+    JustifyContent,
+    Length,
+    LineHeight,
+    Position,
+    Size,
+    Style,
+    TextAlign,
     TextDecoration,
 };
 
@@ -12,19 +27,13 @@ pub trait StyleBuilder: Sized {
     fn mark_dirty(&mut self) {}
 
     fn width<L: Into<Length>>(mut self, width: L) -> Self {
-        self.style_mut()
-            .size
-            .get_or_insert_with(Default::default)
-            .width = width.into();
+        self.style_mut().size.get_or_insert_with(Default::default).width = width.into();
         self.mark_dirty();
         self
     }
 
     fn height<L: Into<Length>>(mut self, height: L) -> Self {
-        self.style_mut()
-            .size
-            .get_or_insert_with(Default::default)
-            .height = height.into();
+        self.style_mut().size.get_or_insert_with(Default::default).height = height.into();
         self.mark_dirty();
         self
     }
@@ -107,19 +116,13 @@ pub trait StyleBuilder: Sized {
     }
 
     fn min_width<L: Into<Length>>(mut self, width: L) -> Self {
-        self.style_mut()
-            .min_size
-            .get_or_insert_with(Default::default)
-            .width = width.into();
+        self.style_mut().min_size.get_or_insert_with(Default::default).width = width.into();
         self.mark_dirty();
         self
     }
 
     fn min_height<L: Into<Length>>(mut self, height: L) -> Self {
-        self.style_mut()
-            .min_size
-            .get_or_insert_with(Default::default)
-            .height = height.into();
+        self.style_mut().min_size.get_or_insert_with(Default::default).height = height.into();
         self.mark_dirty();
         self
     }
@@ -131,19 +134,13 @@ pub trait StyleBuilder: Sized {
     }
 
     fn max_width<L: Into<Length>>(mut self, width: L) -> Self {
-        self.style_mut()
-            .max_size
-            .get_or_insert_with(Default::default)
-            .width = width.into();
+        self.style_mut().max_size.get_or_insert_with(Default::default).width = width.into();
         self.mark_dirty();
         self
     }
 
     fn max_height<L: Into<Length>>(mut self, height: L) -> Self {
-        self.style_mut()
-            .max_size
-            .get_or_insert_with(Default::default)
-            .height = height.into();
+        self.style_mut().max_size.get_or_insert_with(Default::default).height = height.into();
         self.mark_dirty();
         self
     }
@@ -220,8 +217,8 @@ pub trait StyleBuilder: Sized {
         self
     }
 
-    fn gap<W: Into<Length>, H: Into<Length>>(mut self, width: W, height: H) -> Self {
-        self.style_mut().gap = Some((width.into(), height.into()));
+    fn gap<W: Into<Length>, H: Into<Length>>(mut self, horizontal: W, vertical: H) -> Self {
+        self.style_mut().gap = Some((horizontal.into(), vertical.into()));
         self.mark_dirty();
         self
     }
@@ -248,5 +245,24 @@ pub trait StyleBuilder: Sized {
         self.style_mut().grid_row = Some(row);
         self.mark_dirty();
         self
+    }
+}
+
+#[derive(Default)]
+pub struct StylePatch(Style);
+
+impl StylePatch {
+    pub fn new() -> Self {
+        Self(Style::default())
+    }
+
+    pub fn build(self) -> Style {
+        self.0
+    }
+}
+
+impl StyleBuilder for StylePatch {
+    fn style_mut(&mut self) -> &mut Style {
+        &mut self.0
     }
 }

@@ -4,9 +4,9 @@ use crate::RectCommand;
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
-    position: [f32; 2],  // NDC
-    local_pos: [f32; 2], // rect merkezine göre piksel-uzayı konumu
-    half_size: [f32; 2], // rect'in yarı genişlik/yükseklik (piksel)
+    position: [f32; 2], 
+    local_pos: [f32; 2],
+    half_size: [f32; 2],
     radius: f32,
     border_width: f32,
     fill_color: [f32; 4],
@@ -155,7 +155,6 @@ impl RectPipeline {
             let half_w = w * 0.5;
             let half_h = h * 0.5;
 
-            // Radius, rect'ten büyük olamaz (aksi halde SDF bozuk şekil üretir).
             let radius = cmd
                 .border_radius
                 .map(|r| r.value())

@@ -17,6 +17,6 @@ pub struct GlyphBitmap {
 
     pub advance: f32,
 
-    /// 8-bit alpha bitmap.
+    // 8-bit alpha bitmap.
     pub pixels: Vec<u8>,
 }

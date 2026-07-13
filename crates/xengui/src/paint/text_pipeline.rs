@@ -20,28 +20,14 @@ pub struct TextPipeline {
     atlas: TextAtlas,
     renderer: TextRenderer,
     viewport: Viewport,
-    /// Maps a user-supplied logical font name (as passed via `command.font`)
-    /// to the family name glyphon/fontdb actually indexed it under.
     user_font_map: HashMap<String, String>,
-    /// Family name to fall back to when no font is requested. `None` means
-    /// "let fontdb pick a generic sans-serif", which is what we do on
-    /// desktop where system fonts are auto-loaded by `FontSystem::new()`.
     default_family_name: Option<String>,
     pending: Vec<PendingText>,
 }
 
 impl TextPipeline {
-    /// Snaps a physical pixel size to the nearest whole pixel, biased
-    /// upward for small sizes.
-    ///
-    /// Without hinting, small glyphs (roughly under ~16px) lose enough
-    /// stroke width on a plain `round()` that stems and serifs can vanish
-    /// entirely at certain sizes. Rounding those up rather than to nearest
-    /// keeps thin strokes from dropping below one rasterized pixel, which
-    /// reads as sharper even though it's technically less precise.
     #[inline]
     fn snap(px: f32) -> f32 {
-        //if px <= 20.0 { px.ceil() } else { px.round() }
         px.round()
     }
 
@@ -56,10 +42,6 @@ impl TextPipeline {
             return Err("WASM target requires at least one font supplied.".to_string());
         }
 
-        // FontSystem::new() already loads system fonts on non-wasm targets
-        // (fontdb::Database::load_system_fonts under the hood), so there's
-        // no need to hunt for a default font manually the way the
-        // ab_glyph/system_fonts version did.
         let mut font_system = FontSystem::new();
         let mut user_font_map: HashMap<String, String> = HashMap::new();
 
@@ -110,9 +92,6 @@ impl TextPipeline {
         })
     }
 
-    /// Builds an `Attrs` tied to explicit field references rather than
-    /// `&self`, so callers can hold it alongside a `&mut self.font_system`
-    /// borrow without the borrow checker treating it as a whole-`self` loan.
     fn resolve_attrs<'a>(
         user_font_map: &'a HashMap<String, String>,
         default_family_name: &'a Option<String>,
@@ -215,10 +194,6 @@ impl TextPipeline {
             winit::window::Theme::Light => crate::Color::BLACK,
         });
 
-        // Font size is also snapped: a non-integer physical pixel size means
-        // every glyph in the run is rasterized at a slightly different
-        // scale than a whole-pixel grid, which independently softens edges
-        // even when the origin is snapped.
         let scale = Self::snap(
             command
                 .style
@@ -267,9 +242,6 @@ impl TextPipeline {
             return;
         }
 
-        // glyphon/cosmic-text has no direct inter-glyph letter-spacing knob,
-        // so - just like the previous ab_glyph implementation - we lay the
-        // run out one character at a time and advance the cursor manually.
         let mut cursor_x = snapped_position.0;
         for ch in command.text.chars() {
             let mut buf = [0u8; 4];
@@ -308,9 +280,6 @@ impl TextPipeline {
         letter_spacing: f32,
         line_height: f32,
     ) -> (f32, f32) {
-        // Must match the snapping done in `draw()`, otherwise the layout
-        // box (computed here) and the actually-rendered glyph run diverge
-        // by a pixel or two.
         let scale = Self::snap(font_size);
 
         let (width, height) = self.measure_raw(text, font, weight, style, scale, line_height);
@@ -391,7 +360,6 @@ impl TextPipeline {
     }
 }
 
-/// NOTE: variant names assumed — adjust to match your actual `FontWeight` enum.
 fn convert_weight(weight: FontWeight) -> GlyphonWeight {
     match weight {
         FontWeight::Thin => GlyphonWeight::THIN,
@@ -406,7 +374,6 @@ fn convert_weight(weight: FontWeight) -> GlyphonWeight {
     }
 }
 
-/// NOTE: variant names assumed — adjust to match your actual `FontStyle` enum.
 fn convert_style(style: FontStyle) -> GlyphonStyle {
     match style {
         FontStyle::Normal => GlyphonStyle::Normal,

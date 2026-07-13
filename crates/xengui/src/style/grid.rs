@@ -1,7 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-
-/// Taffy'nin tam grid track API'sinin sadeleştirilmiş bir alt kümesi:
-/// sabit piksel, esnek (fr) ve içerik bazlı (auto) track'ler.
 #[derive(Clone, Copy, Debug)]
 pub enum GridTrack {
     Px(f32),
@@ -9,7 +6,6 @@ pub enum GridTrack {
     Auto,
 }
 
-/// CSS `grid-column`/`grid-row` ile aynı 1-index'li konvansiyon.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct GridPlacement {
     pub start: i16,

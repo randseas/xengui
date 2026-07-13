@@ -1,41 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    Background, Interaction, LayoutBox, LayoutContext, PaintContext, RectCommand, Style,
-    StyleBuilder, TextCommand, Widget, WidgetContent,
+    Background,
+    EventCtx,
+    EventStatus,
+    InputEvent,
+    Interaction,
+    LayoutBox,
+    LayoutContext,
+    PaintContext,
+    RectCommand,
+    Style,
+    StyleBuilder,
+    StylePatch,
+    TextCommand,
+    Widget,
+    WidgetContent,
 };
 use smol_str::SmolStr;
 use std::cell::Cell;
 use winit::window::CursorIcon;
 
-/// Tıklanabilir buton widget'ı.
-///
-/// - Mouse click (press-inside + release-inside, sol tuş) VE klavye (widget
-///   focus'lu iken Enter/Space) ile tetiklenir. Bu doğrulama mantığı artık
-///   `Interaction::handle` içinde merkezi olarak yaşıyor (bkz.
-///   `interaction.rs`) — Button sadece kendi görsel state'ini
-///   `self.interaction`'dan okuyor, event işleme mantığını kendisi
-///   içermiyor.
-/// - Hover/pressed/disabled durumlarına göre arkaplanı otomatik değiştirir
-///   (bkz. `effective_background`); her durum için renk `hover_background()`,
-///   `pressed_background()`, `disabled_background()` ile açıkça verilir —
-///   framework şu an bir renk aritmetiği (otomatik koyultma) API'si
-///   sunmadığından varsayılan renk *icat edilmez*, sadece `.background()`'a
-///   düşer.
-/// - Basılıyken imleç butonun dışına sürüklenip orada bırakılırsa tıklama
-///   İPTAL olur (standart buton davranışı) — bunun için `hovered`/`pressed`
-///   ayrı state olarak tutuluyor (bkz. `Interaction`).
-/// - Etiket, layout box içinde ortalanır. `measure()` sırasında ölçülen
-///   içerik boyutu `Cell` içinde saklanır çünkü `paint()` `&self` alır ve
-///   `PaintContext`'in metin ölçüm erişimi yoktur.
 pub struct Button {
     dirty: bool,
     label: SmolStr,
     font: Option<SmolStr>,
     style: Style,
 
-    hover_background: Option<Background>,
-    pressed_background: Option<Background>,
-    disabled_background: Option<Background>,
+    hover_style: Option<Style>,
+    pressed_style: Option<Style>,
+    disabled_style: Option<Style>,
+    computed_style: Style,
 
     interaction: Interaction,
 
@@ -46,9 +40,6 @@ pub struct Button {
 impl Button {
     pub fn new() -> Self {
         let mut interaction = Interaction::new();
-        // Button doğası gereği her zaman interaktif ve focus alabilir
-        // (on_click hiç set edilmemiş olsa bile hover/press görsel state'i
-        // çalışmalı, tab ile focus alabilmeli).
         interaction.focusable = true;
         interaction.hover_cursor = Some(CursorIcon::Pointer);
 
@@ -57,18 +48,18 @@ impl Button {
             label: SmolStr::new(""),
             font: None,
             style: Style::default(),
-            hover_background: None,
-            pressed_background: None,
-            disabled_background: None,
+            hover_style: None,
+            pressed_style: None,
+            disabled_style: None,
+            computed_style: Style::default(),
             interaction,
             layout_box: LayoutBox::default(),
             content_size: Cell::new((0.0, 0.0)),
         }
     }
 
-    /// Buton etiketi.
-    pub fn label(mut self, text: impl Into<SmolStr>) -> Self {
-        self.label = text.into();
+    pub fn label(mut self, label: impl Into<SmolStr>) -> Self {
+        self.label = label.into();
         self.mark_dirty();
         self
     }
@@ -79,59 +70,76 @@ impl Button {
         self
     }
 
-    /// Hover durumunda kullanılacak arkaplan. Verilmezse `background()`
-    /// aynen kullanılır (otomatik koyultma yapılmaz).
+    /// Full style overlay to be applied during hover - includes every field of Style
+    /// such as background, border, color, font_size, padding, margin, etc.
+    /// Only the fields you provide will overwrite the base style.
+    ///
+    /// ```ignore
+    /// Button::new()
+    ///     .background(Color::NEUTRAL_200)
+    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
+    ///     .hover_style(|s| s
+    ///         .background(Color::NEUTRAL_300)
+    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
+    ///     )
+    /// ```
+    pub fn hover_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
+        self.hover_style = Some(build(StylePatch::new()).build());
+        self.mark_dirty();
+        self
+    }
+
+    pub fn pressed_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
+        self.pressed_style = Some(build(StylePatch::new()).build());
+        self.mark_dirty();
+        self
+    }
+
+    pub fn disabled_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
+        self.disabled_style = Some(build(StylePatch::new()).build());
+        self.mark_dirty();
+        self
+    }
+
     pub fn hover_background<B: Into<Background>>(mut self, background: B) -> Self {
-        self.hover_background = Some(background.into());
+        self.hover_style.get_or_insert_with(Style::default).background = Some(background.into());
         self.mark_dirty();
         self
     }
 
-    /// Basılı durumda kullanılacak arkaplan.
     pub fn pressed_background<B: Into<Background>>(mut self, background: B) -> Self {
-        self.pressed_background = Some(background.into());
+        self.pressed_style.get_or_insert_with(Style::default).background = Some(background.into());
         self.mark_dirty();
         self
     }
 
-    /// `enabled(false)` iken kullanılacak arkaplan.
     pub fn disabled_background<B: Into<Background>>(mut self, background: B) -> Self {
-        self.disabled_background = Some(background.into());
+        self.disabled_style.get_or_insert_with(Style::default).background = Some(background.into());
         self.mark_dirty();
         self
     }
 
-    /// `false` verilirse buton event almayı bırakır (hover/press/click yok)
-    /// ve `disabled_background` (varsa) ile çizilir.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.interaction.set_enabled(enabled);
         self.mark_dirty();
         self
     }
 
-    /// Mevcut state'e (disabled > pressed > hovered > normal, bu öncelik
-    /// sırasıyla) göre kullanılacak arkaplanı seçer.
-    fn effective_background(&self) -> Option<Background> {
-        if !self.interaction.enabled {
-            return self
-                .disabled_background
-                .clone()
-                .or_else(|| self.style.background.clone());
-        }
-        if self.interaction.pressed {
-            return self
-                .pressed_background
-                .clone()
-                .or_else(|| self.hover_background.clone())
-                .or_else(|| self.style.background.clone());
-        }
-        if self.interaction.hovered {
-            return self
-                .hover_background
-                .clone()
-                .or_else(|| self.style.background.clone());
-        }
-        self.style.background.clone()
+    fn recompute_style(&mut self) {
+        let patch = if !self.interaction.enabled {
+            self.disabled_style.as_ref()
+        } else if self.interaction.pressed {
+            self.pressed_style.as_ref().or(self.hover_style.as_ref())
+        } else if self.interaction.hovered {
+            self.hover_style.as_ref()
+        } else {
+            None
+        };
+
+        self.computed_style = match patch {
+            Some(patch) => self.style.overlay(patch),
+            None => self.style.clone(),
+        };
     }
 }
 
@@ -148,22 +156,16 @@ impl StyleBuilder for Button {
 
     fn mark_dirty(&mut self) {
         self.dirty = true;
+        self.recompute_style();
     }
 }
 
-/// `Button("Tıkla")` şeklinde `view!` makrosu içinde tek-argümanlı kullanım
-/// desteği (bkz. `macros.rs`).
 impl WidgetContent for Button {
     fn with_content(self, content: impl Into<SmolStr>) -> Self {
         self.label(content)
     }
 }
 
-// on_click / on_hover / on_mouse_enter / on_mouse_leave / on_mouse_input /
-// on_key builder metodları burada üretiliyor (bkz. interaction.rs).
-// NOT: on_click artık `FnMut()` değil `FnMut(&mut EventCtx)` alıyor —
-// mevcut çağrı yerlerinin `.on_click(|_ctx| { ... })` şeklinde güncellenmesi
-// gerekir.
 crate::impl_interaction_builders!(Button);
 
 impl Widget for Button {
@@ -205,22 +207,17 @@ impl Widget for Button {
 
     fn measure(&self, ctx: &mut LayoutContext) -> (f32, f32) {
         let scale_factor = ctx.scale_factor;
+        let style = &self.computed_style;
 
-        let font_size = self
-            .style
-            .font_size
+        let font_size = style.font_size
             .map(|s| s.to_physical(scale_factor))
             .unwrap_or(20.0 * scale_factor);
 
-        let letter_spacing = self
-            .style
-            .letter_spacing
+        let letter_spacing = style.letter_spacing
             .map(|ls| ls.value().to_physical(scale_factor))
             .unwrap_or(0.0);
 
-        let line_height = self
-            .style
-            .line_height
+        let line_height = style.line_height
             .map(|lh| lh.value().to_physical(scale_factor))
             .unwrap_or(0.0);
 
@@ -228,15 +225,15 @@ impl Widget for Button {
             &self.label,
             self.font.as_deref(),
             font_size,
-            self.style.font_weight.unwrap_or_default(),
-            self.style.font_style.unwrap_or_default(),
+            style.font_weight.unwrap_or_default(),
+            style.font_style.unwrap_or_default(),
             letter_spacing,
-            line_height,
+            line_height
         );
 
         self.content_size.set((text_w, text_h));
 
-        let padding = &self.style.padding.unwrap_or_default();
+        let padding = &style.padding.unwrap_or_default();
 
         (
             text_w + padding.left.value() + padding.right.value(),
@@ -253,8 +250,10 @@ impl Widget for Button {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
-        if let Some(background) = self.effective_background() {
-            let border = self.style.border.as_ref();
+        let style = &self.computed_style;
+
+        if let Some(background) = style.background.clone() {
+            let border = style.border.as_ref();
             ctx.draw_rect(RectCommand {
                 position: (self.layout_box.x, self.layout_box.y),
                 size: (self.layout_box.width, self.layout_box.height),
@@ -266,28 +265,68 @@ impl Widget for Button {
         }
 
         let (content_w, content_h) = self.content_size.get();
-        let padding = self.style.padding.unwrap_or_default();
-        let text_x = self.layout_box.x
-            + padding.left.value()
-            + (self.layout_box.width - padding.left.value() - padding.right.value() - content_w)
-                .max(0.0)
-                * 0.5;
+        let padding = style.padding.unwrap_or_default();
+        let text_x =
+            self.layout_box.x +
+            padding.left.value() +
+            (self.layout_box.width - padding.left.value() - padding.right.value() - content_w).max(
+                0.0
+            ) *
+                0.5;
 
-        let text_y = self.layout_box.y
-            + padding.top.value()
-            + (self.layout_box.height - padding.top.value() - padding.bottom.value() - content_h)
-                .max(0.0)
-                * 0.5;
+        let text_y =
+            self.layout_box.y +
+            padding.top.value() +
+            (self.layout_box.height - padding.top.value() - padding.bottom.value() - content_h).max(
+                0.0
+            ) *
+                0.5;
 
         ctx.draw_text(TextCommand {
             text: self.label.clone(),
             position: (text_x, text_y),
-            style: self.style.clone(),
+            style: style.clone(),
             font: self.font.clone(),
         });
     }
 
-    // event() artık override edilmiyor: Widget trait'indeki varsayılan
-    // implementasyon interaction()/interaction_mut() üzerinden otomatik
-    // çalışıyor (bkz. widget.rs + interaction.rs).
+    fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {
+        if !self.interaction.is_active() {
+            return EventStatus::Ignored;
+        }
+
+        let status = self.interaction.handle(event, ctx);
+
+        if matches!(status, EventStatus::Handled) {
+            self.recompute_style();
+            self.dirty = true;
+        }
+
+        status
+    }
+
+    fn content_eq(&self, other: &dyn Widget) -> bool {
+        let Some(other) = other.as_any().downcast_ref::<Button>() else {
+            return false;
+        };
+        self.label == other.label &&
+            self.font == other.font &&
+            format!("{:?}", self.style) == format!("{:?}", other.style) &&
+            format!("{:?}", self.hover_style) == format!("{:?}", other.hover_style) &&
+            format!("{:?}", self.pressed_style) == format!("{:?}", other.pressed_style) &&
+            format!("{:?}", self.disabled_style) == format!("{:?}", other.disabled_style)
+    }
+
+    /// Ensures that the newly transferred interaction (hover/pressed) is reflected
+    /// in the computed_style. If we don't call this: a button that is hovered after a
+    /// rebuild would stay with the wrong (non-hovered) style until the next mouse event.
+    fn after_interaction_transfer(&mut self) {
+        self.recompute_style();
+    }
+
+    fn transfer_measured_state(&mut self, old: &dyn Widget) {
+        if let Some(old) = old.as_any().downcast_ref::<Button>() {
+            self.content_size.set(old.content_size.get());
+        }
+    }
 }
