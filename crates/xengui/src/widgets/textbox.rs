@@ -425,17 +425,21 @@ impl Widget for TextBox {
         });
 
         if self.interaction.focused && self.caret_visible.get() {
-            let cursor_x = text_x + self.cursor_offset.get();
+            // Round to nearest integer to align with the pixel grid
+            let cursor_x = (text_x + self.cursor_offset.get()).round();
             let cursor_h = if content_h > 0.0 {
                 content_h
             } else {
                 style.font_size.map(|s| s.value()).unwrap_or(20.0) * 1.25
             };
-            let cursor_y = self.layout_box.y + (self.layout_box.height - cursor_h).max(0.0) * 0.5;
+            let cursor_y = (
+                self.layout_box.y +
+                (self.layout_box.height - cursor_h).max(0.0) * 0.5
+            ).round();
 
             ctx.draw_rect(RectCommand {
                 position: (cursor_x, cursor_y),
-                size: (1.5, cursor_h),
+                size: (2.0, cursor_h),
                 background: Some(Background::Color(style.color.unwrap_or(Color::BLACK))),
                 border_radius: None,
                 border_width: None,
