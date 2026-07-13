@@ -28,6 +28,7 @@ pollster = "0.4.0"
 bytemuck = { version = "1.21.0", features = ["derive"] }
 smol_str = "0.3"
 log = "0.4"
+web-time = "1.1.0"
 wasm-bindgen = "0.2"
 image = { version = "0.25.10", default-features = false, features = [
     "png",

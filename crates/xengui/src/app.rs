@@ -15,6 +15,7 @@ use crate::{
     path_is_within,
 };
 use std::sync::Arc;
+use web_time::Instant;
 
 #[cfg(not(target_arch = "wasm32"))]
 use winit::dpi::PhysicalPosition;
@@ -105,7 +106,7 @@ pub struct App {
     input: InputState,
 
     component: Option<std::rc::Rc<dyn Fn() -> Box<dyn Widget>>>,
-    next_blink: Option<std::time::Instant>,
+    next_blink: Option<Instant>,
 
     #[cfg(target_arch = "wasm32")]
     pub event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
@@ -605,7 +606,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             return;
         };
 
-        let now = std::time::Instant::now();
+        let now = Instant::now();
         let deadline = *self.next_blink.get_or_insert(now + interval);
 
         if now >= deadline {

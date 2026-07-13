@@ -19,6 +19,7 @@ pollster = { workspace = true }
 bytemuck = { workspace = true }
 smol_str = { workspace = true }
 log = { workspace = true }
+web-time = { workspace = true }
 taffy = { workspace = true }
 image = { workspace = true }
 
