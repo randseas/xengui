@@ -2,8 +2,9 @@
 name = "xengui"
 version = "0.2.1"
 edition = "2024"
+rust-version = "1.92"
 authors = ["randseas <waultbank@gmail.com>"]
-description = "wgpu based, modern and high-performance GUI library."
+description = "xengui: a reactive gui library in rust"
 license = "Apache-2.0"
 repository = "https://github.com/randseas/xengui"
 readme = "../../README.md"
