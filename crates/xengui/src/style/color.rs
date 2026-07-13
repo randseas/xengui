@@ -333,6 +333,84 @@ impl Color {
     pub const BLUE_900: Self = Self::rgb(28, 57, 142);
     pub const BLUE_950: Self = Self::rgb(22, 36, 86);
 
+    /* =Indigo=-------------------------------------------------- */
+    pub const INDIGO_050: Self = Self::rgb(238, 242, 255);
+    pub const INDIGO_100: Self = Self::rgb(224, 231, 255);
+    pub const INDIGO_200: Self = Self::rgb(198, 210, 255);
+    pub const INDIGO_300: Self = Self::rgb(163, 179, 255);
+    pub const INDIGO_400: Self = Self::rgb(124, 134, 255);
+    pub const INDIGO_500: Self = Self::rgb(97, 95, 255);
+    pub const INDIGO_600: Self = Self::rgb(79, 57, 246);
+    pub const INDIGO_700: Self = Self::rgb(67, 45, 215);
+    pub const INDIGO_800: Self = Self::rgb(55, 42, 172);
+    pub const INDIGO_900: Self = Self::rgb(49, 44, 133);
+    pub const INDIGO_950: Self = Self::rgb(30, 26, 77);
+
+    /* =Violet=-------------------------------------------------- */
+    pub const VIOLET_050: Self = Self::rgb(245, 243, 255);
+    pub const VIOLET_100: Self = Self::rgb(237, 233, 254);
+    pub const VIOLET_200: Self = Self::rgb(221, 214, 255);
+    pub const VIOLET_300: Self = Self::rgb(196, 180, 255);
+    pub const VIOLET_400: Self = Self::rgb(166, 132, 255);
+    pub const VIOLET_500: Self = Self::rgb(142, 81, 255);
+    pub const VIOLET_600: Self = Self::rgb(127, 34, 254);
+    pub const VIOLET_700: Self = Self::rgb(112, 8, 231);
+    pub const VIOLET_800: Self = Self::rgb(93, 14, 192);
+    pub const VIOLET_900: Self = Self::rgb(77, 23, 154);
+    pub const VIOLET_950: Self = Self::rgb(47, 13, 104);
+
+    /* =Purple=-------------------------------------------------- */
+    pub const PURPLE_050: Self = Self::rgb(250, 245, 255);
+    pub const PURPLE_100: Self = Self::rgb(243, 232, 255);
+    pub const PURPLE_200: Self = Self::rgb(233, 212, 255);
+    pub const PURPLE_300: Self = Self::rgb(218, 178, 255);
+    pub const PURPLE_400: Self = Self::rgb(194, 122, 255);
+    pub const PURPLE_500: Self = Self::rgb(173, 70, 255);
+    pub const PURPLE_600: Self = Self::rgb(152, 16, 250);
+    pub const PURPLE_700: Self = Self::rgb(130, 0, 219);
+    pub const PURPLE_800: Self = Self::rgb(110, 17, 176);
+    pub const PURPLE_900: Self = Self::rgb(89, 22, 139);
+    pub const PURPLE_950: Self = Self::rgb(60, 3, 102);
+
+    /* =Fuchsia=-------------------------------------------------- */
+    pub const FUCHSIA_050: Self = Self::rgb(253, 244, 255);
+    pub const FUCHSIA_100: Self = Self::rgb(250, 232, 255);
+    pub const FUCHSIA_200: Self = Self::rgb(246, 207, 255);
+    pub const FUCHSIA_300: Self = Self::rgb(244, 168, 255);
+    pub const FUCHSIA_400: Self = Self::rgb(237, 106, 255);
+    pub const FUCHSIA_500: Self = Self::rgb(225, 42, 251);
+    pub const FUCHSIA_600: Self = Self::rgb(200, 0, 222);
+    pub const FUCHSIA_700: Self = Self::rgb(168, 0, 183);
+    pub const FUCHSIA_800: Self = Self::rgb(138, 1, 148);
+    pub const FUCHSIA_900: Self = Self::rgb(114, 19, 120);
+    pub const FUCHSIA_950: Self = Self::rgb(75, 0, 79);
+
+    /* =Pink=-------------------------------------------------- */
+    pub const PINK_050: Self = Self::rgb(253, 242, 248);
+    pub const PINK_100: Self = Self::rgb(252, 231, 243);
+    pub const PINK_200: Self = Self::rgb(252, 206, 232);
+    pub const PINK_300: Self = Self::rgb(253, 165, 213);
+    pub const PINK_400: Self = Self::rgb(251, 100, 182);
+    pub const PINK_500: Self = Self::rgb(246, 51, 154);
+    pub const PINK_600: Self = Self::rgb(230, 0, 118);
+    pub const PINK_700: Self = Self::rgb(198, 0, 92);
+    pub const PINK_800: Self = Self::rgb(163, 0, 76);
+    pub const PINK_900: Self = Self::rgb(134, 16, 67);
+    pub const PINK_950: Self = Self::rgb(81, 4, 36);
+
+    /* =Rose=-------------------------------------------------- */
+    pub const ROSE_050: Self = Self::rgb(255, 241, 242);
+    pub const ROSE_100: Self = Self::rgb(255, 228, 230);
+    pub const ROSE_200: Self = Self::rgb(255, 204, 211);
+    pub const ROSE_300: Self = Self::rgb(255, 161, 173);
+    pub const ROSE_400: Self = Self::rgb(255, 99, 126);
+    pub const ROSE_500: Self = Self::rgb(255, 32, 86);
+    pub const ROSE_600: Self = Self::rgb(236, 0, 63);
+    pub const ROSE_700: Self = Self::rgb(199, 0, 54);
+    pub const ROSE_800: Self = Self::rgb(165, 0, 54);
+    pub const ROSE_900: Self = Self::rgb(139, 8, 54);
+    pub const ROSE_950: Self = Self::rgb(77, 2, 24);
+
     /* =Slate=-------------------------------------------------- */
     pub const SLATE_050: Self = Self::rgb(248, 250, 252);
     pub const SLATE_100: Self = Self::rgb(241, 245, 249);
