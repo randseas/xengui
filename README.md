@@ -62,7 +62,7 @@ Button::new()
 
 ```toml
 [dependencies]
-xengui = "0.2.1"
+xengui = "0.2.2"
 ```
 
 ## Sections
