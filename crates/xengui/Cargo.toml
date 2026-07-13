@@ -19,6 +19,7 @@ bytemuck = { workspace = true }
 smol_str = { workspace = true }
 log = { workspace = true }
 taffy = { workspace = true }
+image = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 system-fonts = "0.1.2"
