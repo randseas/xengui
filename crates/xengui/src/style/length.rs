@@ -13,12 +13,12 @@ impl Default for Length {
 }
 
 impl Length {
-    pub fn px<T: Into<f32>>(value: T) -> Self {
-        Self::Px(value.into())
+    pub const fn px(value: f32) -> Self {
+        Self::Px(value)
     }
 
-    pub fn percent<T: Into<f32>>(value: T) -> Self {
-        Self::Percent(value.into())
+    pub fn percent(value: f32) -> Self {
+        Self::Percent(value)
     }
 
     pub const fn value(&self) -> f32 {
