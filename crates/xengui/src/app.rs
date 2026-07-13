@@ -1,7 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    EventCtx, InputEvent, InputState, ModifiersState, Widget, XenRenderer, convert_keyboard_event,
-    dispatch_positional, dispatch_to_path, hit_test_path,
+    EventCtx,
+    InputEvent,
+    InputState,
+    ModifiersState,
+    Widget,
+    XenRenderer,
+    convert_keyboard_event,
+    dispatch_positional,
+    dispatch_to_path,
+    hit_test_path,
+    hooks::set_redraw_handle,
 };
 use std::sync::Arc;
 
@@ -13,9 +22,9 @@ use wasm_bindgen::JsCast;
 
 use winit::{
     event::WindowEvent,
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    monitor::{MonitorHandle, VideoModeHandle},
-    window::{Window, WindowAttributes, WindowId},
+    event_loop::{ ActiveEventLoop, ControlFlow, EventLoop },
+    monitor::{ MonitorHandle, VideoModeHandle },
+    window::{ Window, WindowAttributes, WindowId },
 };
 
 pub enum WindowPosition {
@@ -93,6 +102,8 @@ pub struct App {
     is_visible: bool,
     input: InputState,
 
+    component: Option<std::rc::Rc<dyn Fn() -> Box<dyn Widget>>>,
+
     #[cfg(target_arch = "wasm32")]
     pub event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
 }
@@ -105,10 +116,14 @@ impl App {
         Self {
             renderer: None,
             window: None,
+
             config,
             root: Vec::new(),
             is_visible: false,
             input: InputState::default(),
+
+            component: None,
+
             #[cfg(target_arch = "wasm32")]
             event_proxy: None,
         }
@@ -127,6 +142,26 @@ impl App {
 
     pub fn add_node(&mut self, node: Box<dyn Widget>) {
         self.root.push(node);
+    }
+
+    pub fn render(&mut self, builder: impl (Fn() -> Box<dyn Widget>) + 'static) {
+        self.component = Some(std::rc::Rc::new(builder));
+        self.rebuild();
+    }
+
+    fn rebuild(&mut self) {
+        let Some(builder) = self.component.clone() else {
+            return;
+        };
+
+        crate::hooks::begin_render();
+        let new_root = builder();
+
+        crate::hooks::take_dirty();
+
+        let mut new_tree = vec![new_root];
+        crate::reconcile::reconcile(&mut new_tree, &self.root);
+        self.root = new_tree;
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -156,12 +191,14 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         }
 
         // Parse custom fullscreen configurations into winit primitives
-        let winit_fullscreen = self.config.fullscreen.as_ref().map(|f| match f {
-            Fullscreen::Borderless(monitor) => {
-                winit::window::Fullscreen::Borderless(monitor.clone())
-            }
-            Fullscreen::Exclusive(video_mode) => {
-                winit::window::Fullscreen::Exclusive(video_mode.clone())
+        let winit_fullscreen = self.config.fullscreen.as_ref().map(|f| {
+            match f {
+                Fullscreen::Borderless(monitor) => {
+                    winit::window::Fullscreen::Borderless(monitor.clone())
+                }
+                Fullscreen::Exclusive(video_mode) => {
+                    winit::window::Fullscreen::Exclusive(video_mode.clone())
+                }
             }
         });
 
@@ -174,10 +211,12 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         {
             attributes = attributes
                 .with_title(&self.config.title)
-                .with_inner_size(winit::dpi::LogicalSize::new(
-                    self.config.width as f64,
-                    self.config.height as f64,
-                ))
+                .with_inner_size(
+                    winit::dpi::LogicalSize::new(
+                        self.config.width as f64,
+                        self.config.height as f64
+                    )
+                )
                 .with_resizable(self.config.resizable)
                 .with_transparent(true)
                 .with_blur(true);
@@ -197,7 +236,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         let window = Arc::new(
             event_loop
                 .create_window(attributes)
-                .expect("Critical Error: Could not create window context."),
+                .expect("Critical Error: Could not create window context.")
         );
 
         // Synchronize system window theme preferences
@@ -216,15 +255,18 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 self.config.theme = Some(winit::window::Theme::Dark);
             }
 
-            if let WindowPosition::Center = self.config.position
-                && let Some(monitor) = window.current_monitor()
+            if
+                let WindowPosition::Center = self.config.position &&
+                let Some(monitor) = window.current_monitor()
             {
                 let monitor_size = monitor.size();
                 let window_size = window.outer_size();
-                window.set_outer_position(PhysicalPosition::new(
-                    (monitor_size.width as i32 - window_size.width as i32) / 2,
-                    (monitor_size.height as i32 - window_size.height as i32) / 2,
-                ));
+                window.set_outer_position(
+                    PhysicalPosition::new(
+                        ((monitor_size.width as i32) - (window_size.width as i32)) / 2,
+                        ((monitor_size.height as i32) - (window_size.height as i32)) / 2
+                    )
+                );
             }
         }
 
@@ -240,11 +282,18 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             // enqueue a `WindowEvent::Resized` (when the size changed).
             fn sync_canvas_to_viewport(window: &Window) {
                 if let Some(web_window) = web_sys::window() {
-                    let inner_w = web_window.inner_width().ok().and_then(|val| val.as_f64());
-                    let inner_h = web_window.inner_height().ok().and_then(|val| val.as_f64());
+                    let inner_w = web_window
+                        .inner_width()
+                        .ok()
+                        .and_then(|val| val.as_f64());
+                    let inner_h = web_window
+                        .inner_height()
+                        .ok()
+                        .and_then(|val| val.as_f64());
 
                     if let (Some(w_val), Some(h_val)) = (inner_w, inner_h) {
-                        let phys_size = winit::dpi::LogicalSize::new(w_val, h_val)
+                        let phys_size = winit::dpi::LogicalSize
+                            ::new(w_val, h_val)
                             .to_physical::<u32>(window.scale_factor());
                         let _ = window.request_inner_size(phys_size);
                     }
@@ -252,18 +301,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
 
             if window.canvas().is_some() {
-                // Set the initial size once, as before.
                 sync_canvas_to_viewport(&window);
 
-                // IMPORTANT: the one-shot call above only sets the size at
-                // startup. Nothing was previously re-syncing the canvas when
-                // the *browser window* was resized afterwards, so the canvas'
-                // own box size never changed, winit's internal ResizeObserver
-                // never fired, and `WindowEvent::Resized` never reached
-                // `window_event()` -> layout was never recalculated.
-                //
-                // Fix: listen for the DOM "resize" event on `window` for the
-                // lifetime of the app, and re-sync on every occurrence.
                 if let Some(web_window) = web_sys::window() {
                     let window_for_closure = window.clone();
                     let closure = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(move || {
@@ -271,16 +310,16 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     });
                     let _ = web_window.add_event_listener_with_callback(
                         "resize",
-                        closure.as_ref().unchecked_ref(),
+                        closure.as_ref().unchecked_ref()
                     );
-                    // Leak the closure so it stays alive for the whole
-                    // program (equivalent to the app's own lifetime here).
                     closure.forget();
                 }
             }
         }
 
         self.window = Some(window.clone());
+
+        set_redraw_handle(window.clone());
 
         // Target dependent Graphics Pipeline initialization wrapper
         #[cfg(not(target_arch = "wasm32"))]
@@ -311,8 +350,16 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 let debug = std::mem::take(&mut self.config.debug);
 
                 wasm_bindgen_futures::spawn_local(async move {
-                    if let Ok(renderer) = XenRenderer::new(window_clone, user_fonts, debug).await {
-                        let _ = proxy_clone.send_event(XenEvent::RendererReady(renderer));
+                    match XenRenderer::new(window_clone, user_fonts, debug).await {
+                        Ok(renderer) => {
+                            let _ = proxy_clone.send_event(XenEvent::RendererReady(renderer));
+                        }
+                        Err(e) => {
+                            log::error!("[CRITICAL] WASM renderer init failed: {e}");
+                            web_sys::console::error_1(
+                                &format!("XenRenderer init failed: {e}").into()
+                            );
+                        }
                     }
                 });
             }
@@ -340,11 +387,12 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         match event {
             WindowEvent::CloseRequested => _event_loop.exit(),
             WindowEvent::RedrawRequested => {
+                if crate::hooks::take_dirty() {
+                    self.rebuild();
+                }
                 if let Some(renderer) = &mut self.renderer {
                     renderer.render_frame(&mut self.root, &self.config.theme);
-                    if !self.is_visible
-                        && let Some(window) = &self.window
-                    {
+                    if !self.is_visible && let Some(window) = &self.window {
                         window.set_visible(true);
                         self.is_visible = true;
                     }
@@ -353,9 +401,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             WindowEvent::Resized(new_size) => {
                 if let Some(renderer) = &mut self.renderer {
                     renderer.resize(&mut self.root, &self.config.theme, new_size);
-                    if !self.is_visible
-                        && let Some(window) = &self.window
-                    {
+                    if !self.is_visible && let Some(window) = &self.window {
                         window.set_visible(true);
                         self.is_visible = true;
                     }
@@ -405,8 +451,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     dispatch_positional(
                         &mut self.root,
                         path,
-                        &InputEvent::MouseMoved { position: point },
-                        &mut ctx,
+                        &(InputEvent::MouseMoved { position: point }),
+                        &mut ctx
                     );
                     self.apply_event_ctx(ctx);
                 }
@@ -423,9 +469,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 let Some(point) = self.input.cursor_pos else {
                     return;
                 };
-                let path = self
-                    .input
-                    .hovered_path
+                let path = self.input.hovered_path
                     .clone()
                     .or_else(|| hit_test_path(&self.root, point));
 
@@ -438,12 +482,12 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     dispatch_positional(
                         &mut self.root,
                         path,
-                        &InputEvent::MouseInput {
+                        &(InputEvent::MouseInput {
                             state,
                             button,
                             position: point,
-                        },
-                        &mut ctx,
+                        }),
+                        &mut ctx
                     );
                     self.apply_event_ctx(ctx);
                 }
@@ -456,9 +500,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 let Some(point) = self.input.cursor_pos else {
                     return;
                 };
-                let path = self
-                    .input
-                    .hovered_path
+                let path = self.input.hovered_path
                     .clone()
                     .or_else(|| hit_test_path(&self.root, point));
 
@@ -467,11 +509,11 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     dispatch_positional(
                         &mut self.root,
                         path,
-                        &InputEvent::MouseWheel {
+                        &(InputEvent::MouseWheel {
                             delta,
                             position: point,
-                        },
-                        &mut ctx,
+                        }),
+                        &mut ctx
                     );
                     self.apply_event_ctx(ctx);
                 }
@@ -484,10 +526,10 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     dispatch_positional(
                         &mut self.root,
                         &path,
-                        &InputEvent::KeyInput {
+                        &(InputEvent::KeyInput {
                             event: keyboard_event,
                             modifiers: self.input.modifiers,
-                        },
+                        }),
                         &mut ctx
                     );
                     self.apply_event_ctx(ctx);
@@ -495,7 +537,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
             WindowEvent::ModifiersChanged(new_mods) => {
                 let mods = new_mods.state();
-  
+
                 self.input.modifiers = ModifiersState {
                     ctrl: mods.control_key(),
                     shift: mods.shift_key(),
@@ -510,31 +552,22 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         &mut self.root,
                         &path,
                         &InputEvent::Ime(ime_event),
-                        &mut ctx,
+                        &mut ctx
                     );
                     self.apply_event_ctx(ctx);
                 }
             }
-            WindowEvent::Focused(has_focus)
-                // OS seviyesinde pencere focus'unu kaybettiğimizde basılı
-                // tutulan mouse-down state'ini bırak; aksi halde alt+tab
-                // sonrası "yapışık buton" durumu oluşabilir.
-                if !has_focus => {
-                    self.input.pressed_path = None;
-                }
+            WindowEvent::Focused(has_focus) if
+                !has_focus
+            => {
+                self.input.pressed_path = None;
+            }
             _ => (),
         }
     }
 }
 
 impl App {
-    /// Bir dispatch turundan dönen `EventCtx`'i uygular: focus geçişini
-    /// gerçekleştirip ilgili widget'lara `FocusGained`/`FocusLost` gönderir,
-    /// cursor icon'unu günceller ve gerekiyorsa yeniden çizim tetikler.
-    ///
-    /// Widget'lar App'i bilmediği için bu adım kasıtlı olarak dispatch'ten
-    /// AYRI: `Widget::event()` sadece `ctx` üzerinden talepte bulunur, asıl
-    /// state mutasyonu (focused_path değişimi vb.) burada, tek yerde olur.
     fn apply_event_ctx(&mut self, mut ctx: EventCtx) {
         if let Some(new_focus) = ctx.focus_target.take() {
             if self.input.focused_path.as_deref() != Some(new_focus.as_str()) {
@@ -547,26 +580,20 @@ impl App {
                     &mut self.root,
                     &new_focus,
                     &InputEvent::FocusGained,
-                    &mut sub_ctx,
+                    &mut sub_ctx
                 );
                 self.input.focused_path = Some(new_focus);
             }
-        } else if ctx.clear_focus
-            && let Some(old) = self.input.focused_path.take()
-        {
+        } else if ctx.clear_focus && let Some(old) = self.input.focused_path.take() {
             let mut sub_ctx = EventCtx::new();
             dispatch_to_path(&mut self.root, &old, &InputEvent::FocusLost, &mut sub_ctx);
         }
 
-        if let Some(icon) = ctx.take_cursor_icon()
-            && let Some(window) = &self.window
-        {
+        if let Some(icon) = ctx.take_cursor_icon() && let Some(window) = &self.window {
             window.set_cursor(icon);
         }
 
-        if ctx.redraw_requested()
-            && let Some(window) = &self.window
-        {
+        if ctx.redraw_requested() && let Some(window) = &self.window {
             window.request_redraw();
         }
     }
