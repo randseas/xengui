@@ -95,9 +95,16 @@ pub trait Widget: Any {
         None
     }
 
-    fn transfer_interaction_state(&mut self, old: &dyn Widget) {
+    fn transfer_interaction_state(&mut self, old: &dyn Widget) -> bool {
         if let (Some(new), Some(old)) = (self.interaction_mut(), old.interaction()) {
+            let changed =
+                new.hovered != old.hovered ||
+                new.pressed != old.pressed ||
+                new.focused != old.focused;
             new.transfer_from(old);
+            changed
+        } else {
+            false
         }
     }
 

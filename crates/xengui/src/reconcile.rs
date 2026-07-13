@@ -12,11 +12,11 @@ pub(crate) fn reconcile(new_nodes: &mut [Box<dyn Widget>], old_nodes: &[Box<dyn 
             continue;
         };
 
-        new_node.transfer_interaction_state(old_node.as_ref());
+        let interaction_changed = new_node.transfer_interaction_state(old_node.as_ref());
 
         new_node.after_interaction_transfer();
 
-        if new_node.content_eq(old_node.as_ref()) {
+        if !interaction_changed && new_node.content_eq(old_node.as_ref()) {
             new_node.transfer_measured_state(old_node.as_ref());
             new_node.set_dirty(false);
         }
