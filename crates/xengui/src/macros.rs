@@ -1,9 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-/// Leaf widget'lara (ör. `Text("...")`) tek argümanlı, içerik-bazlı bir
-/// kurucu sağlar. Container widget'lar (View) bunu implemente etmez —
-/// derleme zamanında `Foo("x")` yazıp `Foo` bunu implemente etmiyorsa
-/// açık bir "trait not implemented" hatası alırsınız.
 pub trait WidgetContent: Sized {
     fn with_content(self, content: impl Into<smol_str::SmolStr>) -> Self;
 }
@@ -40,23 +36,23 @@ macro_rules! view {
 macro_rules! view_props {
     ($acc:expr ;) => { $acc };
 
-    // prop: expr  (son eleman)
+    // prop: expr
     ($acc:expr ; $key:ident : $val:expr) => {
         $acc.$key($val)
     };
-    // prop: expr, devamı var
+    // prop: expr
     ($acc:expr ; $key:ident : $val:expr , $($rest:tt)*) => {
         $crate::view_props!( $acc.$key($val) ; $($rest)* )
     };
 
-    // Child { ... } (son eleman)
+    // Child { ... }
     ($acc:expr ; $widget:ident { $($inner:tt)* }) => {{
         let mut __parent = $acc;
         let __child = $crate::view_props!( $widget::new() ; $($inner)* );
         __parent = __parent.child(__child);
         __parent
     }};
-    // Child { ... }, devamı var
+    // Child { ... }
     ($acc:expr ; $widget:ident { $($inner:tt)* } , $($rest:tt)*) => {
         $crate::view_props!({
             let mut __parent = $acc;
@@ -66,14 +62,14 @@ macro_rules! view_props {
         } ; $($rest)*)
     };
 
-    // Child(expr) (son eleman) — ör. Text("Hello")
+    // Child(expr)
     ($acc:expr ; $widget:ident ( $content:expr )) => {{
         let mut __parent = $acc;
         let __child = $crate::WidgetContent::with_content($widget::new(), $content);
         __parent = __parent.child(__child);
         __parent
     }};
-    // Child(expr), devamı var
+    // Child(expr)
     ($acc:expr ; $widget:ident ( $content:expr ) , $($rest:tt)*) => {
         $crate::view_props!({
             let mut __parent = $acc;
