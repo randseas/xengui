@@ -22,7 +22,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     app.with_font(
         "Noto_Sans_Regular",
-        include_bytes!("..\\fonts\\NotoSans-VariableFont.ttf").to_vec()
+        include_bytes!(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/fonts/NotoSans-VariableFont.ttf")
+        ).to_vec()
     );
 
     app.render(|| {
@@ -88,7 +90,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .child(
                             View::new().child(
                                 Image::new()
-                                    .bytes(include_bytes!("../assets/ferris.png"))
+                                    .bytes(
+                                        include_bytes!(
+                                            concat!(
+                                                env!("CARGO_MANIFEST_DIR"),
+                                                "/assets/ferris.png"
+                                            )
+                                        )
+                                    )
                                     .object_fit(ObjectFit::Fill)
                                     .width(160)
                                     .height(105)
