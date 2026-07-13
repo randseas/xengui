@@ -15,7 +15,7 @@ rustup target add wasm32-unknown-unknown
 
 TRUNK_VERSION="0.21.14"
 if ! command -v trunk &> /dev/null; then
-    curl -sL "https://github.com/trunk-rs/trunk/releases/download/v${TRUNK_VERSION}/trunk-x86_64-unknown-linux-gnu.tar.gz" | tar -xzf - -C "$CARGO_HOME/bin"
+    curl -sL "https://github.com/trunk-rs/trunk/releases/download/v${TRUNK_VERSION}/trunk-x86_64-unknown-linux-musl.tar.gz" | tar -xzf - -C "$CARGO_HOME/bin"
     chmod +x "$CARGO_HOME/bin/trunk"
 fi
 
