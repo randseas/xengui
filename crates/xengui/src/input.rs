@@ -66,6 +66,7 @@ pub enum InputEvent {
     Ime(winit::event::Ime),
     FocusGained,
     FocusLost,
+    BlinkTick,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -136,7 +137,16 @@ pub fn convert_keyboard_event(event: winit::event::KeyEvent) -> KeyboardEvent {
         PhysicalKey::Code(KeyCode::ArrowLeft) => Key::ArrowLeft,
         PhysicalKey::Code(KeyCode::ArrowRight) => Key::ArrowRight,
 
-        _ => Key::Unknown,
+        PhysicalKey::Code(KeyCode::Backspace) => Key::Backspace,
+        PhysicalKey::Code(KeyCode::Delete) => Key::Delete,
+
+        // layout-aware fallback: uses os generated text
+        _ =>
+            event.text
+                .as_ref()
+                .and_then(|s| s.chars().next())
+                .map(Key::Character)
+                .unwrap_or(Key::Unknown),
     };
 
     KeyboardEvent {
@@ -193,6 +203,11 @@ fn hit_test_recursive(widget: &dyn Widget, path: &str, point: (f32, f32)) -> Opt
     }
 
     Some(path.to_string())
+}
+
+// True if `path` is `ancestor` itself or one of its descendants.
+pub fn path_is_within(path: &str, ancestor: &str) -> bool {
+    path == ancestor || path.starts_with(&format!("{ancestor}."))
 }
 
 pub fn dispatch_positional(

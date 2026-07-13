@@ -141,17 +141,23 @@ impl Interaction {
                     cb(key_event, ctx);
                 }
 
-                if
-                    self.focused &&
-                    key_event.state == KeyState::Pressed &&
-                    !key_event.repeat &&
-                    Self::is_activation_key(key_event.key)
-                {
-                    if let Some(cb) = self.on_click.as_mut() {
-                        cb(ctx);
+                if self.focused && Self::is_activation_key(key_event.key) {
+                    match key_event.state {
+                        KeyState::Pressed if !key_event.repeat => {
+                            self.pressed = true;
+                            if let Some(cb) = self.on_click.as_mut() {
+                                cb(ctx);
+                            }
+                            ctx.request_redraw();
+                        }
+                        KeyState::Released => {
+                            self.pressed = false;
+                            ctx.request_redraw();
+                        }
+                        _ => {}
                     }
-                    ctx.request_redraw();
                 }
+
                 EventStatus::Handled
             }
 

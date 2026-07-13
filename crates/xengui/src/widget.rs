@@ -19,7 +19,7 @@ pub trait Widget: Any {
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    fn key(&self) -> Option<&SmolStr> {
+    fn get_key(&self) -> Option<&SmolStr> {
         None
     }
 
@@ -128,4 +128,8 @@ pub trait Widget: Any {
     fn after_interaction_transfer(&mut self) {}
 
     fn transfer_measured_state(&mut self, _old: &dyn Widget) {}
+
+    fn blink_interval(&self) -> Option<std::time::Duration> {
+        None
+    }
 }

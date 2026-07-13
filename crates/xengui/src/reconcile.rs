@@ -3,8 +3,8 @@ use crate::Widget;
 
 pub(crate) fn reconcile(new_nodes: &mut [Box<dyn Widget>], old_nodes: &[Box<dyn Widget>]) {
     for (i, new_node) in new_nodes.iter_mut().enumerate() {
-        let matched_old = match new_node.key() {
-            Some(key) => old_nodes.iter().find(|old| old.key() == Some(key)),
+        let matched_old = match new_node.get_key() {
+            Some(key) => old_nodes.iter().find(|old| old.get_key() == Some(key)),
             None => old_nodes.get(i),
         };
 

@@ -51,6 +51,7 @@ pub struct TextBox {
     // Pixel offset of the caret from the text start, cached during measure()
     // since PaintContext has no access to the text pipeline to shape text.
     cursor_offset: Cell<f32>,
+    caret_visible: Cell<bool>,
 }
 
 impl TextBox {
@@ -77,6 +78,7 @@ impl TextBox {
             layout_box: LayoutBox::default(),
             content_size: Cell::new((0.0, 0.0)),
             cursor_offset: Cell::new(0.0),
+            caret_visible: Cell::new(true),
         }
     }
 
@@ -213,6 +215,7 @@ impl TextBox {
     }
 
     fn handle_key(&mut self, key: &KeyboardEvent, ctx: &mut EventCtx) {
+        self.caret_visible.set(true);
         match key.key {
             Key::Character(c) => self.insert_char(c, ctx),
             Key::Space => self.insert_char(' ', ctx),
@@ -329,6 +332,24 @@ impl Widget for TextBox {
 
         self.content_size.set((text_w, text_h));
 
+        // Placeholder acts as a width floor even after content is typed, so the
+        // box doesn't shrink below it once the field becomes non-empty.
+        let placeholder_w = if self.placeholder.is_empty() {
+            0.0
+        } else {
+            ctx.text.measure(
+                &self.placeholder,
+                self.font.as_deref(),
+                font_size,
+                style.font_weight.unwrap_or_default(),
+                style.font_style.unwrap_or_default(),
+                letter_spacing,
+                line_height
+            ).0
+        };
+
+        let text_w = text_w.max(placeholder_w);
+
         let caret_text = &self.content[..self.byte_index_for(self.cursor_index)];
         let (caret_w, _) = ctx.text.measure(
             caret_text,
@@ -403,7 +424,7 @@ impl Widget for TextBox {
             font: self.font.clone(),
         });
 
-        if self.interaction.focused {
+        if self.interaction.focused && self.caret_visible.get() {
             let cursor_x = text_x + self.cursor_offset.get();
             let cursor_h = if content_h > 0.0 {
                 content_h
@@ -428,6 +449,13 @@ impl Widget for TextBox {
             return EventStatus::Ignored;
         }
 
+        if matches!(event, InputEvent::BlinkTick) {
+            self.caret_visible.set(!self.caret_visible.get());
+            self.dirty = true;
+            ctx.request_redraw();
+            return EventStatus::Handled;
+        }
+
         // Key input bypasses Interaction::handle entirely: the generic handler
         // treats Enter/Space as a click-activation key, which would prevent
         // typing spaces and would fire on_click on every Enter press.
@@ -445,6 +473,7 @@ impl Widget for TextBox {
 
         if matches!(event, InputEvent::FocusGained) {
             self.cursor_index = self.content.chars().count();
+            self.caret_visible.set(true);
         }
 
         if matches!(status, EventStatus::Handled) {
@@ -501,5 +530,9 @@ impl Widget for TextBox {
             self.content_size.set(old.content_size.get());
             self.cursor_offset.set(old.cursor_offset.get());
         }
+    }
+
+    fn blink_interval(&self) -> Option<std::time::Duration> {
+        self.interaction.focused.then_some(std::time::Duration::from_millis(530))
     }
 }

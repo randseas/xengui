@@ -58,6 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .child(
                             TextBox::new()
                                 .value(text.clone())
+                                .color(Color::NEUTRAL_500)
                                 .placeholder("Enter your name...")
                                 .font_size(16)
                                 .padding(Edges::symmetric(10, 8))
@@ -68,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 )
                                 .max_length(50)
                                 .on_change(move |value, _ctx| set_text.set(value.to_string()))
-                                .on_submit(move |value, _ctx| println!("Gönderildi: {value}"))
+                                .on_submit(move |value, _ctx| println!("Sent value: {value}"))
                         )
                         .child(
                             Label::new()
@@ -102,7 +103,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     s.background(Color::NEUTRAL_100).color(Color::NEUTRAL_400)
                                 )
                         )
-
                         .child(
                             View::new().child(
                                 Image::new()

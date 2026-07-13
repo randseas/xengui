@@ -9,8 +9,10 @@ use crate::{
     convert_keyboard_event,
     dispatch_positional,
     dispatch_to_path,
+    find_widget_mut,
     hit_test_path,
     hooks::set_redraw_handle,
+    path_is_within,
 };
 use std::sync::Arc;
 
@@ -103,6 +105,7 @@ pub struct App {
     input: InputState,
 
     component: Option<std::rc::Rc<dyn Fn() -> Box<dyn Widget>>>,
+    next_blink: Option<std::time::Instant>,
 
     #[cfg(target_arch = "wasm32")]
     pub event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
@@ -123,6 +126,7 @@ impl App {
             input: InputState::default(),
 
             component: None,
+            next_blink: None,
 
             #[cfg(target_arch = "wasm32")]
             event_proxy: None,
@@ -476,6 +480,24 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
 
                 if state == winit::event::ElementState::Pressed {
                     self.input.pressed_path = path.clone();
+
+                    // Odaklı widget'ın kendi alt ağacı dışına yapılan bir tıklama focus'u bırakır.
+                    if let Some(focused) = self.input.focused_path.clone() {
+                        let stays_focused = path
+                            .as_deref()
+                            .is_some_and(|p| path_is_within(p, &focused));
+                        if !stays_focused {
+                            let mut ctx = EventCtx::new();
+                            dispatch_to_path(
+                                &mut self.root,
+                                &focused,
+                                &InputEvent::FocusLost,
+                                &mut ctx
+                            );
+                            self.input.focused_path = None;
+                            self.apply_event_ctx(ctx);
+                        }
+                    }
                 }
 
                 if let Some(path) = &path {
@@ -567,6 +589,34 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             _ => (),
         }
     }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let Some(focused) = self.input.focused_path.clone() else {
+            self.next_blink = None;
+            event_loop.set_control_flow(ControlFlow::Wait);
+            return;
+        };
+
+        let interval = find_widget_mut(&mut self.root, &focused).and_then(|w| w.blink_interval());
+
+        let Some(interval) = interval else {
+            self.next_blink = None;
+            event_loop.set_control_flow(ControlFlow::Wait);
+            return;
+        };
+
+        let now = std::time::Instant::now();
+        let deadline = *self.next_blink.get_or_insert(now + interval);
+
+        if now >= deadline {
+            let mut ctx = EventCtx::new();
+            dispatch_to_path(&mut self.root, &focused, &InputEvent::BlinkTick, &mut ctx);
+            self.apply_event_ctx(ctx);
+            self.next_blink = Some(now + interval);
+        }
+
+        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_blink.unwrap()));
+    }
 }
 
 impl App {
@@ -585,6 +635,7 @@ impl App {
                     &mut sub_ctx
                 );
                 self.input.focused_path = Some(new_focus);
+                self.next_blink = None;
             }
         } else if ctx.clear_focus && let Some(old) = self.input.focused_path.take() {
             let mut sub_ctx = EventCtx::new();
