@@ -134,7 +134,8 @@ fn current_component_id() -> ComponentId {
 fn push_component(key: ComponentKey) -> ComponentId {
     let id = COMPONENT_STACK.with(|s| {
         match s.borrow().last() {
-            Some(parent) => ComponentId(SmolStr::new(format!("{}/{}", parent.as_str(), key.0))),
+            Some(parent) =>
+                ComponentId(SmolStr::new(format!("{}\u{1f}{}", parent.as_str(), key.0))),
             None => ComponentId(key.0),
         }
     });

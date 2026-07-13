@@ -9,9 +9,11 @@ rust-version = "1.92"
 version = "0.1.0"
 
 [profile.release]
-lto = true
-opt-level = 's'
-panic = "abort"
+opt-level = 3 # Maximum speed and cpu optimization (obfuscates code).
+lto = true # Link-Time Optimization: Melts all dependencies and functions in one pot.
+codegen-units = 1 # Links code blocks together strictly.
+panic = "abort" # Removes error call tree.
+strip = true # Scrapes all the function, struct and variable names.
 
 [profile.dev.package."*"]
 opt-level = 2
