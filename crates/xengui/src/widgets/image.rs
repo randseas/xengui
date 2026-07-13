@@ -33,8 +33,15 @@ fn hash_bytes(bytes: &[u8]) -> u64 {
     hasher.finish()
 }
 
-pub fn image_source_from_rgba8(rgba: Vec<u8>, width: u32, height: u32) -> ImageSource {
-    debug_assert_eq!(rgba.len() as u64, (width as u64) * (height as u64) * 4);
+pub fn image_source_from_rgba8(mut rgba: Vec<u8>, width: u32, height: u32) -> ImageSource {
+    let expected_len = ((width as u64) * (height as u64) * 4) as usize;
+    if rgba.len() != expected_len {
+        log::error!(
+            "image_source_from_rgba8: buffer size mismatch (expected {expected_len}, got {})",
+            rgba.len()
+        );
+        rgba.resize(expected_len, 0);
+    }
     let id = hash_bytes(&rgba);
     Arc::new(ImageData {
         id,
