@@ -519,6 +519,9 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     self.apply_event_ctx(ctx);
                 }
             }
+            WindowEvent::Touch(touch) => {
+                self.handle_touch(touch);
+            }
             WindowEvent::KeyboardInput { event, .. } => {
                 if let Some(path) = self.input.focused_path.clone() {
                     let mut ctx = EventCtx::new();
@@ -594,6 +597,102 @@ impl App {
 
         if ctx.redraw_requested() && let Some(window) = &self.window {
             window.request_redraw();
+        }
+    }
+
+    // Maps a touch point onto the existing mouse-event pipeline so widgets
+    // don't need any touch-specific handling: Started acts like hover-in +
+    // press, Moved updates position, Ended acts like release + hover-out,
+    // Cancelled just clears state without firing a click.
+    fn handle_touch(&mut self, touch: winit::event::Touch) {
+        use winit::event::{ ElementState, MouseButton, TouchPhase };
+
+        let point = (touch.location.x as f32, touch.location.y as f32);
+
+        match touch.phase {
+            TouchPhase::Started => {
+                self.input.cursor_pos = Some(point);
+                let path = hit_test_path(&self.root, point);
+
+                if let Some(old) = self.input.hovered_path.take() {
+                    let mut ctx = EventCtx::new();
+                    dispatch_to_path(&mut self.root, &old, &InputEvent::MouseExited, &mut ctx);
+                    self.apply_event_ctx(ctx);
+                }
+
+                if let Some(new) = &path {
+                    let mut ctx = EventCtx::new();
+                    dispatch_to_path(&mut self.root, new, &InputEvent::MouseEntered, &mut ctx);
+                    self.apply_event_ctx(ctx);
+                }
+                self.input.hovered_path = path.clone();
+
+                if let Some(path) = &path {
+                    self.input.pressed_path = Some(path.clone());
+                    let mut ctx = EventCtx::new();
+                    dispatch_positional(
+                        &mut self.root,
+                        path,
+                        &(InputEvent::MouseInput {
+                            state: ElementState::Pressed,
+                            button: MouseButton::Left,
+                            position: point,
+                        }),
+                        &mut ctx
+                    );
+                    self.apply_event_ctx(ctx);
+                }
+            }
+
+            TouchPhase::Moved => {
+                self.input.cursor_pos = Some(point);
+                if let Some(path) = self.input.hovered_path.clone() {
+                    let mut ctx = EventCtx::new();
+                    dispatch_positional(
+                        &mut self.root,
+                        &path,
+                        &(InputEvent::MouseMoved { position: point }),
+                        &mut ctx
+                    );
+                    self.apply_event_ctx(ctx);
+                }
+            }
+
+            TouchPhase::Ended => {
+                if let Some(path) = self.input.hovered_path.clone() {
+                    let mut ctx = EventCtx::new();
+                    dispatch_positional(
+                        &mut self.root,
+                        &path,
+                        &(InputEvent::MouseInput {
+                            state: ElementState::Released,
+                            button: MouseButton::Left,
+                            position: point,
+                        }),
+                        &mut ctx
+                    );
+                    self.apply_event_ctx(ctx);
+                }
+
+                if let Some(old) = self.input.hovered_path.take() {
+                    let mut ctx = EventCtx::new();
+                    dispatch_to_path(&mut self.root, &old, &InputEvent::MouseExited, &mut ctx);
+                    self.apply_event_ctx(ctx);
+                }
+
+                self.input.pressed_path = None;
+                self.input.cursor_pos = None;
+            }
+
+            TouchPhase::Cancelled => {
+                if let Some(old) = self.input.hovered_path.take() {
+                    let mut ctx = EventCtx::new();
+                    dispatch_to_path(&mut self.root, &old, &InputEvent::MouseExited, &mut ctx);
+                    self.apply_event_ctx(ctx);
+                }
+                self.input.pressed_path = None;
+                self.input.cursor_pos = None;
+            }
         }
     }
 }
