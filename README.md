@@ -19,31 +19,38 @@
 
 ---
 
-XenGui (pronounced `/ˈzɛn.ɡuː.aɪ/` | `Zen-goo-eye`) is a reactive rendering GUI implementation in pure **Rust** utilizing the `wgpu` graphics API and `winit` window management. The system utilizes a strictly decoupled state-render pipeline bound by a virtual node (`VNode`) trait abstraction.
+XenGui (pronounced `/ˈzɛn.ɡuː.aɪ/` | `Zen-goo-eye`) is a reactive rendering GUI implementation in pure **Rust**, built on the `wgpu` graphics API and `winit` window management. It combines a hooks-based reactive model with a Flexbox/Grid layout engine (powered by `taffy`) and a batched wgpu rendering pipeline, running natively on Windows, macOS, and Linux, as well as in the browser via WebAssembly.
+
+> [!IMPORTANT]
+> XenGui is currently an early development release. APIs are still evolving and may change without notice between versions. Use with caution in production projects and expect breaking changes until a stable `1.0.0` release.
+
+## Features
+
+- **Reactive state** - React-style hooks (`use_state`, `component`) drive re-renders without a virtual DOM diffing framework bolted on top.
+- **Flexbox & Grid layout** - Full CSS-like layout via [`taffy`](https://github.com/DioxusLabs/taffy), including flex direction, wrapping, alignment, gaps, and grid tracks.
+- **GPU-accelerated rendering** - Rects, text, and images are batched and drawn through dedicated `wgpu` pipelines.
+- **Declarative styling** - A CSS-like `Style`/`StyleBuilder` API covering colors (including OKLCH), borders, typography, spacing, and more.
+- **Built-in widgets** - `View`, `Label`, `Button`, and `Image`, each with hover/pressed/disabled style variants.
+- **Interaction system** - Unified handling of hover, click, focus, and keyboard events across widgets.
+- **Cross-platform** - Native targets (Windows, macOS, Linux) and WebAssembly from a single codebase.
 
 ## Example
 
 ```rust
-app.add_node(Box::new(
-    Text::new("title")
-        .text("XenGui")
-        .font_size(24)
-        .text_color(Color::TEAL),
-    ));
-
-app.add_node(Box::new(
-    Text::new("text2")
-        .text("Hello, world!")
-        .font_size(20.0)
-        .text_color(Color::WHITE),
-    ));
-
-app.add_node(Box::new(
-    Text::new("text3")
-        .text(format!("Platform: {PLATFORM}"))
-        .font_size(20.0)
-        .text_color(Color::LIGHT_GRAY),
-    ));
+Button::new()
+    .label("Increment")
+    .font_size(16)
+    .color(Color::NEUTRAL_500)
+    .background(Color::NEUTRAL_200)
+    .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
+    .padding(Edges::only(9, 4, 9, 7))
+    .on_click(move |_ctx| set_counter.set(counter + 1))
+    .hover_style(|s|
+        s
+            .background(Color::NEUTRAL_200)
+            .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
+            .color(Color::NEUTRAL_600)
+    );
 ```
 
 ## Installation
@@ -55,16 +62,73 @@ app.add_node(Box::new(
 xengui = "0.2.1"
 ```
 
-## Sections:
+## Sections
 
 - [Example](#example)
 - [Demo](#demo)
-- [Quick start](#quickstart)
+- [Quick Start](#quick-start)
 - [Documentation](#documentation)
 
 ## Quick Start
 
-Quick start write here.
+```rust
+use xengui::*;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = AppConfig {
+        title: "My XenGui App".into(),
+        width: 640,
+        height: 480,
+        position: WindowPosition::Center,
+        ..Default::default()
+    };
+
+    let mut app = App::new(config);
+
+    app.render(|| {
+        let (counter, set_counter) = use_state::<i32>(0);
+
+        Box::new(
+            View::new()
+                .display(Display::Flex)
+                .flex_direction(FlexDirection::Column)
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::Center)
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .background(Color::WHITE)
+                .child(
+                    Label::new()
+                        .label(format!("Count: {counter}"))
+                        .font_size(20)
+                        .color(Color::NEUTRAL_700)
+                )
+                .child(
+                    Button::new()
+                        .label("Increment")
+                        .padding(Edges::symmetric(12, 8))
+                        .background(Color::NEUTRAL_200)
+                        .on_click(move |_ctx| set_counter.set(counter + 1))
+                )
+        )
+    });
+
+    app.run()?;
+    Ok(())
+}
+```
+
+Run it with:
+
+```bash
+cargo run
+```
+
+For WebAssembly targets, build and serve with [Trunk](https://github.com/trunk-rs/trunk):
+
+```bash
+trunk serve
+```
 
 ## Demo
 
@@ -73,10 +137,6 @@ Demo is available at: [https://xengui.vercel.app](https://xengui.vercel.app)
 ## Documentation
 
 Docs are available at: [https://xengui.vercel.app/docs](https://xengui.vercel.app/docs)
-
-## Inspiration
-
-This project is inspired by [Dear ImGui](https://github.com/ocornut/imgui) and [egui](https://github.com/emilk/egui).
 
 ## License
 
