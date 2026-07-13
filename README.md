@@ -1,4 +1,4 @@
-# XenGui: a reactive GUI library in pure Rust
+# XenGui: a retained-mode GUI library in pure Rust
 
 [<img alt="github" src="https://img.shields.io/badge/github-randseas/xengui-00aaaa?logo=github" height="20">](https://github.com/randseas/xengui)
 [![Latest version](https://img.shields.io/crates/v/xengui.svg)](https://crates.io/crates/xengui)
@@ -22,14 +22,14 @@
 
 ---
 
-XenGui (pronounced `/ˈzɛn.ɡuː.aɪ/` | `Zen-goo-eye`) is a reactive rendering GUI implementation in pure **Rust**, built on the `wgpu` graphics API and `winit` window management. It combines a hooks-based reactive model with a Flexbox/Grid layout engine (powered by `taffy`) and a batched wgpu rendering pipeline, running natively on Windows, macOS, and Linux, as well as in the browser via WebAssembly.
+XenGui (pronounced `/ˈzɛn.ɡuː.aɪ/` | `Zen-goo-eye`) is a retained-mode rendering GUI implementation in pure **Rust**, built on the `wgpu` graphics API and `winit` window management. It combines a hooks-based retained-mode model with a Flexbox/Grid layout engine (powered by `taffy`) and a batched wgpu rendering pipeline, running natively on Windows, macOS, and Linux, as well as in the browser via WebAssembly.
 
 > [!IMPORTANT]
 > XenGui is currently an early development release. APIs are still evolving and may change without notice between versions. Use with caution in production projects and expect breaking changes until a stable `1.0.0` release.
 
 ## Features
 
-- **Reactive state** - React-style hooks (`use_state`, `component`) drive re-renders without a virtual DOM diffing framework bolted on top.
+- **retained-mode state** - React-style hooks (`use_state`, `component`) drive re-renders without a virtual DOM diffing framework bolted on top.
 - **Flexbox & Grid layout** - Full CSS-like layout via [`taffy`](https://github.com/DioxusLabs/taffy), including flex direction, wrapping, alignment, gaps, and grid tracks.
 - **GPU-accelerated rendering** - Rects, text, and images are batched and drawn through dedicated `wgpu` pipelines.
 - **Declarative styling** - A CSS-like `Style`/`StyleBuilder` API covering colors (including OKLCH), borders, typography, spacing, and more.
