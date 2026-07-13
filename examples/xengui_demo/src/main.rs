@@ -28,8 +28,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     app.render(|| {
+        let (text, set_text) = use_state(String::from("Ferris"));
         let (counter, set_counter) = use_state::<i32>(12);
-        let name = "Ferris";
 
         Box::new(
             View::new()
@@ -56,6 +56,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .color(Color::NEUTRAL_500)
                         )
                         .child(
+                            TextBox::new()
+                                .value(text.clone())
+                                .placeholder("Enter your name...")
+                                .font_size(16)
+                                .padding(Edges::symmetric(10, 8))
+                                .background(Color::WHITE)
+                                .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
+                                .focus_style(|s|
+                                    s.border(Border::new(1.5, Color::BLUE_500, Length::px(8.0)))
+                                )
+                                .max_length(50)
+                                .on_change(move |value, _ctx| set_text.set(value.to_string()))
+                                .on_submit(move |value, _ctx| println!("Gönderildi: {value}"))
+                        )
+                        .child(
+                            Label::new()
+                                .label(format!("Hello {text}, age {counter}"))
+                                .font_size(16)
+                                .color(Color::NEUTRAL_500)
+                        )
+                        .child(
                             Button::new()
                                 .label("Increment")
                                 .font_size(16)
@@ -63,7 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .background(Color::NEUTRAL_200)
                                 .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
                                 .padding(Edges::only(9, 4, 9, 7))
-                                .margin(Edges::symmetric(0, 5))
+                                .margin(Edges::only(0, 10, 0, 0))
                                 .on_click(move |_ctx| set_counter.set(counter + 1))
                                 .hover_style(|s|
                                     s
@@ -81,12 +102,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     s.background(Color::NEUTRAL_100).color(Color::NEUTRAL_400)
                                 )
                         )
-                        .child(
-                            Label::new()
-                                .label(format!("Hello {name}, age {counter}"))
-                                .font_size(16)
-                                .color(Color::NEUTRAL_500)
-                        )
+
                         .child(
                             View::new().child(
                                 Image::new()

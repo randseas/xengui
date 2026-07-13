@@ -39,7 +39,7 @@ pub use style::{
     FontStyle,
     FontWeight,
 };
-pub use widgets::{ image_source_from_bytes, Button, Image, ImageSource, Label, ObjectFit, View };
+pub use widgets::{ image_source_from_bytes, Button, Image, ImageSource, Label, ObjectFit, View, TextBox };
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use widgets::image_source_from_path;
