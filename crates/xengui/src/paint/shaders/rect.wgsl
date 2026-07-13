@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) local_pos: vec2<f32>,
