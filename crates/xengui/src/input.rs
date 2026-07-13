@@ -1,20 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-//! Event & Input altyapısı.
-//!
-//! Mimari özet:
-//! - Hit-testing, `renderer.rs::paint_recursive` ile AYNI path konvansiyonunu
-//!   ("0.1.2") kullanır. Bu sayede `RenderCache` ve input dispatch aynı
-//!   "adres uzayını" paylaşır.
-//! - Pozisyonel event'ler (mouse) DOM'daki gibi "bubble" edilir: en derindeki
-//!   (topmost) widget'tan başlayıp köke doğru sırayla `Widget::event()`
-//!   çağrılır; bir widget `EventStatus::Handled` dönerse üst widget'lara
-//!   propagate edilmez.
-//! - Klavye/IME event'leri hit-test değil, `focused_path` üzerinden dispatch
-//!   edilir.
-//! - Focus/cursor-icon/redraw talepleri widget'tan `EventCtx` üzerinden
-//!   toplanır; gerçek state mutasyonu (App::input) dispatch bittikten SONRA
-//!   çağıran taraf (App) içinde uygulanır — widget'lar App'i bilmez.
-
 use crate::Widget;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -58,19 +42,12 @@ pub struct ModifiersState {
     pub super_key: bool,
 }
 
-/// Bir widget ağacı üzerinde gezinen pozisyonel/klavye olayları.
-///
-/// Winit'in `ElementState`, `MouseButton`, `KeyEvent`, `ModifiersState`,
-/// `MouseScrollDelta` ve `Ime` tipleri doğrudan kullanılıyor; platform
-/// event'lerini yeniden modellemenin bu aşamada katma değeri yok.
 #[derive(Clone, Debug)]
 pub enum InputEvent {
     MouseMoved {
         position: (f32, f32),
     },
-    /// Sadece hit-test edilen widget'a (bubble YOK) gönderilir.
     MouseEntered,
-    /// Sadece hit-test edilen widget'a (bubble YOK) gönderilir.
     MouseExited,
     MouseInput {
         state: winit::event::ElementState,
@@ -87,25 +64,16 @@ pub enum InputEvent {
     },
     ModifiersChanged(ModifiersState),
     Ime(winit::event::Ime),
-    /// Sadece hit-test edilen widget'a (bubble YOK) gönderilir.
     FocusGained,
-    /// Sadece hit-test edilen widget'a (bubble YOK) gönderilir.
     FocusLost,
 }
 
-/// `Widget::event()` bir event'i tükettiyse `Handled`, aksi halde `Ignored`
-/// döner. `Handled`, bubble zincirinin orada durması demektir (DOM'daki
-/// `stopPropagation` gibi).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EventStatus {
     Ignored,
     Handled,
 }
 
-/// `Widget::event()` çağrısı sırasında widget'ın dış dünyaya (App) ilettiği
-/// talepler. Widget kendi path'ini bilmediği için focus talebi path bazlı
-/// değil, "bu çağrıda beni focusla" bayrağı olarak modellenir; path'i
-/// dispatcher (bkz. `dispatch_positional`) doldurur.
 #[derive(Default)]
 pub struct EventCtx {
     redraw_requested: bool,
@@ -121,8 +89,6 @@ impl EventCtx {
         Self::default()
     }
 
-    /// Bu frame'in sonunda yeniden çizim tetiklenmesini ister (ör. hover
-    /// rengi değişti).
     pub fn request_redraw(&mut self) {
         self.redraw_requested = true;
     }
@@ -139,13 +105,10 @@ impl EventCtx {
         self.cursor_icon.take()
     }
 
-    /// Bu çağrıyı alan widget klavye focus'unu talep eder (ör. TextInput
-    /// tıklandığında).
     pub fn request_focus(&mut self) {
         self.focus_requested = true;
     }
 
-    /// Bu çağrıyı alan widget focus'u bırakır (ör. Escape'e basıldı).
     pub fn release_focus(&mut self) {
         self.focus_released = true;
     }
@@ -160,7 +123,7 @@ impl EventCtx {
 }
 
 pub fn convert_keyboard_event(event: winit::event::KeyEvent) -> KeyboardEvent {
-    use winit::keyboard::{KeyCode, PhysicalKey};
+    use winit::keyboard::{ KeyCode, PhysicalKey };
 
     let key = match event.physical_key {
         PhysicalKey::Code(KeyCode::Tab) => Key::Tab,
@@ -186,18 +149,14 @@ pub fn convert_keyboard_event(event: winit::event::KeyEvent) -> KeyboardEvent {
     }
 }
 
-/// Verilen `path`'in ("0.1.2") kökten başlayarak tüm ata path'lerini
-/// döner: `["0", "0.1", "0.1.2"]`.
 fn ancestor_paths(path: &str) -> Vec<String> {
     let parts: Vec<&str> = path.split('.').collect();
     (1..=parts.len()).map(|n| parts[..n].join(".")).collect()
 }
 
-/// `path` ile adreslenen widget'a mutable erişim sağlar. Path,
-/// `renderer.rs::paint_recursive`'in ürettiği ile aynı formattadır.
 pub fn find_widget_mut<'a>(
     tree: &'a mut [Box<dyn Widget>],
-    path: &str,
+    path: &str
 ) -> Option<&'a mut dyn Widget> {
     let mut parts = path.split('.');
     let root_idx: usize = parts.next()?.parse().ok()?;
@@ -212,10 +171,6 @@ pub fn find_widget_mut<'a>(
     Some(current)
 }
 
-/// Verilen ekran koordinatındaki EN ÜSTTEKİ (topmost) widget'ın path'ini
-/// bulur. Painter's-algorithm gereği son çizilen widget en üsttedir, bu
-/// yüzden hem root listesi hem de her seviyedeki children TERS sırada
-/// gezilir (`renderer.rs::paint_recursive`'in çizim sırasının tersi).
 pub fn hit_test_path(tree: &[Box<dyn Widget>], point: (f32, f32)) -> Option<String> {
     for (i, node) in tree.iter().enumerate().rev() {
         if let Some(path) = hit_test_recursive(node.as_ref(), &i.to_string(), point) {
@@ -237,22 +192,14 @@ fn hit_test_recursive(widget: &dyn Widget, path: &str, point: (f32, f32)) -> Opt
         }
     }
 
-    // Hiçbir çocuk isabet etmedi ama kendisi isabet etti -> kendisi topmost.
     Some(path.to_string())
 }
 
-/// Pozisyonel bir event'i `leaf_path`'ten köke doğru "bubble" ederek
-/// dispatch eder. İlk `Handled` dönen widget'ta durur.
-///
-/// Ayrıca, dispatch sırasında widget'ın `ctx.request_focus()` /
-/// `ctx.release_focus()` çağırıp çağırmadığını kontrol edip
-/// `ctx.focus_target` / `ctx.clear_focus` alanlarını doldurur — App bu
-/// alanları okuyup gerçek focus state'ini günceller.
 pub fn dispatch_positional(
     tree: &mut [Box<dyn Widget>],
     leaf_path: &str,
     event: &InputEvent,
-    ctx: &mut EventCtx,
+    ctx: &mut EventCtx
 ) -> EventStatus {
     for path in ancestor_paths(leaf_path).into_iter().rev() {
         let Some(widget) = find_widget_mut(tree, &path) else {
@@ -275,14 +222,11 @@ pub fn dispatch_positional(
     EventStatus::Ignored
 }
 
-/// Bubble YAPMADAN tek bir widget'a event gönderir. `MouseEntered`,
-/// `MouseExited`, `FocusGained`, `FocusLost` gibi "bu widget'a özel" event'ler
-/// için kullanılır.
 pub fn dispatch_to_path(
     tree: &mut [Box<dyn Widget>],
     path: &str,
     event: &InputEvent,
-    ctx: &mut EventCtx,
+    ctx: &mut EventCtx
 ) -> EventStatus {
     match find_widget_mut(tree, path) {
         Some(widget) => widget.event(event, ctx),
@@ -290,8 +234,6 @@ pub fn dispatch_to_path(
     }
 }
 
-/// `App` tarafından tutulan, frame'ler arası kalıcı input state'i: imleç
-/// pozisyonu, hover/pressed/focus path'leri, modifier tuşları.
 #[derive(Default)]
 pub struct InputState {
     pub cursor_pos: Option<(f32, f32)>,
