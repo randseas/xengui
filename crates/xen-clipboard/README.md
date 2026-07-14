@@ -22,7 +22,27 @@ Cross-platform clipboard library in rust.
 ## Example
 
 ```rust
-let a = "b";
+use xen_clipboard::Clipboard;
+
+fn main() {
+    let clipboard = Clipboard::new();
+
+    // Write text to the clipboard.
+    clipboard.set_text("Hello, Xen Clipboard!").unwrap();
+
+    // Read text from the clipboard.
+    clipboard.get_text(|result| match result {
+        Ok(Some(text)) => println!("Clipboard: {text}"),
+        Ok(None) => println!("Clipboard is empty."),
+        Err(err) => eprintln!("Failed to read clipboard: {err}"),
+    });
+
+    // Check whether the clipboard contains text.
+    clipboard.has_text(|result| match result {
+        Ok(has_text) => println!("Has text: {has_text}"),
+        Err(err) => eprintln!("Failed to query clipboard: {err}"),
+    });
+}
 ```
 
 ## Installation
@@ -36,7 +56,7 @@ xen-clipboard = "0.1.0"
 
 ## Documentation
 
-Docs are available at: [https://xengui.vercel.app/docs/xen-commit](https://xengui.vercel.app/docs/xen-commit)
+Docs are available at: [https://xengui.vercel.app/docs/xen-clipboard](https://xengui.vercel.app/docs/xen-clipboard)
 
 ## License
 
