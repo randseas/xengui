@@ -92,8 +92,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .max_length(50)
                                 .on_change(move |value, _ctx| set_text.set(value.to_string()))
                                 .on_submit(move |value, _ctx| {
-                                    let _ = clipboard.set_text(value);
-                                    log::info!("clipboard -> copied: {value}");
+                                    clipboard.set_text(value, move |result| {
+                                        match result {
+                                            Ok(_) => log::info!("clipboard -> copied"),
+                                            Err(err) => log::error!("clipboard -> failed: {err}"),
+                                        }
+                                    });
                                 })
                         )
                         .child(

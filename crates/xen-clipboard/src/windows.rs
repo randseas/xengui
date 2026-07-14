@@ -74,45 +74,48 @@ impl ClipboardBackend for WindowsClipboard {
         callback(result);
     }
 
-    fn set_text(&self, text: &str) -> Result<(), ClipboardError> {
-        unsafe {
+    fn set_text(&self, text: &str, callback: Box<dyn FnOnce(Result<(), ClipboardError>) + Send>) {
+        let result = unsafe {
             if OpenClipboard(0 as HWND) == 0 {
-                return Err(ClipboardError::OpenFailed);
+                Err(ClipboardError::OpenFailed)
+            } else {
+                EmptyClipboard();
+
+                let utf16: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
+
+                let size = utf16.len() * std::mem::size_of::<u16>();
+
+                let handle = GlobalAlloc(GMEM_MOVEABLE, size);
+
+                if handle.is_null() {
+                    CloseClipboard();
+                    Err(ClipboardError::WriteFailed)
+                } else {
+                    let ptr = GlobalLock(handle) as *mut u16;
+
+                    if ptr.is_null() {
+                        CloseClipboard();
+                        Err(ClipboardError::LockFailed)
+                    } else {
+                        ptr::copy_nonoverlapping(utf16.as_ptr(), ptr, utf16.len());
+
+                        GlobalUnlock(handle);
+
+                        if SetClipboardData(CF_UNICODETEXT, handle).is_null() {
+                            Err(ClipboardError::WriteFailed)
+                        } else {
+                            Ok(())
+                        }
+                    }
+                }
             }
+        };
 
-            EmptyClipboard();
-
-            let utf16: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
-
-            let size = utf16.len() * std::mem::size_of::<u16>();
-
-            let handle = GlobalAlloc(GMEM_MOVEABLE, size);
-
-            if handle.is_null() {
-                CloseClipboard();
-                return Err(ClipboardError::ReadFailed);
-            }
-
-            let ptr = GlobalLock(handle) as *mut u16;
-
-            if ptr.is_null() {
-                CloseClipboard();
-                return Err(ClipboardError::ReadFailed);
-            }
-
-            ptr::copy_nonoverlapping(utf16.as_ptr(), ptr, utf16.len());
-
-            GlobalUnlock(handle);
-
-            if SetClipboardData(CF_UNICODETEXT, handle).is_null() {
-                CloseClipboard();
-                return Err(ClipboardError::ReadFailed);
-            }
-
+        unsafe {
             CloseClipboard();
-
-            Ok(())
         }
+
+        callback(result);
     }
 
     fn has_text(&self, callback: Box<dyn FnOnce(Result<bool, ClipboardError>) + Send>) {

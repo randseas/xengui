@@ -3104,8 +3104,11 @@ checksum = "bec9e4a500ca8864c5b47b8b482a73d62e4237670e5b5f1d6b9e3cae50f28f2b"
 
 [[package]]
 name = "xen-clipboard"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
+ "js-sys",
+ "wasm-bindgen-futures",
+ "web-sys",
  "windows-sys 0.61.2",
 ]
 
@@ -3117,7 +3120,6 @@ dependencies = [
  "console_error_panic_hook",
  "glyphon",
  "image",
- "js-sys",
  "log",
  "pollster",
  "smol_str 0.3.6",

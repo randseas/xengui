@@ -1,8 +1,7 @@
 use wasm_bindgen_futures::{ spawn_local, JsFuture };
-
 use web_sys::window;
 
-use crate::clipboard::{ ClipboardBackend, ClipboardError };
+use crate::{ ClipboardBackend, ClipboardError };
 
 pub struct WasmClipboard;
 
@@ -25,31 +24,36 @@ impl ClipboardBackend for WasmClipboard {
         spawn_local(async move {
             match JsFuture::from(clipboard.read_text()).await {
                 Ok(value) => {
-                    let text = value.as_string();
-                    callback(Ok(text));
+                    callback(Ok(value.as_string()));
                 }
-                Err(_) => {
-                    callback(Err(ClipboardError::ReadFailed));
+
+                Err(err) => {
+                    callback(Err(ClipboardError::PlatformError(format!("{err:?}"))));
                 }
             }
         });
     }
 
-    fn set_text(&self, text: &str) -> Result<(), ClipboardError> {
+    fn set_text(&self, text: &str, callback: Box<dyn FnOnce(Result<(), ClipboardError>) + Send>) {
         let Some(window) = window() else {
-            return Err(ClipboardError::Unsupported);
+            callback(Err(ClipboardError::Unsupported));
+            return;
         };
 
         let clipboard = window.navigator().clipboard();
         let text = text.to_owned();
 
         spawn_local(async move {
-            if let Err(err) = JsFuture::from(clipboard.write_text(&text)).await {
-                log::error!("clipboard write failed: {:?}", err);
+            match JsFuture::from(clipboard.write_text(&text)).await {
+                Ok(_) => {
+                    callback(Ok(()));
+                }
+
+                Err(err) => {
+                    callback(Err(ClipboardError::PlatformError(format!("{err:?}"))));
+                }
             }
         });
-
-        Ok(())
     }
 
     fn has_text(&self, callback: Box<dyn FnOnce(Result<bool, ClipboardError>) + Send>) {

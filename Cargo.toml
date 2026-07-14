@@ -19,7 +19,7 @@ opt-level = 2
 
 [workspace.dependencies]
 xengui = { version = "0.2.2", path = "crates/xengui" }
-xen-clipboard = { version = "0.1.4", path = "crates/xen-clipboard" }
+xen-clipboard = { version = "0.1.5", path = "crates/xen-clipboard" }
 wgpu = { version = "30.0.0", features = ["webgl"] }
 glyphon = "0.12.0"
 winit = "0.30.0"
@@ -30,6 +30,7 @@ smol_str = "0.3"
 log = "0.4"
 web-time = "1.1.0"
 wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
 image = { version = "0.25.10", default-features = false, features = [
     "png",
     "jpeg",

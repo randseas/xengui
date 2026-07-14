@@ -15,9 +15,8 @@ impl ClipboardBackend for LinuxClipboard {
         callback(Err(ClipboardError::Unsupported));
     }
 
-    fn set_text(&self, _text: &str) -> Result<(), ClipboardError> {
-        Err(ClipboardError::Unsupported);
-        Ok(())
+    fn set_text(&self, _text: &str, callback: Box<dyn FnOnce(Result<(), ClipboardError>) + Send>) {
+        callback(Err(ClipboardError::Unsupported));
     }
 
     fn has_text(&self, callback: Box<dyn FnOnce(Result<bool, ClipboardError>) + Send>) {
