@@ -1,5 +1,4 @@
 use crate::ClipboardError;
-
 use super::ClipboardBackend;
 
 pub struct LinuxClipboard;
@@ -16,8 +15,9 @@ impl ClipboardBackend for LinuxClipboard {
         callback(Err(ClipboardError::Unsupported));
     }
 
-    fn set_text(&self, _text: &str) {
-        log::warn!("clipboard: Linux backend is not implemented.");
+    fn set_text(&self, _text: &str) -> Result<(), ClipboardError> {
+        Err(ClipboardError::Unsupported);
+        Ok(())
     }
 
     fn has_text(&self, callback: Box<dyn FnOnce(Result<bool, ClipboardError>) + Send>) {

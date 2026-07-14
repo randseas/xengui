@@ -1,6 +1,6 @@
 [package]
 name = "xen-clipboard"
-version = "0.1.2"
+version = "0.1.3"
 edition = { workspace = true }
 rust-version = { workspace = true }
 authors = ["randseas <waultbank@gmail.com>"]
@@ -10,9 +10,6 @@ repository = "https://github.com/randseas/xen-clipboard"
 readme = "README.md"
 keywords = ["clipboard", "wayland", "x11", "windows", "cross-platform"]
 categories = ["gui", "os"]
-
-[dependencies]
-log = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.61.2", features = [
