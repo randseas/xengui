@@ -34,7 +34,7 @@ impl ClipboardBackend for WasmClipboard {
         });
     }
 
-    fn set_text(&self, text: &str, callback: Box<dyn FnOnce(Result<(), ClipboardError>) + Send>) {
+    fn set_text(&self, text: String, callback: Box<dyn FnOnce(Result<(), ClipboardError>) + Send>) {
         let Some(window) = window() else {
             callback(Err(ClipboardError::Unsupported));
             return;

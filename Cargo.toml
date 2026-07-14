@@ -19,7 +19,7 @@ opt-level = 2
 
 [workspace.dependencies]
 xengui = { version = "0.2.2", path = "crates/xengui" }
-xen-clipboard = { version = "0.1.5", path = "crates/xen-clipboard" }
+xen-clipboard = { version = "0.1.6", path = "crates/xen-clipboard" }
 wgpu = { version = "30.0.0", features = ["webgl"] }
 glyphon = "0.12.0"
 winit = "0.30.0"

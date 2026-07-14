@@ -46,7 +46,7 @@ impl Clipboard {
     /// Writes text to the clipboard.
     pub fn set_text(
         &self,
-        text: &str,
+        text: String,
         callback: impl FnOnce(Result<(), ClipboardError>) + Send + 'static
     ) {
         self.backend.set_text(text, Box::new(callback));
@@ -64,7 +64,7 @@ impl Clipboard {
 pub(crate) trait ClipboardBackend {
     fn get_text(&self, callback: Box<dyn FnOnce(Result<Option<String>, ClipboardError>) + Send>);
 
-    fn set_text(&self, text: &str, callback: Box<dyn FnOnce(Result<(), ClipboardError>) + Send>);
+    fn set_text(&self, text: String, callback: Box<dyn FnOnce(Result<(), ClipboardError>) + Send>);
 
     fn has_text(&self, callback: Box<dyn FnOnce(Result<bool, ClipboardError>) + Send>);
 }

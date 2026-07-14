@@ -74,7 +74,7 @@ impl ClipboardBackend for WindowsClipboard {
         callback(result);
     }
 
-    fn set_text(&self, text: &str, callback: Box<dyn FnOnce(Result<(), ClipboardError>) + Send>) {
+    fn set_text(&self, text: String, callback: Box<dyn FnOnce(Result<(), ClipboardError>) + Send>) {
         let result = unsafe {
             if OpenClipboard(0 as HWND) == 0 {
                 Err(ClipboardError::OpenFailed)

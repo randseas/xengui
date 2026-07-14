@@ -30,7 +30,15 @@ fn main() {
     let clipboard = Clipboard::new();
 
     // Write text to the clipboard.
-    clipboard.set_text("Hello, Xen Clipboard!").unwrap();
+    clipboard.set_text(
+        "Hello, Xen Clipboard!".into(),
+        |result| {
+            match result {
+                Ok(_) => println!("Copied!"),
+                Err(err) => eprintln!("Failed to copy: {err}"),
+            }
+        },
+    );
 
     // Read text from the clipboard.
     clipboard.get_text(|result| match result {
@@ -53,7 +61,7 @@ fn main() {
 
 ```toml
 [dependencies]
-xen-clipboard = "0.1.5"
+xen-clipboard = "0.1.6"
 ```
 
 ## Documentation
