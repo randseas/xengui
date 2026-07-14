@@ -1,0 +1,15 @@
+[package]
+name = "xen-clipboard"
+version = "0.1.0"
+edition = { workspace = true }
+rust-version = { workspace = true }
+authors = ["randseas <waultbank@gmail.com>"]
+description = "cross-platform clipboard library in rust"
+license = "Apache-2.0"
+repository = "https://github.com/randseas/xen-clipboard"
+readme = "README.md"
+keywords = ["clipboard", "wayland", "x11", "windows", "cross-platform"]
+categories = ["gui", "os"]
+
+[dependencies]
+xengui = { workspace = true }

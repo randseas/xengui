@@ -1,10 +1,10 @@
 [package]
 name = "xengui"
 version = "0.2.2"
-edition = "2024"
-rust-version = "1.92"
+edition = { workspace = true }
+rust-version = { workspace = true }
 authors = ["randseas <waultbank@gmail.com>"]
-description = "xengui: a reactive gui library in rust"
+description = "a reactive gui library in rust"
 license = "Apache-2.0"
 repository = "https://github.com/randseas/xengui"
 readme = "../../README.md"

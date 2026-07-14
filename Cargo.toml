@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/xencommit", "crates/xengui", "examples/*"]
+members = ["crates/xengui", "crates/xen-clipboard", "examples/*"]
 
 [workspace.package]
 edition = "2024"
