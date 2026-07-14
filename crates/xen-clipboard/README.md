@@ -1,8 +1,8 @@
 # xen-clipboard
 
 [<img alt="github" src="https://img.shields.io/badge/github-randseas/xengui-00aaaa?logo=github" height="20">](https://github.com/randseas/xengui/tree/main/crates/xen-clipboard)
-[![Latest version](https://img.shields.io/crates/v/xen-clipboard.svg)](https://crates.io/crates/xen-clipboard)
-[![Downloads](https://img.shields.io/crates/d/xen-clipboard.svg)](https://crates.io/crates/xen-clipboard)
+[![Latest version](https://img.shields.io/crates/v/xen_clipboard.svg)](https://crates.io/crates/xen_clipboard)
+[![Downloads](https://img.shields.io/crates/d/xen_clipboard.svg)](https://crates.io/crates/xen_clipboard)
 [![Rust](https://img.shields.io/badge/rust-1.92%2B-blue.svg)](https://www.rust-lang.org)
 [![Documentation](https://docs.rs/xen-clipboard/badge.svg)](https://docs.rs/xen-clipboard)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/randseas/xengui/blob/main/crates/xen-clipboard/LICENSE)
@@ -51,7 +51,7 @@ fn main() {
 
 ```toml
 [dependencies]
-xen-clipboard = "0.1.1"
+xen-clipboard = "0.1.2"
 ```
 
 ## Documentation
