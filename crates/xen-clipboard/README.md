@@ -51,7 +51,7 @@ fn main() {
 
 ```toml
 [dependencies]
-xen-clipboard = "0.1.0"
+xen-clipboard = "0.1.1"
 ```
 
 ## Documentation
