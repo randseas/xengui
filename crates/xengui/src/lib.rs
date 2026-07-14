@@ -11,7 +11,6 @@ pub mod input;
 pub mod interaction;
 pub mod text;
 pub mod hooks;
-pub mod clipboard;
 mod reconcile;
 
 pub use app::WindowPosition;
@@ -25,7 +24,6 @@ pub use input::*;
 pub use interaction::*;
 pub use text::*;
 pub use hooks::{ component, use_state, ComponentId, ComponentKey, SetState };
-pub use clipboard::*;
 
 pub use app::{ App, AppConfig };
 pub use input::{ InputEvent, Key, KeyState };

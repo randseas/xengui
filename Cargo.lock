@@ -3106,7 +3106,7 @@ checksum = "bec9e4a500ca8864c5b47b8b482a73d62e4237670e5b5f1d6b9e3cae50f28f2b"
 name = "xen-clipboard"
 version = "0.1.0"
 dependencies = [
- "xengui",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3140,6 +3140,7 @@ dependencies = [
  "console_log",
  "env_logger",
  "log",
+ "xen-clipboard",
  "xengui",
 ]
 

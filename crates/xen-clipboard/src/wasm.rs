@@ -35,17 +35,21 @@ impl ClipboardBackend for WasmClipboard {
         });
     }
 
-    fn set_text(&self, text: &str) {
+    fn set_text(&self, text: &str) -> Result<(), ClipboardError> {
         let Some(window) = window() else {
-            return;
+            return Err(ClipboardError::Unsupported);
         };
 
         let clipboard = window.navigator().clipboard();
         let text = text.to_owned();
 
         spawn_local(async move {
-            let _ = JsFuture::from(clipboard.write_text(&text)).await;
+            if let Err(err) = JsFuture::from(clipboard.write_text(&text)).await {
+                log::error!("clipboard write failed: {:?}", err);
+            }
         });
+
+        Ok(())
     }
 
     fn has_text(&self, callback: Box<dyn FnOnce(Result<bool, ClipboardError>) + Send>) {

@@ -17,7 +17,7 @@ use windows_sys::Win32::{
 
 const CF_UNICODETEXT: u32 = 13;
 
-use crate::ClipboardError;
+use crate::{ ClipboardError };
 
 use super::ClipboardBackend;
 
@@ -74,10 +74,10 @@ impl ClipboardBackend for WindowsClipboard {
         callback(result);
     }
 
-    fn set_text(&self, text: &str) {
+    fn set_text(&self, text: &str) -> Result<(), ClipboardError> {
         unsafe {
             if OpenClipboard(0 as HWND) == 0 {
-                return;
+                return Err(ClipboardError::OpenFailed);
             }
 
             EmptyClipboard();
@@ -90,14 +90,14 @@ impl ClipboardBackend for WindowsClipboard {
 
             if handle.is_null() {
                 CloseClipboard();
-                return;
+                return Err(ClipboardError::ReadFailed);
             }
 
             let ptr = GlobalLock(handle) as *mut u16;
 
             if ptr.is_null() {
                 CloseClipboard();
-                return;
+                return Err(ClipboardError::ReadFailed);
             }
 
             ptr::copy_nonoverlapping(utf16.as_ptr(), ptr, utf16.len());
@@ -106,10 +106,12 @@ impl ClipboardBackend for WindowsClipboard {
 
             if SetClipboardData(CF_UNICODETEXT, handle).is_null() {
                 CloseClipboard();
-                return;
+                return Err(ClipboardError::ReadFailed);
             }
 
             CloseClipboard();
+
+            Ok(())
         }
     }
 
