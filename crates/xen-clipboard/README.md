@@ -9,15 +9,17 @@
 
 Cross-platform clipboard library in rust.
 
-## Supported platforms
+## Supported Platforms
 
 - Windows
-- Wayland
-- X11
-- macOS (planned)
-- Android (planned)
-- iOS (planned)
-- WASM
+- WebAssembly
+
+## Planned Platforms
+
+- Linux (Wayland/X11)
+- macOS
+- Android
+- iOS
 
 ## Example
 
@@ -51,7 +53,7 @@ fn main() {
 
 ```toml
 [dependencies]
-xen-clipboard = "0.1.3"
+xen-clipboard = "0.1.3-alpha.1"
 ```
 
 ## Documentation
