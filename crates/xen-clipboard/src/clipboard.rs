@@ -46,10 +46,10 @@ impl Clipboard {
     /// Writes text to the clipboard.
     pub fn set_text(
         &self,
-        text: String,
+        text: impl Into<String>,
         callback: impl FnOnce(Result<(), ClipboardError>) + Send + 'static
     ) {
-        self.backend.set_text(text, Box::new(callback));
+        self.backend.set_text(text.into(), Box::new(callback));
     }
 
     /// Returns whether the clipboard currently contains text.
