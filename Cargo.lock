@@ -3118,7 +3118,7 @@ dependencies = [
 
 [[package]]
 name = "xengui"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "bytemuck",
  "console_error_panic_hook",

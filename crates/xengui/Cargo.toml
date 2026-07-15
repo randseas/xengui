@@ -1,6 +1,6 @@
 [package]
 name = "xengui"
-version = "0.2.2"
+version = "0.2.3"
 edition = { workspace = true }
 rust-version = { workspace = true }
 authors = ["randseas <waultbank@gmail.com>"]

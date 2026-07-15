@@ -6,6 +6,7 @@
 [![Rust](https://img.shields.io/badge/rust-1.92%2B-blue.svg)](https://www.rust-lang.org)
 [![Documentation](https://docs.rs/xengui/badge.svg)](https://docs.rs/xengui)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/randseas/xengui/blob/main/LICENSE)
+
 <!-- ![CI/CD](https://github.com/randseas/xengui/actions/workflows/ci_check.yml/badge.svg) -->
 
 <p align="start" style="margin-top: -.5rem">
@@ -40,19 +41,26 @@ XenGui (pronounced `/ˈzɛn.ɡuː.aɪ/` | `Zen-goo-eye`) is a retained-mode rend
 ## Example
 
 ```rust
-Button::new()
-    .label("Increment")
-    .font_size(16)
-    .color(Color::NEUTRAL_500)
-    .background(Color::NEUTRAL_200)
-    .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
-    .padding(Edges::only(9, 4, 9, 7))
-    .on_click(move |_ctx| set_counter.set(counter + 1))
-    .hover_style(|s|
-        s
+View::new()
+    .display(Display::Flex)
+    .flex_direction(FlexDirection::Column)
+    .align_items(AlignItems::Center)
+    .justify_content(JustifyContent::Center)
+    .width(Length::Percent(100.0))
+    .height(Length::Percent(100.0))
+    .background(Color::WHITE)
+    .child(
+        Label::new()
+            .label(format!("Count: {counter}"))
+            .font_size(20)
+            .color(Color::NEUTRAL_700)
+        )
+    .child(
+        Button::new()
+            .label("Increment")
+            .padding(Edges::symmetric(12, 8))
             .background(Color::NEUTRAL_200)
-            .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
-            .color(Color::NEUTRAL_600)
+            .on_click(move |_ctx| set_counter.update(|v| *v += 1))
     );
 ```
 
@@ -62,7 +70,7 @@ Button::new()
 
 ```toml
 [dependencies]
-xengui = "0.2.2"
+xengui = "0.2.3"
 ```
 
 ## Sections
@@ -111,12 +119,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .label("Increment")
                         .padding(Edges::symmetric(12, 8))
                         .background(Color::NEUTRAL_200)
-                        .on_click(move |_ctx| set_counter.set(counter + 1))
+                        .on_click(move |_ctx| set_counter.update(|v| *v += 1))
                 )
         )
     });
 
-    app.run()?;
+    if let Err(e) = app.run() {
+        eprintln!("Error running app: {:?}", e);
+    }
+
     Ok(())
 }
 ```
