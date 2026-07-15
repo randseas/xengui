@@ -30,10 +30,10 @@ XenGui (pronounced `/ˈzɛn.ɡuː.aɪ/` | `Zen-goo-eye`) is a retained-mode rend
 
 ## Features
 
-- **retained-mode state** - React-style hooks (`use_state`, `component`) drive re-renders without a virtual DOM diffing framework bolted on top.
-- **Flexbox & Grid layout** - Full CSS-like layout via [`taffy`](https://github.com/DioxusLabs/taffy), including flex direction, wrapping, alignment, gaps, and grid tracks.
+- **Retained-mode state** - React-style hooks (`use_state`, `component`) drive re-renders without a virtual DOM diffing framework bolted on top.
+- **Flexbox & Grid layout** - Layout system via [`taffy`](https://github.com/DioxusLabs/taffy), including flex direction, wrapping, alignment, gaps, and grid tracks.
 - **GPU-accelerated rendering** - Rects, text, and images are batched and drawn through dedicated `wgpu` pipelines.
-- **Declarative styling** - A CSS-like `Style`/`StyleBuilder` API covering colors (including OKLCH), borders, typography, spacing, and more.
+- **Declarative styling** - `Style`/`StyleBuilder` API covering colors (including OKLCH), borders, typography, spacing, and more.
 - **Built-in widgets** - `View`, `Label`, `Button`, and `Image`, each with hover/pressed/disabled style variants.
 - **Interaction system** - Unified handling of hover, click, focus, and keyboard events across widgets.
 - **Cross-platform** - Native targets (Windows, macOS, Linux) and WebAssembly from a single codebase.
@@ -75,9 +75,11 @@ xengui = "0.2.3"
 
 ## Sections
 
+- [Features](#features)
 - [Example](#example)
-- [Demo](#demo)
+- [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Demo](#demo)
 - [Documentation](#documentation)
 
 ## Quick Start
