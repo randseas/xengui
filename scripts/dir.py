@@ -8,7 +8,7 @@ IGNORE_DIRS = {
     ".github",
     "dist",
     "build",
-    "xencommit"
+    "xen-clipboard"
 }
 
 EXTENSIONS = {
