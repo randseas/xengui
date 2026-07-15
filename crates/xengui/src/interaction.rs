@@ -16,6 +16,7 @@ pub struct Interaction {
     pub hovered: bool,
     pub pressed: bool,
     pub focused: bool,
+    pub focus_visible: bool,
 
     pub on_mouse_enter: Option<Callback>,
     pub on_mouse_leave: Option<Callback>,
@@ -36,6 +37,7 @@ impl Interaction {
             hovered: false,
             pressed: false,
             focused: false,
+            focus_visible: false,
             on_mouse_enter: None,
             on_mouse_leave: None,
             on_hover: None,
@@ -67,6 +69,7 @@ impl Interaction {
         self.hovered = old.hovered;
         self.pressed = old.pressed;
         self.focused = old.focused;
+        self.focus_visible = old.focus_visible;
     }
 
     fn is_activation_key(key: Key) -> bool {
@@ -119,6 +122,8 @@ impl Interaction {
                     match state {
                         ElementState::Pressed => {
                             self.pressed = true;
+                            // a pointer press dismisses the ring, even if the widget already has keyboard focus.
+                            self.focus_visible = false;
                             if self.focusable {
                                 ctx.request_focus();
                             }
@@ -141,6 +146,17 @@ impl Interaction {
                     cb(key_event, ctx);
                 }
 
+                // Escape universally releases focus for any focusable widget that
+                // doesn't implement its own KeyInput handling (TextBox opts out of
+                // this path entirely and handles Escape itself).
+                if
+                    self.focused &&
+                    key_event.key == Key::Escape &&
+                    key_event.state == KeyState::Pressed
+                {
+                    ctx.release_focus();
+                }
+
                 if self.focused && Self::is_activation_key(key_event.key) {
                     match key_event.state {
                         KeyState::Pressed if !key_event.repeat => {
@@ -161,15 +177,17 @@ impl Interaction {
                 EventStatus::Handled
             }
 
-            InputEvent::FocusGained => {
+            InputEvent::FocusGained { via_keyboard } => {
                 self.focused = true;
+                self.focus_visible = *via_keyboard;
                 ctx.request_redraw();
                 EventStatus::Handled
             }
-
+            
             InputEvent::FocusLost => {
                 self.focused = false;
                 self.pressed = false;
+                self.focus_visible = false;
                 ctx.request_redraw();
                 EventStatus::Handled
             }

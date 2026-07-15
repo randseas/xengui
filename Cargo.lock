@@ -3135,6 +3135,7 @@ dependencies = [
  "web-time",
  "wgpu",
  "winit",
+ "xen-clipboard",
 ]
 
 [[package]]

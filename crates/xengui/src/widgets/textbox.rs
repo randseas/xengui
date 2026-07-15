@@ -11,6 +11,8 @@ use crate::{
     KeyboardEvent,
     LayoutBox,
     LayoutContext,
+    Length,
+    ModifiersState,
     PaintContext,
     RectCommand,
     Style,
@@ -21,8 +23,18 @@ use crate::{
     WidgetContent,
 };
 use smol_str::SmolStr;
-use std::cell::Cell;
+use std::cell::{ Cell, RefCell };
+use std::sync::{ Arc, Mutex };
+use std::time::Duration;
+use web_time::Instant;
+use winit::event::{ ElementState, MouseButton };
 use winit::window::CursorIcon;
+use xen_clipboard::Clipboard;
+
+// A second click within this time window counts as a double/triple click.
+const MULTI_CLICK_INTERVAL: Duration = Duration::from_millis(400);
+// A second click further than this from the first one starts a new click sequence.
+const MULTI_CLICK_DISTANCE: f32 = 4.0;
 
 pub struct TextBox {
     dirty: bool,
@@ -40,6 +52,30 @@ pub struct TextBox {
     cursor_index: usize,
     max_length: Option<usize>,
 
+    // Selection anchor; the selected range spans [anchor, cursor_index)
+    // in whichever order is smaller-to-larger. `None` means no selection.
+    selection_anchor: Option<usize>,
+    selection_color: Option<Color>,
+
+    undo_stack: Vec<(String, usize, Option<usize>)>,
+    redo_stack: Vec<(String, usize, Option<usize>)>,
+
+    dragging: bool,
+    click_count: Cell<u8>,
+    last_click_time: Cell<Option<Instant>>,
+    last_click_pos: Cell<(f32, f32)>,
+    // Set right before a mouse-press asks for focus, so the FocusGained
+    // that follows keeps the caret where the user clicked instead of
+    // jumping to the end of the content (the default for e.g. Tab focus).
+    focus_via_pointer: Cell<bool>,
+    current_modifiers: Cell<ModifiersState>,
+
+    clipboard: Clipboard,
+    // Clipboard reads are callback-based (required for WASM, where they're
+    // promise-based), so a completed read is parked here and applied on
+    // the next event this widget receives.
+    pending_paste: Arc<Mutex<Option<String>>>,
+
     #[allow(clippy::type_complexity)]
     on_change: Option<Box<dyn FnMut(&str, &mut EventCtx)>>,
     #[allow(clippy::type_complexity)]
@@ -50,6 +86,10 @@ pub struct TextBox {
     // Pixel offset of the caret from the text start, cached during measure()
     // since PaintContext has no access to the text pipeline to shape text.
     cursor_offset: Cell<f32>,
+    // Pixel offset of every character boundary (index 0..=char_count),
+    // cached during measure() and reused for caret placement, mouse
+    // hit-testing, and selection-highlight geometry.
+    char_offsets: RefCell<Vec<f32>>,
     caret_visible: Cell<bool>,
 }
 
@@ -71,11 +111,26 @@ impl TextBox {
             interaction,
             cursor_index: 0,
             max_length: None,
+            selection_anchor: None,
+            selection_color: None,
+
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+
+            dragging: false,
+            click_count: Cell::new(0),
+            last_click_time: Cell::new(None),
+            last_click_pos: Cell::new((0.0, 0.0)),
+            focus_via_pointer: Cell::new(false),
+            current_modifiers: Cell::new(ModifiersState::default()),
+            clipboard: Clipboard::new(),
+            pending_paste: Arc::new(Mutex::new(None)),
             on_change: None,
             on_submit: None,
             layout_box: LayoutBox::default(),
             content_size: Cell::new((0.0, 0.0)),
             cursor_offset: Cell::new(0.0),
+            char_offsets: RefCell::new(Vec::new()),
             caret_visible: Cell::new(true),
         }
     }
@@ -83,6 +138,7 @@ impl TextBox {
     pub fn value(mut self, value: impl Into<String>) -> Self {
         self.content = value.into();
         self.cursor_index = self.content.chars().count();
+        self.selection_anchor = None;
         self.mark_dirty();
         self
     }
@@ -105,6 +161,12 @@ impl TextBox {
 
     pub fn max_length(mut self, max_length: usize) -> Self {
         self.max_length = Some(max_length);
+        self
+    }
+
+    pub fn selection_color(mut self, color: Color) -> Self {
+        self.selection_color = Some(color);
+        self.mark_dirty();
         self
     }
 
@@ -180,20 +242,227 @@ impl TextBox {
         }
     }
 
+    // Returns the selection as an ordered (start, end) char-index pair,
+    // or None when nothing is selected.
+    fn selection_range(&self) -> Option<(usize, usize)> {
+        let anchor = self.selection_anchor?;
+        if anchor == self.cursor_index {
+            return None;
+        }
+        Some((anchor.min(self.cursor_index), anchor.max(self.cursor_index)))
+    }
+
+    fn selected_text(&self) -> Option<String> {
+        let (start, end) = self.selection_range()?;
+        let start_b = self.byte_index_for(start);
+        let end_b = self.byte_index_for(end);
+        Some(self.content[start_b..end_b].to_string())
+    }
+
+    // Removes the selected text (if any), moves the cursor to where it
+    // started, and clears the selection. Does not notify on_change -
+    // callers combine this with their own edit before notifying once.
+    fn delete_selection(&mut self) -> bool {
+        let Some((start, end)) = self.selection_range() else {
+            return false;
+        };
+        let start_b = self.byte_index_for(start);
+        let end_b = self.byte_index_for(end);
+        self.content.replace_range(start_b..end_b, "");
+        self.cursor_index = start;
+        self.selection_anchor = None;
+        true
+    }
+
+    // Pushes a snapshot before a mutating edit; any new edit invalidates redo history.
+    fn push_undo_snapshot(&mut self) {
+        self.undo_stack.push((self.content.clone(), self.cursor_index, self.selection_anchor));
+        self.redo_stack.clear();
+    }
+
+    fn undo(&mut self, ctx: &mut EventCtx) {
+        let Some((content, cursor_index, selection_anchor)) = self.undo_stack.pop() else {
+            return;
+        };
+        self.redo_stack.push((self.content.clone(), self.cursor_index, self.selection_anchor));
+        self.content = content;
+        self.cursor_index = cursor_index;
+        self.selection_anchor = selection_anchor;
+        self.notify_change(ctx);
+    }
+
+    fn redo(&mut self, ctx: &mut EventCtx) {
+        let Some((content, cursor_index, selection_anchor)) = self.redo_stack.pop() else {
+            return;
+        };
+        self.undo_stack.push((self.content.clone(), self.cursor_index, self.selection_anchor));
+        self.content = content;
+        self.cursor_index = cursor_index;
+        self.selection_anchor = selection_anchor;
+        self.notify_change(ctx);
+    }
+
+    fn move_cursor_to(&mut self, target: usize, extend_selection: bool) {
+        if extend_selection {
+            if self.selection_anchor.is_none() {
+                self.selection_anchor = Some(self.cursor_index);
+            }
+        } else {
+            self.selection_anchor = None;
+        }
+        self.cursor_index = target;
+    }
+
+    fn char_class(c: char) -> u8 {
+        if c.is_whitespace() { 0 } else if c.is_alphanumeric() || c == '_' { 1 } else { 2 }
+    }
+
+    // Word (or punctuation/whitespace run) boundaries around `idx`, used
+    // for double-click word selection.
+    fn word_bounds_at(&self, idx: usize) -> (usize, usize) {
+        let chars: Vec<char> = self.content.chars().collect();
+        if chars.is_empty() {
+            return (0, 0);
+        }
+        let probe = idx.min(chars.len() - 1);
+        let class = Self::char_class(chars[probe]);
+
+        let mut start = probe;
+        while start > 0 && Self::char_class(chars[start - 1]) == class {
+            start -= 1;
+        }
+        let mut end = probe + 1;
+        while end < chars.len() && Self::char_class(chars[end]) == class {
+            end += 1;
+        }
+        (start, end)
+    }
+
+    fn word_left(&self, from: usize) -> usize {
+        let chars: Vec<char> = self.content.chars().collect();
+        let mut i = from;
+        while i > 0 && Self::char_class(chars[i - 1]) == 0 {
+            i -= 1;
+        }
+        if i == 0 {
+            return 0;
+        }
+        let class = Self::char_class(chars[i - 1]);
+        while i > 0 && Self::char_class(chars[i - 1]) == class {
+            i -= 1;
+        }
+        i
+    }
+
+    fn word_right(&self, from: usize) -> usize {
+        let chars: Vec<char> = self.content.chars().collect();
+        let len = chars.len();
+        let mut i = from;
+        while i < len && Self::char_class(chars[i]) == 0 {
+            i += 1;
+        }
+        if i == len {
+            return len;
+        }
+        let class = Self::char_class(chars[i]);
+        while i < len && Self::char_class(chars[i]) == class {
+            i += 1;
+        }
+        i
+    }
+
+    // Maps a pixel offset (relative to the text start) to the nearest
+    // character boundary, using the offsets cached by the last measure().
+    fn index_for_offset(&self, local_x: f32) -> usize {
+        let offsets = self.char_offsets.borrow();
+        if offsets.len() <= 1 {
+            return 0;
+        }
+
+        let mut best = 0;
+        let mut best_dist = f32::MAX;
+        for (i, &off) in offsets.iter().enumerate() {
+            let dist = (off - local_x).abs();
+            if dist < best_dist {
+                best_dist = dist;
+                best = i;
+            }
+        }
+        best
+    }
+
     fn insert_char(&mut self, c: char, ctx: &mut EventCtx) {
+        let can_insert = match self.max_length {
+            Some(max) => self.selection_range().is_some() || self.content.chars().count() < max,
+            None => true,
+        };
+        if can_insert {
+            self.push_undo_snapshot();
+        }
+
+        let had_selection = self.delete_selection();
+
         if let Some(max) = self.max_length && self.content.chars().count() >= max {
+            if had_selection {
+                self.notify_change(ctx);
+            }
             return;
         }
+
         let byte_idx = self.byte_index_for(self.cursor_index);
         self.content.insert(byte_idx, c);
         self.cursor_index += 1;
         self.notify_change(ctx);
     }
 
+    // Inserts arbitrary text (used by paste), stripping control characters
+    // and truncating to whatever room max_length leaves.
+    fn insert_text(&mut self, text: &str, ctx: &mut EventCtx) {
+        let filtered: String = text
+            .chars()
+            .filter(|c| !c.is_control())
+            .collect();
+        if filtered.is_empty() {
+            return;
+        }
+
+        self.push_undo_snapshot();
+        let had_selection = self.delete_selection();
+
+        let to_insert: String = if let Some(max) = self.max_length {
+            let available = max.saturating_sub(self.content.chars().count());
+            filtered.chars().take(available).collect()
+        } else {
+            filtered
+        };
+
+        if to_insert.is_empty() {
+            if had_selection {
+                self.notify_change(ctx);
+            } else {
+                self.undo_stack.pop();
+            }
+            return;
+        }
+
+        let byte_idx = self.byte_index_for(self.cursor_index);
+        let inserted_chars = to_insert.chars().count();
+        self.content.insert_str(byte_idx, &to_insert);
+        self.cursor_index += inserted_chars;
+        self.notify_change(ctx);
+    }
+
     fn delete_before_cursor(&mut self, ctx: &mut EventCtx) {
+        if self.selection_range().is_some() {
+            self.push_undo_snapshot();
+            self.delete_selection();
+            self.notify_change(ctx);
+            return;
+        }
         if self.cursor_index == 0 {
             return;
         }
+        self.push_undo_snapshot();
         let end = self.byte_index_for(self.cursor_index);
         let start = self.byte_index_for(self.cursor_index - 1);
         self.content.replace_range(start..end, "");
@@ -202,35 +471,227 @@ impl TextBox {
     }
 
     fn delete_after_cursor(&mut self, ctx: &mut EventCtx) {
+        if self.selection_range().is_some() {
+            self.push_undo_snapshot();
+            self.delete_selection();
+            self.notify_change(ctx);
+            return;
+        }
         let len = self.content.chars().count();
         if self.cursor_index >= len {
             return;
         }
+        self.push_undo_snapshot();
         let start = self.byte_index_for(self.cursor_index);
         let end = self.byte_index_for(self.cursor_index + 1);
         self.content.replace_range(start..end, "");
         self.notify_change(ctx);
     }
 
-    fn handle_key(&mut self, key: &KeyboardEvent, ctx: &mut EventCtx) {
+    fn copy_selection(&self) {
+        if let Some(text) = self.selected_text() {
+            self.clipboard.set_text(text, |_| {});
+        }
+    }
+
+    fn cut_selection(&mut self, ctx: &mut EventCtx) {
+        let Some(text) = self.selected_text() else {
+            return;
+        };
+        self.clipboard.set_text(text, |_| {});
+        self.push_undo_snapshot();
+        self.delete_selection();
+        self.notify_change(ctx);
+    }
+
+    // Kicks off an async clipboard read; the result lands in `pending_paste`
+    // and is applied by poll_clipboard_paste (called on the next event).
+    fn paste_from_clipboard(&mut self) {
+        let pending = Arc::clone(&self.pending_paste);
+        self.clipboard.get_text(move |result| {
+            if
+                let Ok(Some(text)) = result &&
+                !text.is_empty() &&
+                let Ok(mut guard) = pending.lock()
+            {
+                *guard = Some(text);
+            }
+        });
+    }
+
+    fn poll_clipboard_paste(&mut self, ctx: &mut EventCtx) {
+        let text = self.pending_paste
+            .lock()
+            .ok()
+            .and_then(|mut guard| guard.take());
+        if let Some(text) = text {
+            self.insert_text(&text, ctx);
+        }
+    }
+
+    fn handle_key(&mut self, key: &KeyboardEvent, modifiers: ModifiersState, ctx: &mut EventCtx) {
         self.caret_visible.set(true);
+        let cmd = modifiers.ctrl || modifiers.super_key;
+
+        if cmd {
+            match key.key {
+                Key::Character('a' | 'A') => {
+                    self.selection_anchor = Some(0);
+                    self.cursor_index = self.content.chars().count();
+                    self.dirty = true;
+                    return;
+                }
+                Key::Character('c' | 'C') => {
+                    self.copy_selection();
+                    return;
+                }
+                Key::Character('x' | 'X') => {
+                    self.cut_selection(ctx);
+                    self.dirty = true;
+                    return;
+                }
+                Key::Character('v' | 'V') => {
+                    self.paste_from_clipboard();
+                    // Applies immediately on backends that resolve synchronously.
+                    self.poll_clipboard_paste(ctx);
+                    self.dirty = true;
+                    return;
+                }
+                Key::Character('z' | 'Z') => {
+                    if modifiers.shift {
+                        self.redo(ctx);
+                    } else {
+                        self.undo(ctx);
+                    }
+                    self.dirty = true;
+                    return;
+                }
+                Key::Character('y' | 'Y') => {
+                    self.redo(ctx);
+                    self.dirty = true;
+                    return;
+                }
+                Key::ArrowLeft => {
+                    let target = self.word_left(self.cursor_index);
+                    self.move_cursor_to(target, modifiers.shift);
+                    self.dirty = true;
+                    return;
+                }
+                Key::ArrowRight => {
+                    let target = self.word_right(self.cursor_index);
+                    self.move_cursor_to(target, modifiers.shift);
+                    self.dirty = true;
+                    return;
+                }
+                _ => {}
+            }
+        }
+
         match key.key {
             Key::Character(c) => self.insert_char(c, ctx),
             Key::Space => self.insert_char(' ', ctx),
             Key::Backspace => self.delete_before_cursor(ctx),
             Key::Delete => self.delete_after_cursor(ctx),
             Key::ArrowLeft => {
-                self.cursor_index = self.cursor_index.saturating_sub(1);
+                if let Some((start, _)) = self.selection_range() && !modifiers.shift {
+                    self.cursor_index = start;
+                    self.selection_anchor = None;
+                } else {
+                    let target = self.cursor_index.saturating_sub(1);
+                    self.move_cursor_to(target, modifiers.shift);
+                }
             }
             Key::ArrowRight => {
                 let len = self.content.chars().count();
-                self.cursor_index = (self.cursor_index + 1).min(len);
+                if let Some((_, end)) = self.selection_range() && !modifiers.shift {
+                    self.cursor_index = end;
+                    self.selection_anchor = None;
+                } else {
+                    let target = (self.cursor_index + 1).min(len);
+                    self.move_cursor_to(target, modifiers.shift);
+                }
+            }
+            Key::Home => self.move_cursor_to(0, modifiers.shift),
+            Key::End => {
+                let len = self.content.chars().count();
+                self.move_cursor_to(len, modifiers.shift);
             }
             Key::Enter => self.submit(ctx),
-            Key::Escape | Key::Tab => ctx.release_focus(),
+            Key::Escape => {
+                if self.selection_anchor.is_some() {
+                    self.selection_anchor = None;
+                } else {
+                    ctx.release_focus();
+                }
+            }
+            Key::Tab => ctx.release_focus(),
             _ => {}
         }
         self.dirty = true;
+    }
+
+    fn handle_mouse_press(&mut self, position: (f32, f32)) {
+        let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
+        let local_x = position.0 - self.layout_box.x - padding_left;
+        let click_index = self.index_for_offset(local_x);
+
+        let now = Instant::now();
+        let (last_x, last_y) = self.last_click_pos.get();
+        let same_spot =
+            (position.0 - last_x).abs() < MULTI_CLICK_DISTANCE &&
+            (position.1 - last_y).abs() < MULTI_CLICK_DISTANCE;
+        let is_repeat =
+            same_spot &&
+            self.last_click_time
+                .get()
+                .is_some_and(|t| now.duration_since(t) < MULTI_CLICK_INTERVAL);
+
+        let click_count = if is_repeat { (self.click_count.get() + 1).min(3) } else { 1 };
+        self.click_count.set(click_count);
+        self.last_click_time.set(Some(now));
+        self.last_click_pos.set(position);
+        self.focus_via_pointer.set(true);
+        self.caret_visible.set(true);
+
+        let shift_held = self.current_modifiers.get().shift;
+
+        match click_count {
+            1 if shift_held => {
+                if self.selection_anchor.is_none() {
+                    self.selection_anchor = Some(self.cursor_index);
+                }
+                self.cursor_index = click_index;
+                self.dragging = true;
+            }
+            1 => {
+                self.cursor_index = click_index;
+                self.selection_anchor = None;
+                self.dragging = true;
+            }
+            2 => {
+                let (start, end) = self.word_bounds_at(click_index);
+                self.selection_anchor = Some(start);
+                self.cursor_index = end;
+                self.dragging = false;
+            }
+            _ => {
+                let len = self.content.chars().count();
+                self.selection_anchor = if len > 0 { Some(0) } else { None };
+                self.cursor_index = len;
+                self.dragging = false;
+            }
+        }
+    }
+
+    fn handle_mouse_drag(&mut self, position: (f32, f32)) {
+        let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
+        let local_x = position.0 - self.layout_box.x - padding_left;
+        let idx = self.index_for_offset(local_x);
+
+        if self.selection_anchor.is_none() && idx != self.cursor_index {
+            self.selection_anchor = Some(self.cursor_index);
+        }
+        self.cursor_index = idx;
     }
 }
 
@@ -348,17 +809,27 @@ impl Widget for TextBox {
 
         let text_w = text_w.max(placeholder_w);
 
-        let caret_text = &self.content[..self.byte_index_for(self.cursor_index)];
-        let (caret_w, _) = ctx.text.measure(
-            caret_text,
-            style.font.as_deref(),
-            font_size,
-            style.font_weight.unwrap_or_default(),
-            style.font_style.unwrap_or_default(),
-            letter_spacing,
-            line_height
-        );
-        self.cursor_offset.set(caret_w);
+        // Cumulative pixel offset for every character boundary, reused for
+        // the caret, mouse hit-testing, and selection-highlight geometry.
+        let char_count = self.content.chars().count();
+        let mut offsets = Vec::with_capacity(char_count + 1);
+        offsets.push(0.0);
+        for i in 1..=char_count {
+            let end_byte = self.byte_index_for(i);
+            let (w, _) = ctx.text.measure(
+                &self.content[..end_byte],
+                style.font.as_deref(),
+                font_size,
+                style.font_weight.unwrap_or_default(),
+                style.font_style.unwrap_or_default(),
+                letter_spacing,
+                line_height
+            );
+            offsets.push(w);
+        }
+
+        self.cursor_offset.set(*offsets.get(self.cursor_index.min(char_count)).unwrap_or(&0.0));
+        *self.char_offsets.borrow_mut() = offsets;
 
         let padding = &style.padding.unwrap_or_default();
 
@@ -403,6 +874,29 @@ impl Widget for TextBox {
             ) *
                 0.5;
 
+        // Shared vertical geometry for both the selection highlight and the caret.
+        let line_h = if content_h > 0.0 {
+            content_h
+        } else {
+            style.font_size.map(|s| s.value()).unwrap_or(20.0) * 1.25
+        };
+        let line_y = (self.layout_box.y + (self.layout_box.height - line_h).max(0.0) * 0.5).round();
+
+        if self.interaction.focused && let Some((start, end)) = self.selection_range() {
+            let offsets = self.char_offsets.borrow();
+            if let (Some(&start_x), Some(&end_x)) = (offsets.get(start), offsets.get(end)) {
+                let sel_color = self.selection_color.unwrap_or(Color::rgba(90, 140, 230, 100));
+                ctx.draw_rect(RectCommand {
+                    position: (text_x + start_x, line_y),
+                    size: (end_x - start_x, line_h),
+                    background: Some(Background::Color(sel_color)),
+                    border_radius: None,
+                    border_width: None,
+                    border_color: None,
+                });
+            }
+        }
+
         let is_empty = self.content.is_empty();
         let display_text: SmolStr = if is_empty {
             self.placeholder.clone()
@@ -421,22 +915,28 @@ impl Widget for TextBox {
             style: text_style,
         });
 
+        if self.interaction.focused && self.interaction.focus_visible {
+            const RING_WIDTH: f32 = 2.0;
+            ctx.draw_rect(RectCommand {
+                position: (self.layout_box.x - RING_WIDTH, self.layout_box.y - RING_WIDTH),
+                size: (
+                    self.layout_box.width + RING_WIDTH * 2.0,
+                    self.layout_box.height + RING_WIDTH * 2.0,
+                ),
+                background: None,
+                border_radius: style.border.as_ref().map(|b| b.radius),
+                border_width: Some(Length::px(RING_WIDTH)),
+                border_color: Some(Color::BLUE_500),
+            });
+        }
+
         if self.interaction.focused && self.caret_visible.get() {
             // Round to nearest integer to align with the pixel grid
             let cursor_x = (text_x + self.cursor_offset.get()).round();
-            let cursor_h = if content_h > 0.0 {
-                content_h
-            } else {
-                style.font_size.map(|s| s.value()).unwrap_or(20.0) * 1.25
-            };
-            let cursor_y = (
-                self.layout_box.y +
-                (self.layout_box.height - cursor_h).max(0.0) * 0.5
-            ).round();
 
             ctx.draw_rect(RectCommand {
-                position: (cursor_x, cursor_y),
-                size: (2.0, cursor_h),
+                position: (cursor_x, line_y),
+                size: (2.0, line_h),
                 background: Some(Background::Color(style.color.unwrap_or(Color::BLACK))),
                 border_radius: None,
                 border_width: None,
@@ -450,6 +950,15 @@ impl Widget for TextBox {
             return EventStatus::Ignored;
         }
 
+        // Applies any clipboard read that finished since the last event
+        // (always relevant on WASM, where the read is asynchronous).
+        self.poll_clipboard_paste(ctx);
+
+        if let InputEvent::ModifiersChanged(modifiers) = event {
+            self.current_modifiers.set(*modifiers);
+            return EventStatus::Ignored;
+        }
+
         if matches!(event, InputEvent::BlinkTick) {
             self.caret_visible.set(!self.caret_visible.get());
             self.dirty = true;
@@ -460,21 +969,66 @@ impl Widget for TextBox {
         // Key input bypasses Interaction::handle entirely: the generic handler
         // treats Enter/Space as a click-activation key, which would prevent
         // typing spaces and would fire on_click on every Enter press.
-        if let InputEvent::KeyInput { event: key_event, .. } = event {
+        if let InputEvent::KeyInput { event: key_event, modifiers } = event {
             if !self.interaction.focused || key_event.state != KeyState::Pressed {
                 return EventStatus::Ignored;
             }
-            self.handle_key(key_event, ctx);
+            self.handle_key(key_event, *modifiers, ctx);
             self.recompute_style();
             ctx.request_redraw();
             return EventStatus::Handled;
         }
 
+        if let InputEvent::MouseInput { state, button, position } = event {
+            let status = self.interaction.handle(event, ctx);
+
+            if *button == MouseButton::Left {
+                match state {
+                    ElementState::Pressed => self.handle_mouse_press(*position),
+                    ElementState::Released => {
+                        self.dragging = false;
+                    }
+                }
+                self.recompute_style();
+                self.dirty = true;
+                ctx.request_redraw();
+                return EventStatus::Handled;
+            }
+
+            return status;
+        }
+
+        // MouseMoved isn't handled by Interaction at all, so drag-selection
+        // has to be driven from here directly.
+        if let InputEvent::MouseMoved { position } = event {
+            if self.dragging {
+                self.handle_mouse_drag(*position);
+                self.dirty = true;
+                ctx.request_redraw();
+                return EventStatus::Handled;
+            }
+            return EventStatus::Ignored;
+        }
+
         let status = self.interaction.handle(event, ctx);
 
-        if matches!(event, InputEvent::FocusGained) {
-            self.cursor_index = self.content.chars().count();
+        if matches!(event, InputEvent::MouseExited) {
+            self.dragging = false;
+        }
+
+        if matches!(event, InputEvent::FocusGained { .. }) {
+            if self.focus_via_pointer.get() {
+                self.focus_via_pointer.set(false);
+            } else {
+                self.cursor_index = self.content.chars().count();
+                self.selection_anchor = None;
+            }
             self.caret_visible.set(true);
+        }
+
+        if matches!(event, InputEvent::FocusLost) {
+            self.selection_anchor = None;
+            self.dragging = false;
         }
 
         if matches!(status, EventStatus::Handled) {
@@ -492,6 +1046,7 @@ impl Widget for TextBox {
         self.content == other.content &&
             self.placeholder == other.placeholder &&
             self.cursor_index == other.cursor_index &&
+            self.selection_anchor == other.selection_anchor &&
             format!("{:?}", self.style) == format!("{:?}", other.style) &&
             format!("{:?}", self.hover_style) == format!("{:?}", other.hover_style) &&
             format!("{:?}", self.focus_style) == format!("{:?}", other.focus_style) &&
@@ -510,16 +1065,18 @@ impl Widget for TextBox {
         self.recompute_style();
     }
 
-    // Always runs regardless of content_eq, so the caret survives a rebuild
-    // even on the frame where the text itself changed.
+    // Always runs regardless of content_eq, so cursor/selection/drag state
+    // (and any in-flight paste) survive a rebuild even on the frame where
+    // the text itself changed.
     fn transfer_interaction_state(&mut self, old: &dyn Widget) -> bool {
-        let changed = if
+        let mut changed = if
             let (Some(new_i), Some(old_i)) = (self.interaction_mut(), old.interaction())
         {
             let changed =
                 new_i.hovered != old_i.hovered ||
                 new_i.pressed != old_i.pressed ||
-                new_i.focused != old_i.focused;
+                new_i.focused != old_i.focused ||
+                new_i.focus_visible != old_i.focus_visible;
             new_i.transfer_from(old_i);
             changed
         } else {
@@ -527,7 +1084,29 @@ impl Widget for TextBox {
         };
 
         if let Some(old_tb) = old.as_any().downcast_ref::<TextBox>() {
-            self.cursor_index = old_tb.cursor_index.min(self.content.chars().count());
+            let new_len = self.content.chars().count();
+            let transferred_cursor = old_tb.cursor_index.min(new_len);
+            let transferred_selection = old_tb.selection_anchor.map(|a| a.min(new_len));
+
+            if
+                transferred_cursor != self.cursor_index ||
+                transferred_selection != self.selection_anchor
+            {
+                changed = true;
+            }
+
+            self.cursor_index = transferred_cursor;
+            self.selection_anchor = transferred_selection;
+            self.dragging = old_tb.dragging;
+            self.click_count.set(old_tb.click_count.get());
+            self.last_click_time.set(old_tb.last_click_time.get());
+            self.last_click_pos.set(old_tb.last_click_pos.get());
+            self.focus_via_pointer.set(old_tb.focus_via_pointer.get());
+            self.current_modifiers.set(old_tb.current_modifiers.get());
+            self.caret_visible.set(old_tb.caret_visible.get());
+            self.pending_paste = old_tb.pending_paste.clone();
+            self.undo_stack = old_tb.undo_stack.clone();
+            self.redo_stack = old_tb.redo_stack.clone();
         }
 
         changed
@@ -537,6 +1116,7 @@ impl Widget for TextBox {
         if let Some(old) = old.as_any().downcast_ref::<TextBox>() {
             self.content_size.set(old.content_size.get());
             self.cursor_offset.set(old.cursor_offset.get());
+            self.char_offsets.replace(old.char_offsets.borrow().clone());
         }
     }
 

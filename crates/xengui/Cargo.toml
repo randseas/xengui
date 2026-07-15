@@ -8,7 +8,7 @@ description = "a retained-mode gui library in rust"
 license = "Apache-2.0"
 repository = "https://github.com/randseas/xengui"
 readme = "../../README.md"
-keywords = ["gui", "wgpu", "winit", "graphics"]
+keywords = ["gui", "portable", "graphics"]
 categories = ["gui"]
 
 [dependencies]
@@ -22,6 +22,7 @@ log = { workspace = true }
 web-time = { workspace = true }
 taffy = { workspace = true }
 image = { workspace = true }
+xen-clipboard = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 system-fonts = "0.1.2"

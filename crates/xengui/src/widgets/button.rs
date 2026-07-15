@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background,
+    Color,
     EventCtx,
     EventStatus,
     InputEvent,
     Interaction,
     LayoutBox,
     LayoutContext,
+    Length,
     PaintContext,
     RectCommand,
     Style,
@@ -276,6 +278,21 @@ impl Widget for Button {
                 border_radius: border.map(|b| b.radius),
                 border_width: border.map(|b| b.width),
                 border_color: border.map(|b| b.color),
+            });
+        }
+
+        if self.interaction.focused && self.interaction.focus_visible {
+            const RING_WIDTH: f32 = 2.0;
+            ctx.draw_rect(RectCommand {
+                position: (self.layout_box.x - RING_WIDTH, self.layout_box.y - RING_WIDTH),
+                size: (
+                    self.layout_box.width + RING_WIDTH * 2.0,
+                    self.layout_box.height + RING_WIDTH * 2.0,
+                ),
+                background: None,
+                border_radius: style.border.as_ref().map(|b| b.radius),
+                border_width: Some(Length::px(RING_WIDTH)),
+                border_color: Some(Color::BLUE_500),
             });
         }
 

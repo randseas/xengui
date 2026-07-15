@@ -19,6 +19,9 @@ pub enum Key {
     ArrowLeft,
     ArrowRight,
 
+    Home,
+    End,
+
     Backspace,
     Delete,
 
@@ -64,7 +67,9 @@ pub enum InputEvent {
     },
     ModifiersChanged(ModifiersState),
     Ime(winit::event::Ime),
-    FocusGained,
+    FocusGained {
+        via_keyboard: bool,
+    },
     FocusLost,
     BlinkTick,
 }
@@ -136,6 +141,9 @@ pub fn convert_keyboard_event(event: winit::event::KeyEvent) -> KeyboardEvent {
         PhysicalKey::Code(KeyCode::ArrowDown) => Key::ArrowDown,
         PhysicalKey::Code(KeyCode::ArrowLeft) => Key::ArrowLeft,
         PhysicalKey::Code(KeyCode::ArrowRight) => Key::ArrowRight,
+
+        PhysicalKey::Code(KeyCode::Home) => Key::Home,
+        PhysicalKey::Code(KeyCode::End) => Key::End,
 
         PhysicalKey::Code(KeyCode::Backspace) => Key::Backspace,
         PhysicalKey::Code(KeyCode::Delete) => Key::Delete,
@@ -225,6 +233,29 @@ fn hit_test_recursive(widget: &dyn Widget, path: &str, point: (f32, f32)) -> Opt
     }
 
     Some(path.to_string())
+}
+
+/// Tab / Shift+Tab sırasını oluşturmak için, ağaçtaki tüm aktif ve
+/// focusable widget'ların path'lerini derinlik-öncelikli sırayla toplar.
+pub fn collect_focusable_paths(tree: &[Box<dyn Widget>]) -> Vec<String> {
+    let mut paths = Vec::new();
+    for (i, node) in tree.iter().enumerate() {
+        let segment = path_segment(node.as_ref(), i);
+        collect_focusable_recursive(node.as_ref(), &segment, &mut paths);
+    }
+    paths
+}
+
+fn collect_focusable_recursive(widget: &dyn Widget, path: &str, out: &mut Vec<String>) {
+    if widget.interaction().is_some_and(|i| i.focusable && i.enabled) {
+        out.push(path.to_string());
+    }
+
+    for (i, child) in widget.children().iter().enumerate() {
+        let segment = path_segment(child.as_ref(), i);
+        let child_path = format!("{path}.{segment}");
+        collect_focusable_recursive(child.as_ref(), &child_path, out);
+    }
 }
 
 // True if `path` is `ancestor` itself or one of its descendants.

@@ -3,9 +3,12 @@ use crate::{
     EventCtx,
     InputEvent,
     InputState,
+    Key,
+    KeyState,
     ModifiersState,
     Widget,
     XenRenderer,
+    collect_focusable_paths,
     convert_keyboard_event,
     dispatch_positional,
     dispatch_to_path,
@@ -563,9 +566,19 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 self.handle_touch(touch);
             }
             WindowEvent::KeyboardInput { event, .. } => {
+                let keyboard_event = convert_keyboard_event(event);
+
+                if
+                    keyboard_event.key == Key::Tab &&
+                    keyboard_event.state == KeyState::Pressed &&
+                    !keyboard_event.repeat
+                {
+                    self.advance_focus(self.input.modifiers.shift);
+                    return;
+                }
+
                 if let Some(path) = self.input.focused_path.clone() {
                     let mut ctx = EventCtx::new();
-                    let keyboard_event = convert_keyboard_event(event);
 
                     dispatch_positional(
                         &mut self.root,
@@ -662,7 +675,7 @@ impl App {
                 dispatch_to_path(
                     &mut self.root,
                     &new_focus,
-                    &InputEvent::FocusGained,
+                    &(InputEvent::FocusGained { via_keyboard: false }),
                     &mut sub_ctx
                 );
                 self.input.focused_path = Some(new_focus);
@@ -682,6 +695,44 @@ impl App {
         }
     }
 
+    // Tab / Shift+Tab ile bir sonraki (backward=true ise bir önceki) focusable
+    // widget'a geçer, uçlarda başa/sona sarar.
+    fn advance_focus(&mut self, backward: bool) {
+        let focusable = collect_focusable_paths(&self.root);
+        if focusable.is_empty() {
+            return;
+        }
+
+        let current_index = self.input.focused_path
+            .as_ref()
+            .and_then(|p| focusable.iter().position(|f| f == p));
+
+        let next_index = match (current_index, backward) {
+            (None, false) => 0,
+            (None, true) => focusable.len() - 1,
+            (Some(i), false) => (i + 1) % focusable.len(),
+            (Some(i), true) => (i + focusable.len() - 1) % focusable.len(),
+        };
+
+        if let Some(old) = self.input.focused_path.take() {
+            let mut ctx = EventCtx::new();
+            dispatch_to_path(&mut self.root, &old, &InputEvent::FocusLost, &mut ctx);
+            self.apply_event_ctx(ctx);
+        }
+
+        let new_path = focusable[next_index].clone();
+        let mut ctx = EventCtx::new();
+        dispatch_to_path(
+            &mut self.root,
+            &new_path,
+            &(InputEvent::FocusGained { via_keyboard: true }),
+            &mut ctx
+        );
+        self.input.focused_path = Some(new_path.to_string());
+        self.next_blink = None;
+        self.apply_event_ctx(ctx);
+    }
+
     // Maps a touch point onto the existing mouse-event pipeline so widgets
     // don't need any touch-specific handling: Started acts like hover-in +
     // press, Moved updates position, Ended acts like release + hover-out,
@@ -695,6 +746,25 @@ impl App {
             TouchPhase::Started => {
                 self.input.cursor_pos = Some(point);
                 let path = hit_test_path(&self.root, point);
+
+                // Same out-of-subtree focus release as WindowEvent::MouseInput;
+                // touch presses don't go through that handler so this is repeated here.
+                if let Some(focused) = self.input.focused_path.clone() {
+                    let stays_focused = path
+                        .as_deref()
+                        .is_some_and(|p| path_is_within(p, &focused));
+                    if !stays_focused {
+                        let mut ctx = EventCtx::new();
+                        dispatch_to_path(
+                            &mut self.root,
+                            &focused,
+                            &InputEvent::FocusLost,
+                            &mut ctx
+                        );
+                        self.input.focused_path = None;
+                        self.apply_event_ctx(ctx);
+                    }
+                }
 
                 if let Some(old) = self.input.hovered_path.take() {
                     let mut ctx = EventCtx::new();
