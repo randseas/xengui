@@ -105,6 +105,7 @@ pub struct App {
 
     component: Option<std::rc::Rc<dyn Fn() -> Box<dyn Widget>>>,
     next_blink: Option<Instant>,
+    reconcile_work: Option<crate::reconcile::WorkLoop>,
 
     #[cfg(target_arch = "wasm32")]
     pub event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
@@ -124,6 +125,7 @@ impl App {
 
             component: None,
             next_blink: None,
+            reconcile_work: None,
 
             #[cfg(target_arch = "wasm32")]
             event_proxy: None,
@@ -147,10 +149,18 @@ impl App {
 
     pub fn render(&mut self, builder: impl (Fn() -> Box<dyn Widget>) + 'static) {
         self.component = Some(std::rc::Rc::new(builder));
-        self.rebuild();
+        self.schedule_render();
+        // No event loop is running yet at this point, so drive the first
+        // reconciliation to completion instead of leaving unfinished work
+        // with nothing pumping it.
+        while self.pump_reconciliation() {}
     }
 
-    fn rebuild(&mut self) {
+    // Runs the render-phase closure and starts (or restarts, interrupting
+    // whatever was in flight) an interruptible reconciliation against the
+    // still-on-screen tree. Does not touch `self.root` directly - that
+    // only happens once `pump_reconciliation` reports completion.
+    fn schedule_render(&mut self) {
         let Some(builder) = self.component.clone() else {
             return;
         };
@@ -161,9 +171,33 @@ impl App {
 
         crate::hooks::take_dirty();
 
-        let mut new_tree = vec![new_root];
-        crate::reconcile::reconcile(&mut new_tree, &self.root);
-        self.root = new_tree;
+        let new_tree = vec![new_root];
+        self.reconcile_work = Some(crate::reconcile::WorkLoop::new(new_tree, &self.root));
+    }
+
+    // Advances any in-progress reconciliation by one time slice. Returns
+    // true if there is still more work left to do.
+    fn pump_reconciliation(&mut self) -> bool {
+        let Some(work) = self.reconcile_work.as_mut() else {
+            return false;
+        };
+
+        // Budget kept well under a 16.6ms frame so input handling and
+        // painting on the same thread never starve.
+        const SLICE: std::time::Duration = std::time::Duration::from_millis(5);
+        let deadline = Instant::now() + SLICE;
+
+        match work.perform_work(deadline) {
+            crate::reconcile::WorkLoopStatus::Yielded => true,
+            crate::reconcile::WorkLoopStatus::Complete(tree) => {
+                self.root = tree;
+                self.reconcile_work = None;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                false
+            }
+        }
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -379,7 +413,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             WindowEvent::CloseRequested => _event_loop.exit(),
             WindowEvent::RedrawRequested => {
                 if crate::hooks::take_dirty() {
-                    self.rebuild();
+                    self.schedule_render();
                 }
                 if let Some(renderer) = &mut self.renderer {
                     renderer.render_frame(&mut self.root, &self.config.theme);
@@ -575,6 +609,19 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if self.reconcile_work.is_some() {
+            let still_pending = self.pump_reconciliation();
+            if still_pending {
+                // Keep ticking without blocking on input/window events
+                // until the current reconciliation pass finishes.
+                event_loop.set_control_flow(ControlFlow::Poll);
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                return;
+            }
+        }
+
         let Some(focused) = self.input.focused_path.clone() else {
             self.next_blink = None;
             event_loop.set_control_flow(ControlFlow::Wait);
