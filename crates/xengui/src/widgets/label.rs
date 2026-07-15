@@ -179,8 +179,6 @@ impl Widget for Label {
         let Some(other) = other.as_any().downcast_ref::<Label>() else {
             return false;
         };
-        self.content == other.content &&
-            self.style.font == other.style.font &&
-            format!("{:?}", self.style) == format!("{:?}", other.style)
+        self.content == other.content && format!("{:?}", self.style) == format!("{:?}", other.style)
     }
 }
