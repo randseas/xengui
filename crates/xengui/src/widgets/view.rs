@@ -9,6 +9,7 @@ use crate::{
     StyleBuilder,
     Widget,
 };
+use smol_str::SmolStr;
 
 pub struct View {
     dirty: bool,
@@ -16,6 +17,7 @@ pub struct View {
     layout_box: LayoutBox,
     children: Vec<Box<dyn Widget>>,
     interaction: Interaction,
+    key: Option<SmolStr>,
 }
 
 impl View {
@@ -26,11 +28,27 @@ impl View {
             layout_box: LayoutBox::default(),
             children: Vec::new(),
             interaction: Interaction::new(),
+            key: None,
         }
+    }
+
+    /// Stable identity among siblings, kept across rebuilds even when this
+    /// widget moves position (reorder, insert, remove). Use for list items
+    /// instead of relying on array index.
+    pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
+        self.key = Some(key.into());
+        self
     }
 
     pub fn child(mut self, child: impl Widget + 'static) -> Self {
         self.children.push(Box::new(child));
+        self
+    }
+
+    /// Bulk variant of `child` for dynamically built lists where each item
+    /// is already a boxed trait object (e.g. produced inside a `.map()`).
+    pub fn children_vec(mut self, children: Vec<Box<dyn Widget>>) -> Self {
+        self.children = children;
         self
     }
 
@@ -69,6 +87,10 @@ impl Widget for View {
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn get_key(&self) -> Option<&SmolStr> {
+        self.key.as_ref()
     }
 
     fn is_dirty(&self) -> bool {

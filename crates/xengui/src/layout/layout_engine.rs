@@ -72,6 +72,12 @@ fn build_taffy_node(
                     size
                 })
             };
+            // Round intrinsic content size before it enters taffy's flex
+            // solve. Otherwise sibling boxes accumulate independent
+            // fractional heights from text metrics, and the shared edge
+            // between two rows stops being the exact same float value -
+            // which breaks the edge-snapping in apply_layout below.
+            let (w, h) = (w.round(), h.round());
             style.size = Size {
                 width: length(w),
                 height: length(h),
@@ -104,17 +110,30 @@ fn apply_layout(
     let layout = taffy.layout(node_id).expect("cannot find taffy layout result");
     let abs_x = parent_x + layout.location.x;
     let abs_y = parent_y + layout.location.y;
+    let abs_right = abs_x + layout.size.width;
+    let abs_bottom = abs_y + layout.size.height;
+
+    // Snap each absolute edge independently, not the width/height. Adjacent
+    // widgets share the same float edge value (one's right == the other's
+    // left), so rounding that shared value keeps them flush - no 1px gaps
+    // or overlaps regardless of which side the value happens to round to.
+    let snapped_x = abs_x.round();
+    let snapped_y = abs_y.round();
+    let snapped_right = abs_right.round();
+    let snapped_bottom = abs_bottom.round();
 
     widget.layout(LayoutBox {
-        x: abs_x,
-        y: abs_y,
-        width: layout.size.width,
-        height: layout.size.height,
+        x: snapped_x,
+        y: snapped_y,
+        width: snapped_right - snapped_x,
+        height: snapped_bottom - snapped_y,
     });
 
+    // Children accumulate from the already-snapped parent origin so
+    // rounding error can't compound across nesting depth.
     if let Some(children) = widget.children_mut() && let Ok(child_ids) = taffy.children(node_id) {
         for (child, child_id) in children.iter_mut().zip(child_ids) {
-            apply_layout(child.as_mut(), taffy, child_id, abs_x, abs_y);
+            apply_layout(child.as_mut(), taffy, child_id, snapped_x, snapped_y);
         }
     }
 }

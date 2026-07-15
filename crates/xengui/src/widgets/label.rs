@@ -29,6 +29,7 @@ pub struct Label {
     style: Style,
     layout_box: LayoutBox,
     selectable: bool,
+    key: Option<SmolStr>,
 }
 
 impl Label {
@@ -40,7 +41,16 @@ impl Label {
             style: Style::default(),
             layout_box: LayoutBox::default(),
             selectable: false,
+            key: None,
         }
+    }
+
+    /// Stable identity among siblings, kept across rebuilds even when this
+    /// widget moves position (reorder, insert, remove). Use for list items
+    /// instead of relying on array index.
+    pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
+        self.key = Some(key.into());
+        self
     }
 
     // Builder methods
@@ -86,6 +96,10 @@ impl Widget for Label {
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn get_key(&self) -> Option<&SmolStr> {
+        self.key.as_ref()
     }
 
     fn is_dirty(&self) -> bool {

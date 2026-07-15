@@ -229,9 +229,10 @@ impl XenRenderer {
             let mut live_keys: HashSet<String> = HashSet::new();
 
             for (i, node) in tree.iter().enumerate() {
+                let segment = crate::path_segment(node.as_ref(), i);
                 paint_recursive(
                     node.as_ref(),
-                    &i.to_string(),
+                    &segment,
                     &mut self.render_cache,
                     &mut commands,
                     &mut live_keys
@@ -351,7 +352,7 @@ fn paint_recursive(
     path: &str,
     cache: &mut RenderCache,
     commands: &mut Vec<DrawCommand>,
-    live_keys: &mut HashSet<String>,
+    live_keys: &mut HashSet<String>
 ) {
     live_keys.insert(path.to_string());
     let layout_box = *widget.layout_box();
@@ -369,7 +370,8 @@ fn paint_recursive(
     }
 
     for (i, child) in widget.children().iter().enumerate() {
-        paint_recursive(child.as_ref(), &format!("{path}.{i}"), cache, commands, live_keys);
+        let segment = crate::path_segment(child.as_ref(), i);
+        paint_recursive(child.as_ref(), &format!("{path}.{segment}"), cache, commands, live_keys);
     }
 }
 

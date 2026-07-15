@@ -164,18 +164,38 @@ fn ancestor_paths(path: &str) -> Vec<String> {
     (1..=parts.len()).map(|n| parts[..n].join(".")).collect()
 }
 
+pub fn path_segment(widget: &dyn Widget, index: usize) -> String {
+    match widget.get_key() {
+        Some(key) => format!("k{key}"),
+        None => index.to_string(),
+    }
+}
+
+fn resolve_segment<'a>(
+    siblings: &'a mut [Box<dyn Widget>],
+    segment: &str
+) -> Option<&'a mut dyn Widget> {
+    if let Some(key) = segment.strip_prefix('k') {
+        siblings
+            .iter_mut()
+            .find(|w| w.get_key().is_some_and(|k| k.as_str() == key))
+            .map(|w| w.as_mut())
+    } else {
+        let idx: usize = segment.parse().ok()?;
+        siblings.get_mut(idx).map(|w| w.as_mut())
+    }
+}
+
 pub fn find_widget_mut<'a>(
     tree: &'a mut [Box<dyn Widget>],
     path: &str
 ) -> Option<&'a mut dyn Widget> {
     let mut parts = path.split('.');
-    let root_idx: usize = parts.next()?.parse().ok()?;
-    let mut current: &mut dyn Widget = tree.get_mut(root_idx)?.as_mut();
+    let mut current: &mut dyn Widget = resolve_segment(tree, parts.next()?)?;
 
     for part in parts {
-        let idx: usize = part.parse().ok()?;
         let children = current.children_mut()?;
-        current = children.get_mut(idx)?.as_mut();
+        current = resolve_segment(children, part)?;
     }
 
     Some(current)
@@ -183,7 +203,8 @@ pub fn find_widget_mut<'a>(
 
 pub fn hit_test_path(tree: &[Box<dyn Widget>], point: (f32, f32)) -> Option<String> {
     for (i, node) in tree.iter().enumerate().rev() {
-        if let Some(path) = hit_test_recursive(node.as_ref(), &i.to_string(), point) {
+        let segment = path_segment(node.as_ref(), i);
+        if let Some(path) = hit_test_recursive(node.as_ref(), &segment, point) {
             return Some(path);
         }
     }
@@ -196,7 +217,8 @@ fn hit_test_recursive(widget: &dyn Widget, path: &str, point: (f32, f32)) -> Opt
     }
 
     for (i, child) in widget.children().iter().enumerate().rev() {
-        let child_path = format!("{path}.{i}");
+        let segment = path_segment(child.as_ref(), i);
+        let child_path = format!("{path}.{segment}");
         if let Some(hit) = hit_test_recursive(child.as_ref(), &child_path, point) {
             return Some(hit);
         }

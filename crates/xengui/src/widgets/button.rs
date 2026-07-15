@@ -25,6 +25,7 @@ pub struct Button {
     label: SmolStr,
     font: Option<SmolStr>,
     style: Style,
+    key: Option<SmolStr>,
 
     hover_style: Option<Style>,
     pressed_style: Option<Style>,
@@ -48,14 +49,26 @@ impl Button {
             label: SmolStr::new(""),
             font: None,
             style: Style::default(),
+            key: None,
+
             hover_style: None,
             pressed_style: None,
             disabled_style: None,
             computed_style: Style::default(),
+
             interaction,
+
             layout_box: LayoutBox::default(),
             content_size: Cell::new((0.0, 0.0)),
         }
+    }
+
+    /// Stable identity among siblings, kept across rebuilds even when this
+    /// widget moves position (reorder, insert, remove). Use for list items
+    /// instead of relying on array index.
+    pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
+        self.key = Some(key.into());
+        self
     }
 
     pub fn label(mut self, label: impl Into<SmolStr>) -> Self {
@@ -175,6 +188,10 @@ impl Widget for Button {
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn get_key(&self) -> Option<&SmolStr> {
+        self.key.as_ref()
     }
 
     fn is_dirty(&self) -> bool {
