@@ -303,7 +303,6 @@ impl Widget for Button {
             text: self.label.clone(),
             position: (text_x, text_y),
             style: style.clone(),
-            font: self.font.clone(),
         });
     }
 

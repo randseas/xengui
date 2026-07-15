@@ -421,7 +421,6 @@ impl Widget for TextBox {
             text: display_text,
             position: (text_x, text_y),
             style: text_style,
-            font: self.font.clone(),
         });
 
         if self.interaction.focused && self.caret_visible.get() {

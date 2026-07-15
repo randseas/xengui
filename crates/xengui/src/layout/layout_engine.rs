@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{ LayoutBox, LayoutContext, RenderCache, Widget, style_to_taffy };
+use crate::{ LayoutBox, LayoutContext, RenderCache, Style, Widget, style_to_taffy };
 use taffy::prelude::*;
 
 pub struct LayoutEngine;
@@ -12,6 +12,13 @@ impl LayoutEngine {
         viewport_width: f32,
         viewport_height: f32
     ) {
+        // Roots have no parent, so they cascade from an empty style - each
+        // widget below keeps whatever it set explicitly and inherits the
+        // rest from its own parent in the tree.
+        for widget in tree.iter_mut() {
+            widget.cascade_style(&Style::default());
+        }
+
         let mut taffy: TaffyTree<()> = TaffyTree::new();
 
         let child_ids: Vec<NodeId> = tree

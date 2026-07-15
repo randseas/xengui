@@ -40,6 +40,12 @@ impl View {
         self
     }
 
+    pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
+        self.style.font = Some(font.into());
+        self.dirty = true;
+        self
+    }
+
     pub fn child(mut self, child: impl Widget + 'static) -> Self {
         self.children.push(Box::new(child));
         self

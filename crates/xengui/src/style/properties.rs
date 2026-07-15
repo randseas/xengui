@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+use smol_str::SmolStr;
+
 use super::{
     AlignItems,
     Background,
@@ -27,6 +29,7 @@ pub struct Style {
     // Typography
     pub color: Option<Color>,
     pub background: Option<Background>,
+    pub font: Option<SmolStr>,
     pub font_size: Option<Length>,
     pub font_weight: Option<FontWeight>,
     pub font_style: Option<FontStyle>,
@@ -74,6 +77,7 @@ impl Style {
         Style {
             color: patch.color.or_else(|| self.color),
             background: patch.background.clone().or_else(|| self.background.clone()),
+            font: patch.font.clone().or_else(|| self.font.clone()),
             font_size: patch.font_size.or_else(|| self.font_size),
             font_weight: patch.font_weight.or_else(|| self.font_weight),
             font_style: patch.font_style.or_else(|| self.font_style),
@@ -112,6 +116,23 @@ impl Style {
                 .or_else(|| self.grid_template_rows.clone()),
             grid_column: patch.grid_column.or(self.grid_column),
             grid_row: patch.grid_row.or(self.grid_row),
+        }
+    }
+
+    /// Fills in `patch`'s unset typography fields using `self` as the
+    /// inherited parent style; every other field always comes from `patch`.
+    pub fn inherit_typography(&self, patch: &Style) -> Style {
+        Style {
+            color: patch.color.or(self.color),
+            font: patch.font.clone().or_else(|| self.font.clone()),
+            font_size: patch.font_size.or(self.font_size),
+            font_weight: patch.font_weight.or(self.font_weight),
+            font_style: patch.font_style.or(self.font_style),
+            text_align: patch.text_align.or(self.text_align),
+            text_decoration: patch.text_decoration.or(self.text_decoration),
+            letter_spacing: patch.letter_spacing.or(self.letter_spacing),
+            line_height: patch.line_height.or(self.line_height),
+            ..patch.clone()
         }
     }
 }

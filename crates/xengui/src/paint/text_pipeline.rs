@@ -232,7 +232,7 @@ impl TextPipeline {
         if letter_spacing.abs() < f32::EPSILON {
             self.queue_run(
                 &command.text,
-                command.font.as_deref(),
+                command.style.font.as_deref(),
                 weight,
                 style,
                 scale,
@@ -249,7 +249,7 @@ impl TextPipeline {
 
             self.queue_run(
                 ch_str,
-                command.font.as_deref(),
+                command.style.font.as_deref(),
                 weight,
                 style,
                 scale,
@@ -259,7 +259,7 @@ impl TextPipeline {
 
             let (advance, _) = self.measure_raw(
                 ch_str,
-                command.font.as_deref(),
+                command.style.font.as_deref(),
                 weight,
                 style,
                 scale,

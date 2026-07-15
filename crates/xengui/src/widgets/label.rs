@@ -25,7 +25,6 @@ macro_rules! props {
 pub struct Label {
     dirty: bool,
     content: SmolStr,
-    font: Option<SmolStr>,
     style: Style,
     layout_box: LayoutBox,
     selectable: bool,
@@ -37,7 +36,6 @@ impl Label {
         Self {
             dirty: true,
             content: SmolStr::new(""),
-            font: None,
             style: Style::default(),
             layout_box: LayoutBox::default(),
             selectable: false,
@@ -61,7 +59,7 @@ impl Label {
     }
 
     pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
-        self.font = Some(font.into());
+        self.style.font = Some(font.into());
         self.set_dirty(true);
         self
     }
@@ -136,7 +134,6 @@ impl Widget for Label {
             text: self.content.clone(),
             position: (self.layout_box.x, self.layout_box.y),
             style: self.style.clone(),
-            font: self.font.clone(),
         });
     }
 
@@ -157,7 +154,7 @@ impl Widget for Label {
 
         ctx.text.measure(
             &self.content,
-            self.font.as_deref(),
+            self.style.font.as_deref(),
             font_size,
             self.style.font_weight.unwrap_or_default(),
             self.style.font_style.unwrap_or_default(),
@@ -183,7 +180,7 @@ impl Widget for Label {
             return false;
         };
         self.content == other.content &&
-            self.font == other.font &&
+            self.style.font == other.style.font &&
             format!("{:?}", self.style) == format!("{:?}", other.style)
     }
 }
