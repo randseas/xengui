@@ -83,22 +83,28 @@ pub fn style_to_taffy(style: &Style, scale_factor: f32) -> TaffyStyle {
     }
 
     if let Some(size) = &style.size {
-        t.size = Size {
-            width: dim(size.width, scale_factor),
-            height: dim(size.height, scale_factor),
-        };
+        if let Some(w) = size.width {
+            t.size.width = dim(w, scale_factor);
+        }
+        if let Some(h) = size.height {
+            t.size.height = dim(h, scale_factor);
+        }
     }
     if let Some(size) = &style.min_size {
-        t.min_size = Size {
-            width: dim(size.width, scale_factor),
-            height: dim(size.height, scale_factor),
-        };
+        if let Some(w) = size.width {
+            t.min_size.width = dim(w, scale_factor);
+        }
+        if let Some(h) = size.height {
+            t.min_size.height = dim(h, scale_factor);
+        }
     }
     if let Some(size) = &style.max_size {
-        t.max_size = Size {
-            width: dim(size.width, scale_factor),
-            height: dim(size.height, scale_factor),
-        };
+        if let Some(w) = size.width {
+            t.max_size.width = dim(w, scale_factor);
+        }
+        if let Some(h) = size.height {
+            t.max_size.height = dim(h, scale_factor);
+        }
     }
 
     if let Some(p) = &style.padding {

@@ -2,6 +2,7 @@
 use crate::{
     Background,
     Color,
+    Constraints,
     EventCtx,
     EventStatus,
     InputEvent,
@@ -10,8 +11,9 @@ use crate::{
     KeyState,
     KeyboardEvent,
     LayoutBox,
-    LayoutContext,
     Length,
+    MeasureContext,
+    MeasureResult,
     ModifiersState,
     PaintContext,
     RectCommand,
@@ -95,6 +97,9 @@ pub struct TextBox {
     // hit-testing, and selection-highlight geometry.
     char_offsets: RefCell<Vec<f32>>,
     caret_visible: Cell<bool>,
+    // Horizontal pixel offset applied when the intrinsic text width exceeds
+    // the visible content area, so the caret always stays on-screen.
+    scroll_offset: Cell<f32>,
 }
 
 impl TextBox {
@@ -142,6 +147,7 @@ impl TextBox {
             cursor_offset: Cell::new(0.0),
             char_offsets: RefCell::new(Vec::new()),
             caret_visible: Cell::new(true),
+            scroll_offset: Cell::new(0.0),
         }
     }
 
@@ -743,7 +749,7 @@ impl TextBox {
 
     fn handle_mouse_press(&mut self, position: (f32, f32)) {
         let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
-        let local_x = position.0 - self.layout_box.x - padding_left;
+        let local_x = position.0 - self.layout_box.x - padding_left + self.scroll_offset.get();
         let click_index = self.index_for_offset(local_x);
 
         let now = Instant::now();
@@ -803,7 +809,7 @@ impl TextBox {
 
     fn handle_mouse_drag(&mut self, position: (f32, f32)) {
         let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
-        let local_x = position.0 - self.layout_box.x - padding_left;
+        let local_x = position.0 - self.layout_box.x - padding_left + self.scroll_offset.get();
         let idx = self.index_for_offset(local_x);
 
         if self.drag_word_selection {
@@ -891,7 +897,7 @@ impl Widget for TextBox {
         Some(&mut self.interaction)
     }
 
-    fn measure(&self, ctx: &mut LayoutContext) -> (f32, f32) {
+    fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {
         let scale_factor = ctx.scale_factor;
         let style = &self.computed_style;
 
@@ -913,17 +919,18 @@ impl Widget for TextBox {
             &self.content
         };
 
-        let (text_w, text_h) = ctx.text.measure(
+        let result = ctx.text.measure(
             display_text,
             style.font.as_deref(),
             font_size,
             style.font_weight.unwrap_or_default(),
             style.font_style.unwrap_or_default(),
             letter_spacing,
-            line_height
+            line_height,
+            None
         );
 
-        self.content_size.set((text_w, text_h));
+        self.content_size.set((result.width, result.height));
 
         // Placeholder acts as a width floor even after content is typed, so the
         // box doesn't shrink below it once the field becomes non-empty.
@@ -937,11 +944,12 @@ impl Widget for TextBox {
                 style.font_weight.unwrap_or_default(),
                 style.font_style.unwrap_or_default(),
                 letter_spacing,
-                line_height
-            ).0
+                line_height,
+                None
+            ).width
         };
 
-        let text_w = text_w.max(placeholder_w);
+        let text_w = result.width.max(placeholder_w);
 
         // Cumulative pixel offset for every character boundary, reused for
         // the caret, mouse hit-testing, and selection-highlight geometry.
@@ -950,16 +958,17 @@ impl Widget for TextBox {
         offsets.push(0.0);
         for i in 1..=char_count {
             let end_byte = self.byte_index_for(i);
-            let (w, _) = ctx.text.measure(
+            let result = ctx.text.measure(
                 &self.content[..end_byte],
                 style.font.as_deref(),
                 font_size,
                 style.font_weight.unwrap_or_default(),
                 style.font_style.unwrap_or_default(),
                 letter_spacing,
-                line_height
+                line_height,
+                None
             );
-            offsets.push(w);
+            offsets.push(result.width);
         }
 
         self.cursor_offset.set(*offsets.get(self.cursor_index.min(char_count)).unwrap_or(&0.0));
@@ -967,10 +976,13 @@ impl Widget for TextBox {
 
         let padding = &style.padding.unwrap_or_default();
 
-        (
-            text_w + padding.left.value() + padding.right.value(),
-            text_h + padding.top.value() + padding.bottom.value(),
-        )
+        let width = text_w + padding.left.value() + padding.right.value();
+
+        let height = result.height + padding.top.value() + padding.bottom.value();
+
+        let (width, height) = constraints.constrain_size(width, height);
+
+        MeasureResult::new(width, height)
     }
 
     fn layout(&mut self, rect: LayoutBox) {
@@ -999,7 +1011,30 @@ impl Widget for TextBox {
         let padding = style.padding.unwrap_or_default();
         let (_, content_h) = self.content_size.get();
 
-        let text_x = self.layout_box.x + padding.left.value();
+        let content_left = self.layout_box.x + padding.left.value();
+        let content_width = (
+            self.layout_box.width -
+            padding.left.value() -
+            padding.right.value()
+        ).max(0.0);
+
+        // Scrolls only as far as needed to keep the caret inside the visible
+        // content area, and never scrolls past the point where empty space
+        // would appear on the right (e.g. after deleting trailing text).
+        let total_width = self.content_size.get().0;
+        let cursor_offset = self.cursor_offset.get();
+        let mut scroll = self.scroll_offset.get();
+        if cursor_offset - scroll > content_width {
+            scroll = cursor_offset - content_width;
+        }
+        if cursor_offset < scroll {
+            scroll = cursor_offset;
+        }
+        let max_scroll = (total_width - content_width).max(0.0);
+        scroll = scroll.clamp(0.0, max_scroll);
+        self.scroll_offset.set(scroll);
+
+        let text_x = content_left - scroll;
         let text_y =
             self.layout_box.y +
             padding.top.value() +
@@ -1008,7 +1043,6 @@ impl Widget for TextBox {
             ) *
                 0.5;
 
-        // Shared vertical geometry for both the selection highlight and the caret.
         let line_h = if content_h > 0.0 {
             content_h
         } else {
@@ -1019,15 +1053,21 @@ impl Widget for TextBox {
         if self.interaction.focused && let Some((start, end)) = self.selection_range() {
             let offsets = self.char_offsets.borrow();
             if let (Some(&start_x), Some(&end_x)) = (offsets.get(start), offsets.get(end)) {
-                let sel_color = self.selection_color.unwrap_or(Color::rgba(90, 140, 230, 100));
-                ctx.draw_rect(RectCommand {
-                    position: (text_x + start_x, line_y),
-                    size: (end_x - start_x, line_h),
-                    background: Some(Background::Color(sel_color)),
-                    border_radius: None,
-                    border_width: None,
-                    border_color: None,
-                });
+                let content_right = content_left + content_width;
+                let sel_left = (text_x + start_x).max(content_left);
+                let sel_right = (text_x + end_x).min(content_right);
+
+                if sel_right > sel_left {
+                    let sel_color = self.selection_color.unwrap_or(Color::rgba(90, 140, 230, 100));
+                    ctx.draw_rect(RectCommand {
+                        position: (sel_left, line_y),
+                        size: (sel_right - sel_left, line_h),
+                        background: Some(Background::Color(sel_color)),
+                        border_radius: None,
+                        border_width: None,
+                        border_color: None,
+                    });
+                }
             }
         }
 
@@ -1047,6 +1087,13 @@ impl Widget for TextBox {
             text: display_text,
             position: (text_x, text_y),
             style: text_style,
+            max_width: None,
+            clip_rect: Some((
+                content_left,
+                self.layout_box.y,
+                content_width,
+                self.layout_box.height,
+            )),
         });
 
         if self.interaction.focused && self.interaction.focus_visible {
@@ -1065,7 +1112,6 @@ impl Widget for TextBox {
         }
 
         if self.interaction.focused && self.caret_visible.get() {
-            // Round to nearest integer to align with the pixel grid
             let cursor_x = (text_x + self.cursor_offset.get()).round();
 
             ctx.draw_rect(RectCommand {
@@ -1252,6 +1298,7 @@ impl Widget for TextBox {
             self.content_size.set(old.content_size.get());
             self.cursor_offset.set(old.cursor_offset.get());
             self.char_offsets.replace(old.char_offsets.borrow().clone());
+            self.scroll_offset.set(old.scroll_offset.get());
         }
     }
 

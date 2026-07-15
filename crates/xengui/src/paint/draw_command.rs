@@ -18,6 +18,8 @@ pub struct TextCommand {
     pub text: SmolStr,
     pub position: (f32, f32),
     pub style: Style,
+    pub max_width: Option<f32>,
+    pub clip_rect: Option<(f32, f32, f32, f32)>,
 }
 
 #[derive(Clone, Debug)]

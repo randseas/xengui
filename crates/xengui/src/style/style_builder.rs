@@ -27,13 +27,13 @@ pub trait StyleBuilder: Sized {
     fn mark_dirty(&mut self) {}
 
     fn width<L: Into<Length>>(mut self, width: L) -> Self {
-        self.style_mut().size.get_or_insert_with(Default::default).width = width.into();
+        self.style_mut().size.get_or_insert_with(Default::default).width = Some(width.into());
         self.mark_dirty();
         self
     }
 
     fn height<L: Into<Length>>(mut self, height: L) -> Self {
-        self.style_mut().size.get_or_insert_with(Default::default).height = height.into();
+        self.style_mut().size.get_or_insert_with(Default::default).height = Some(height.into());
         self.mark_dirty();
         self
     }
@@ -116,13 +116,13 @@ pub trait StyleBuilder: Sized {
     }
 
     fn min_width<L: Into<Length>>(mut self, width: L) -> Self {
-        self.style_mut().min_size.get_or_insert_with(Default::default).width = width.into();
+        self.style_mut().min_size.get_or_insert_with(Default::default).width = Some(width.into());
         self.mark_dirty();
         self
     }
 
     fn min_height<L: Into<Length>>(mut self, height: L) -> Self {
-        self.style_mut().min_size.get_or_insert_with(Default::default).height = height.into();
+        self.style_mut().min_size.get_or_insert_with(Default::default).height = Some(height.into());
         self.mark_dirty();
         self
     }
@@ -134,13 +134,13 @@ pub trait StyleBuilder: Sized {
     }
 
     fn max_width<L: Into<Length>>(mut self, width: L) -> Self {
-        self.style_mut().max_size.get_or_insert_with(Default::default).width = width.into();
+        self.style_mut().max_size.get_or_insert_with(Default::default).width = Some(width.into());
         self.mark_dirty();
         self
     }
 
     fn max_height<L: Into<Length>>(mut self, height: L) -> Self {
-        self.style_mut().max_size.get_or_insert_with(Default::default).height = height.into();
+        self.style_mut().max_size.get_or_insert_with(Default::default).height = Some(height.into());
         self.mark_dirty();
         self
     }

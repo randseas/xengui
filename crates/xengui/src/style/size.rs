@@ -3,12 +3,12 @@ use super::Length;
 
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct Size {
-    pub width: Length,
-    pub height: Length,
+    pub width: Option<Length>,
+    pub height: Option<Length>,
 }
 
 impl Size {
     pub const fn new(width: Length, height: Length) -> Self {
-        Self { width, height }
+        Self { width: Some(width), height: Some(height) }
     }
 }

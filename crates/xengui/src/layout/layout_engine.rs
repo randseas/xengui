@@ -1,5 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{ LayoutBox, LayoutContext, RenderCache, Style, Widget, WidgetPath, style_to_taffy };
+use crate::{
+    LayoutBox,
+    LayoutContext,
+    MeasureContext,
+    RenderCache,
+    Style,
+    Widget,
+    WidgetPath,
+    style_to_taffy,
+};
 use taffy::prelude::*;
 
 pub struct LayoutEngine;
@@ -68,6 +77,8 @@ fn build_taffy_node(
     cache: &mut RenderCache,
     path: &mut WidgetPath
 ) -> NodeId {
+    let mut measure_ctx = MeasureContext::new(ctx.text, ctx.scale_factor);
+
     let mut style = style_to_taffy(widget.style(), ctx.scale_factor);
     let children = widget.children();
 
@@ -76,13 +87,28 @@ fn build_taffy_node(
         let auto_h = style.size.height == taffy::style::Dimension::auto();
 
         if auto_w && auto_h {
-            let (w, h) = if widget.is_dirty() {
-                let size = widget.measure(ctx);
+            // Read max_size directly from the widget's own Style, before
+            // taffy's conversion, so we don't need to inspect taffy's
+            // internal Dimension representation. Percent is skipped here
+            // since resolving it needs a parent basis that isn't available
+            // during intrinsic content measurement.
+            let mut constraints = super::Constraints::default();
+            if let Some(max_size) = widget.style().max_size {
+                if let Some(crate::Length::Px(w)) = max_size.width {
+                    constraints = constraints.with_max_width(w * ctx.scale_factor);
+                }
+                if let Some(crate::Length::Px(h)) = max_size.height {
+                    constraints = constraints.with_max_height(h * ctx.scale_factor);
+                }
+            }
+
+            let measure = if widget.is_dirty() {
+                let size = widget.measure(&mut measure_ctx, constraints);
                 cache.store_measure(path.as_str(), size);
                 size
             } else {
                 cache.cached_measure(path.as_str()).unwrap_or_else(|| {
-                    let size = widget.measure(ctx);
+                    let size = widget.measure(&mut measure_ctx, constraints);
                     cache.store_measure(path.as_str(), size);
                     size
                 })
@@ -92,7 +118,7 @@ fn build_taffy_node(
             // fractional heights from text metrics, and the shared edge
             // between two rows stops being the exact same float value -
             // which breaks the edge-snapping in apply_layout below.
-            let (w, h) = (w.round(), h.round());
+            let (w, h) = (measure.width.round(), measure.height.round());
             style.size = Size {
                 width: length(w),
                 height: length(h),

@@ -1,7 +1,11 @@
+use std::cell::Cell;
+
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
+    Constraints,
     LayoutBox,
-    LayoutContext,
+    MeasureContext,
+    MeasureResult,
     PaintContext,
     RectCommand,
     Style,
@@ -29,6 +33,7 @@ pub struct Label {
     layout_box: LayoutBox,
     selectable: bool,
     key: Option<SmolStr>,
+    measured_max_width: Cell<Option<f32>>,
 }
 
 impl Label {
@@ -40,6 +45,7 @@ impl Label {
             layout_box: LayoutBox::default(),
             selectable: false,
             key: None,
+            measured_max_width: Cell::new(None),
         }
     }
 
@@ -134,10 +140,12 @@ impl Widget for Label {
             text: self.content.clone(),
             position: (self.layout_box.x, self.layout_box.y),
             style: self.style.clone(),
+            max_width: self.measured_max_width.get(),
+            clip_rect: None,
         });
     }
 
-    fn measure(&self, ctx: &mut LayoutContext) -> (f32, f32) {
+    fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {
         let scale_factor = ctx.scale_factor;
 
         let font_size = self.style.font_size
@@ -152,15 +160,24 @@ impl Widget for Label {
             .map(|lh| lh.value().to_physical(scale_factor))
             .unwrap_or(0.0);
 
-        ctx.text.measure(
+        self.measured_max_width.set(constraints.max_width);
+
+        let result = ctx.text.measure(
             &self.content,
             self.style.font.as_deref(),
             font_size,
             self.style.font_weight.unwrap_or_default(),
             self.style.font_style.unwrap_or_default(),
             letter_spacing,
-            line_height
-        )
+            line_height,
+            constraints.max_width
+        );
+
+        MeasureResult {
+            width: constraints.constrain_width(result.width),
+            height: result.height,
+            baseline: result.baseline,
+        }
     }
 
     fn layout(&mut self, rect: LayoutBox) {

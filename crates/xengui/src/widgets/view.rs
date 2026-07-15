@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
+    Constraints,
     Interaction,
     LayoutBox,
-    LayoutContext,
+    MeasureContext,
+    MeasureResult,
     PaintContext,
     RectCommand,
     Style,
@@ -131,8 +133,8 @@ impl Widget for View {
         Some(&mut self.interaction)
     }
 
-    fn measure(&self, _ctx: &mut LayoutContext) -> (f32, f32) {
-        (0.0, 0.0)
+    fn measure(&self, _ctx: &mut MeasureContext, _constraints: Constraints) -> MeasureResult {
+        MeasureResult::new(0.0, 0.0)
     }
 
     fn layout(&mut self, rect: LayoutBox) {

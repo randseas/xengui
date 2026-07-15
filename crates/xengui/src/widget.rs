@@ -2,12 +2,14 @@
 use smol_str::SmolStr;
 
 use crate::{
+    Constraints,
     EventCtx,
     EventStatus,
     InputEvent,
     Interaction,
     LayoutBox,
-    LayoutContext,
+    MeasureContext,
+    MeasureResult,
     PaintContext,
     Style,
 };
@@ -39,7 +41,7 @@ pub trait Widget: Any {
         None
     }
 
-    fn measure(&self, ctx: &mut LayoutContext) -> (f32, f32);
+    fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult;
 
     fn layout(&mut self, rect: LayoutBox);
 

@@ -2,13 +2,15 @@
 use crate::{
     Background,
     Color,
+    Constraints,
     EventCtx,
     EventStatus,
     InputEvent,
     Interaction,
     LayoutBox,
-    LayoutContext,
     Length,
+    MeasureContext,
+    MeasureResult,
     PaintContext,
     RectCommand,
     Style,
@@ -222,7 +224,7 @@ impl Widget for Button {
         Some(&mut self.interaction)
     }
 
-    fn measure(&self, ctx: &mut LayoutContext) -> (f32, f32) {
+    fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {
         let scale_factor = ctx.scale_factor;
         let style = &self.computed_style;
 
@@ -238,24 +240,26 @@ impl Widget for Button {
             .map(|lh| lh.value().to_physical(scale_factor))
             .unwrap_or(0.0);
 
-        let (text_w, text_h) = ctx.text.measure(
+        let result = ctx.text.measure(
             &self.label,
             style.font.as_deref(),
             font_size,
             style.font_weight.unwrap_or_default(),
             style.font_style.unwrap_or_default(),
             letter_spacing,
-            line_height
+            line_height,
+            constraints.max_width
         );
 
-        self.content_size.set((text_w, text_h));
+        self.content_size.set((result.width, result.height));
 
         let padding = &style.padding.unwrap_or_default();
 
-        (
-            text_w + padding.left.value() + padding.right.value(),
-            text_h + padding.top.value() + padding.bottom.value(),
-        )
+        let width = result.width + padding.left.value() + padding.right.value();
+        let height = result.height + padding.top.value() + padding.bottom.value();
+        let (width, height) = constraints.constrain_size(width, height);
+
+        MeasureResult::new(width, height)
     }
 
     fn layout(&mut self, rect: LayoutBox) {
@@ -318,6 +322,8 @@ impl Widget for Button {
             text: self.label.clone(),
             position: (text_x, text_y),
             style: style.clone(),
+            max_width: Some(self.layout_box.width),
+            clip_rect: None,
         });
     }
 

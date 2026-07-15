@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Color,
+    Constraints,
     ImageCommand,
     ImageData,
     LayoutBox,
-    LayoutContext,
+    MeasureContext,
+    MeasureResult,
     PaintContext,
     Style,
     StyleBuilder,
@@ -221,9 +223,9 @@ impl Widget for Image {
         &[]
     }
 
-    fn measure(&self, ctx: &mut LayoutContext) -> (f32, f32) {
+    fn measure(&self, ctx: &mut MeasureContext, _constraints: Constraints) -> MeasureResult {
         let (iw, ih) = self.intrinsic_size();
-        (iw * ctx.scale_factor, ih * ctx.scale_factor)
+        MeasureResult::new(iw * ctx.scale_factor, ih * ctx.scale_factor)
     }
 
     fn layout(&mut self, rect: LayoutBox) {
