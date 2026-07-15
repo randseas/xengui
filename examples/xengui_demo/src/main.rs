@@ -34,9 +34,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut app = App::new(config);
 
-    #[cfg(target_arch = "wasm32")]
     app.with_font(
-        "Noto_Sans_Regular",
+        "Noto_Sans",
         include_bytes!(
             concat!(env!("CARGO_MANIFEST_DIR"), "/fonts/NotoSans-VariableFont.ttf")
         ).to_vec()
@@ -52,6 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Box::new(
             View::new()
+                .font("Noto_Sans")
                 .display(Display::Flex)
                 .flex_direction(FlexDirection::Column)
                 .justify_content(JustifyContent::Start)
@@ -70,7 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .child(
                             Label::new()
                                 .label("My XenGui Application")
-                                .margin(Edges::only(0, 0, 0, 5))
+                                .margin(Edges::only(0, 0, 0, 8))
                                 .font_size(20)
                                 .color(Color::NEUTRAL_400)
                         )
