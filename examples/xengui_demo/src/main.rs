@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use xengui::*;
+use xengui::{properties::StyleValue, *};
 use xen_clipboard::Clipboard;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -80,6 +80,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .color(Color::NEUTRAL_400)
                                 .placeholder("Enter your name...")
                                 .font_size(16)
+                                .outline(StyleValue::None)
+                                .focus_outline(StyleValue::Default)
                                 .max_width(Length::px(150.0))
                                 .padding(Edges::only(10, 7, 10, 8))
                                 .background(Color::WHITE)

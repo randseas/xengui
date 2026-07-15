@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::style::{ FontStyle, FontWeight, LetterSpacing };
+use crate::{properties::StyleValue, style::{ FontStyle, FontWeight, LetterSpacing }};
 
 use super::{
     AlignItems,
     Background,
     Border,
+    Outline,
     Color,
     Display,
     Edges,
@@ -111,6 +112,18 @@ pub trait StyleBuilder: Sized {
 
     fn border(mut self, border: Border) -> Self {
         self.style_mut().border = Some(border);
+        self.mark_dirty();
+        self
+    }
+
+    fn outline(mut self, outline: impl Into<StyleValue<Outline>>) -> Self {
+        self.style_mut().outline = outline.into();
+        self.mark_dirty();
+        self
+    }
+
+    fn focus_outline(mut self, focus_outline: impl Into<StyleValue<Outline>>) -> Self {
+        self.style_mut().focus_outline = focus_outline.into();
         self.mark_dirty();
         self
     }

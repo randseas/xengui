@@ -2,16 +2,21 @@
 use smol_str::SmolStr;
 
 use crate::{
+    Color,
     Constraints,
     EventCtx,
     EventStatus,
     InputEvent,
     Interaction,
     LayoutBox,
+    Length,
     MeasureContext,
     MeasureResult,
+    Outline,
     PaintContext,
+    RectCommand,
     Style,
+    properties::StyleValue,
 };
 
 use std::any::Any;
@@ -33,6 +38,10 @@ pub trait Widget: Any {
 
     fn style_mut(&mut self) -> &mut Style;
 
+    fn computed_style(&self) -> &Style {
+        self.style()
+    }
+
     fn children(&self) -> &[Box<dyn Widget>] {
         &[]
     }
@@ -48,6 +57,91 @@ pub trait Widget: Any {
     fn layout_box(&self) -> &LayoutBox;
 
     fn paint(&self, ctx: &mut PaintContext);
+
+    fn paint_box(&self, ctx: &mut PaintContext) {
+        let style = self.computed_style();
+
+        if style.background.is_none() && style.border.is_none() {
+            return;
+        }
+
+        let border = style.border.as_ref();
+
+        ctx.draw_rect(crate::RectCommand {
+            position: (self.layout_box().x, self.layout_box().y),
+            size: (self.layout_box().width, self.layout_box().height),
+            background: style.background.clone(),
+            border_radius: border.map(|b| b.radius),
+            border_color: border.map(|b| b.color),
+            border_width: border.map(|b| b.width),
+        });
+    }
+
+    fn paint_outline(&self, ctx: &mut PaintContext) {
+        let style = self.computed_style();
+
+        let outline = match &style.outline {
+            StyleValue::None => {
+                return;
+            }
+            StyleValue::Value(outline) => outline,
+            StyleValue::Default => {
+                return;
+            }
+        };
+
+        let layout = self.layout_box();
+        let offset = outline.offset.value();
+        let radius = outline.radius.or_else(|| { style.border.as_ref().map(|b| b.radius) });
+
+        ctx.draw_rect(crate::RectCommand {
+            position: (layout.x - offset, layout.y - offset),
+            size: (layout.width + offset * 2.0, layout.height + offset * 2.0),
+            background: None,
+            border_radius: radius,
+            border_color: Some(outline.color),
+            border_width: Some(outline.width),
+        });
+    }
+
+    fn paint_focus(&self, ctx: &mut PaintContext) {
+        let Some(interaction) = self.interaction() else {
+            return;
+        };
+
+        if !interaction.focused || !interaction.focus_visible {
+            return;
+        }
+
+        let style = self.computed_style();
+        let layout = self.layout_box();
+
+        let focus_outline = match &style.focus_outline {
+            StyleValue::None => {
+                return;
+            }
+            StyleValue::Value(outline) => *outline,
+            StyleValue::Default =>
+                Outline {
+                    width: Length::px(2.5),
+                    color: Color::BLUE_500,
+                    radius: style.border.as_ref().map(|b| b.radius.add_px(4.0)),
+                    offset: Length::px(4.0),
+                },
+        };
+
+        let offset = focus_outline.offset.value();
+        let radius = focus_outline.radius.or_else(|| { style.border.as_ref().map(|b| b.radius) });
+
+        ctx.draw_rect(RectCommand {
+            position: (layout.x - offset, layout.y - offset),
+            size: (layout.width + offset * 2.0, layout.height + offset * 2.0),
+            background: None,
+            border_radius: radius,
+            border_width: Some(focus_outline.width),
+            border_color: Some(focus_outline.color),
+        });
+    }
 
     fn hit_test(&self, point: (f32, f32)) -> bool {
         let b = self.layout_box();

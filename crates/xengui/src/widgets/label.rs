@@ -7,7 +7,6 @@ use crate::{
     MeasureContext,
     MeasureResult,
     PaintContext,
-    RectCommand,
     Style,
     StyleBuilder,
     TextCommand,
@@ -125,16 +124,9 @@ impl Widget for Label {
     fn paint(&self, ctx: &mut PaintContext) {
         log::trace!("paint -> '{}' x={} y={}", self.content, self.layout_box.x, self.layout_box.y);
 
-        if self.style.background.is_some() {
-            ctx.draw_rect(RectCommand {
-                position: (self.layout_box.x, self.layout_box.y),
-                size: (self.layout_box.width, self.layout_box.height),
-                background: self.style.background.clone(),
-                border_radius: None,
-                border_color: None,
-                border_width: None,
-            });
-        }
+        self.paint_box(ctx);
+        self.paint_outline(ctx);
+        self.paint_focus(ctx);
 
         ctx.draw_text(TextCommand {
             text: self.content.clone(),

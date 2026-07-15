@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 use smol_str::SmolStr;
 
+use crate::Outline;
+
 use super::{
     AlignItems,
     Background,
@@ -24,6 +26,30 @@ use super::{
     TextDecoration,
 };
 
+#[derive(Default, Clone, Debug)]
+pub enum StyleValue<T> {
+    #[default]
+    Default,
+    Value(T),
+    None,
+}
+
+impl<T> From<T> for StyleValue<T> {
+    fn from(value: T) -> Self {
+        Self::Value(value)
+    }
+}
+
+impl<T: Clone> StyleValue<T> {
+    pub fn overlay(&self, parent: &Self) -> Self {
+        match self {
+            Self::Default => parent.clone(),
+            Self::Value(value) => Self::Value(value.clone()),
+            Self::None => Self::None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Style {
     // Typography
@@ -42,6 +68,8 @@ pub struct Style {
     pub padding: Option<Edges>,
     pub margin: Option<Edges>,
     pub border: Option<Border>,
+    pub outline: StyleValue<Outline>,
+    pub focus_outline: StyleValue<Outline>,
 
     // Sizing
     pub size: Option<Size>,
@@ -89,6 +117,15 @@ impl Style {
             padding: patch.padding.or_else(|| self.padding),
             margin: patch.margin.or_else(|| self.margin),
             border: patch.border.or_else(|| self.border),
+            outline: match &patch.outline {
+                StyleValue::Default => self.outline.clone(),
+                value => value.clone(),
+            },
+
+            focus_outline: match &patch.focus_outline {
+                StyleValue::Default => self.focus_outline.clone(),
+                value => value.clone(),
+            },
 
             size: patch.size.or_else(|| self.size),
             min_size: patch.min_size.or_else(|| self.min_size),

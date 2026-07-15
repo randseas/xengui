@@ -6,7 +6,6 @@ use crate::{
     MeasureContext,
     MeasureResult,
     PaintContext,
-    RectCommand,
     Style,
     StyleBuilder,
     Widget,
@@ -145,17 +144,7 @@ impl Widget for View {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
-        if self.style.background.is_some() || self.style.border.is_some() {
-            let border = self.style.border.as_ref();
-            ctx.draw_rect(RectCommand {
-                position: (self.layout_box.x, self.layout_box.y),
-                size: (self.layout_box.width, self.layout_box.height),
-                background: self.style.background.clone(),
-                border_radius: border.map(|b| b.radius),
-                border_width: border.map(|b| b.width),
-                border_color: border.map(|b| b.color),
-            });
-        }
+        self.paint_box(ctx);
     }
 
     fn content_eq(&self, other: &dyn Widget) -> bool {

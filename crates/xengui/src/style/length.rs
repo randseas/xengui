@@ -34,6 +34,14 @@ impl Length {
             Self::Percent(v) => v,
         }
     }
+
+    pub fn add_px(self, value: f32) -> Self {
+        Self::px(self.value() + value)
+    }
+
+    pub fn sub_px(self, value: f32) -> Self {
+        Self::px((self.value() - value).max(0.0))
+    }
 }
 
 macro_rules! impl_length_from {

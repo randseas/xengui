@@ -1,18 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background,
-    Color,
     Constraints,
     EventCtx,
     EventStatus,
     InputEvent,
     Interaction,
     LayoutBox,
-    Length,
     MeasureContext,
     MeasureResult,
     PaintContext,
-    RectCommand,
     Style,
     StyleBuilder,
     StylePatch,
@@ -212,6 +209,10 @@ impl Widget for Button {
         &mut self.style
     }
 
+    fn computed_style(&self) -> &Style {
+        &self.computed_style
+    }
+
     fn children(&self) -> &[Box<dyn Widget>] {
         &[]
     }
@@ -273,32 +274,9 @@ impl Widget for Button {
     fn paint(&self, ctx: &mut PaintContext) {
         let style = &self.computed_style;
 
-        if let Some(background) = style.background.clone() {
-            let border = style.border.as_ref();
-            ctx.draw_rect(RectCommand {
-                position: (self.layout_box.x, self.layout_box.y),
-                size: (self.layout_box.width, self.layout_box.height),
-                background: Some(background),
-                border_radius: border.map(|b| b.radius),
-                border_width: border.map(|b| b.width),
-                border_color: border.map(|b| b.color),
-            });
-        }
-
-        if self.interaction.focused && self.interaction.focus_visible {
-            const RING_WIDTH: f32 = 2.0;
-            ctx.draw_rect(RectCommand {
-                position: (self.layout_box.x - RING_WIDTH, self.layout_box.y - RING_WIDTH),
-                size: (
-                    self.layout_box.width + RING_WIDTH * 2.0,
-                    self.layout_box.height + RING_WIDTH * 2.0,
-                ),
-                background: None,
-                border_radius: style.border.as_ref().map(|b| b.radius),
-                border_width: Some(Length::px(RING_WIDTH)),
-                border_color: Some(Color::BLUE_500),
-            });
-        }
+        self.paint_box(ctx);
+        self.paint_outline(ctx);
+        self.paint_focus(ctx);
 
         let (content_w, content_h) = self.content_size.get();
         let padding = style.padding.unwrap_or_default();
