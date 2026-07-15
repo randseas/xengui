@@ -80,6 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .color(Color::NEUTRAL_500)
                                 .placeholder("Enter your name...")
                                 .font_size(16)
+                                .max_width(Length::px(50.0))
                                 .padding(Edges::only(10, 7, 10, 8))
                                 .background(Color::WHITE)
                                 .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
@@ -89,7 +90,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .focus_style(|s|
                                     s.border(Border::new(2, Color::BLUE_500, Length::px(8.0)))
                                 )
-                                .max_length(50)
                                 .on_change(move |value, _ctx| set_text.set(value.to_string()))
                                 .on_submit(move |value, _ctx| {
                                     clipboard.set_text(value.to_string(), move |result| {

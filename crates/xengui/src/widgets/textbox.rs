@@ -61,6 +61,8 @@ pub struct TextBox {
     redo_stack: Vec<(String, usize, Option<usize>)>,
 
     dragging: bool,
+    drag_word_selection: bool,
+    drag_word_anchor: usize,
     click_count: Cell<u8>,
     last_click_time: Cell<Option<Instant>>,
     last_click_pos: Cell<(f32, f32)>,
@@ -120,6 +122,9 @@ impl TextBox {
             redo_stack: Vec::new(),
 
             dragging: false,
+            drag_word_selection: false,
+            drag_word_anchor: 0,
+
             click_count: Cell::new(0),
             last_click_time: Cell::new(None),
             last_click_pos: Cell::new((0.0, 0.0)),
@@ -291,6 +296,11 @@ impl TextBox {
     }
 
     fn undo(&mut self, ctx: &mut EventCtx) {
+        // return if read_only
+        if self.read_only {
+            return;
+        }
+
         let Some((content, cursor_index, selection_anchor)) = self.undo_stack.pop() else {
             return;
         };
@@ -302,6 +312,11 @@ impl TextBox {
     }
 
     fn redo(&mut self, ctx: &mut EventCtx) {
+        // return if read_only
+        if self.read_only {
+            return;
+        }
+
         let Some((content, cursor_index, selection_anchor)) = self.redo_stack.pop() else {
             return;
         };
@@ -402,6 +417,11 @@ impl TextBox {
     }
 
     fn insert_char(&mut self, c: char, ctx: &mut EventCtx) {
+        // return if read_only
+        if self.read_only {
+            return;
+        }
+
         let can_insert = match self.max_length {
             Some(max) => self.selection_range().is_some() || self.content.chars().count() < max,
             None => true,
@@ -428,6 +448,11 @@ impl TextBox {
     // Inserts arbitrary text (used by paste), stripping control characters
     // and truncating to whatever room max_length leaves.
     fn insert_text(&mut self, text: &str, ctx: &mut EventCtx) {
+        // return if read_only
+        if self.read_only {
+            return;
+        }
+
         let filtered: String = text
             .chars()
             .filter(|c| !c.is_control())
@@ -463,6 +488,11 @@ impl TextBox {
     }
 
     fn delete_before_cursor(&mut self, ctx: &mut EventCtx) {
+        // return if read_only
+        if self.read_only {
+            return;
+        }
+
         if self.selection_range().is_some() {
             self.push_undo_snapshot();
             self.delete_selection();
@@ -480,7 +510,37 @@ impl TextBox {
         self.notify_change(ctx);
     }
 
+    fn delete_word_before_cursor(&mut self, ctx: &mut EventCtx) {
+        if self.selection_range().is_some() {
+            self.push_undo_snapshot();
+            self.delete_selection();
+            self.notify_change(ctx);
+            return;
+        }
+
+        if self.cursor_index == 0 {
+            return;
+        }
+
+        let target = self.word_left(self.cursor_index);
+
+        self.push_undo_snapshot();
+
+        let start = self.byte_index_for(target);
+        let end = self.byte_index_for(self.cursor_index);
+
+        self.content.replace_range(start..end, "");
+        self.cursor_index = target;
+
+        self.notify_change(ctx);
+    }
+
     fn delete_after_cursor(&mut self, ctx: &mut EventCtx) {
+        // return if read_only
+        if self.read_only {
+            return;
+        }
+
         if self.selection_range().is_some() {
             self.push_undo_snapshot();
             self.delete_selection();
@@ -498,6 +558,32 @@ impl TextBox {
         self.notify_change(ctx);
     }
 
+    fn delete_word_after_cursor(&mut self, ctx: &mut EventCtx) {
+        if self.selection_range().is_some() {
+            self.push_undo_snapshot();
+            self.delete_selection();
+            self.notify_change(ctx);
+            return;
+        }
+
+        let len = self.content.chars().count();
+
+        if self.cursor_index >= len {
+            return;
+        }
+
+        let target = self.word_right(self.cursor_index);
+
+        self.push_undo_snapshot();
+
+        let start = self.byte_index_for(self.cursor_index);
+        let end = self.byte_index_for(target);
+
+        self.content.replace_range(start..end, "");
+
+        self.notify_change(ctx);
+    }
+
     fn copy_selection(&self) {
         if let Some(text) = self.selected_text() {
             self.clipboard.set_text(text, |_| {});
@@ -505,6 +591,11 @@ impl TextBox {
     }
 
     fn cut_selection(&mut self, ctx: &mut EventCtx) {
+        // return if read_only
+        if self.read_only {
+            return;
+        }
+
         let Some(text) = self.selected_text() else {
             return;
         };
@@ -593,6 +684,16 @@ impl TextBox {
                     self.dirty = true;
                     return;
                 }
+                Key::Backspace => {
+                    self.delete_word_before_cursor(ctx);
+                    self.dirty = true;
+                    return;
+                }
+                Key::Delete => {
+                    self.delete_word_after_cursor(ctx);
+                    self.dirty = true;
+                    return;
+                }
                 _ => {}
             }
         }
@@ -676,17 +777,24 @@ impl TextBox {
             1 => {
                 self.cursor_index = click_index;
                 self.selection_anchor = None;
+
+                self.drag_word_selection = false;
                 self.dragging = true;
             }
             2 => {
                 let (start, end) = self.word_bounds_at(click_index);
+
                 self.selection_anchor = Some(start);
                 self.cursor_index = end;
-                self.dragging = false;
+
+                self.drag_word_anchor = click_index;
+                self.drag_word_selection = true;
+                self.dragging = true;
             }
             _ => {
                 let len = self.content.chars().count();
                 self.selection_anchor = if len > 0 { Some(0) } else { None };
+                self.drag_word_selection = false;
                 self.cursor_index = len;
                 self.dragging = false;
             }
@@ -698,9 +806,25 @@ impl TextBox {
         let local_x = position.0 - self.layout_box.x - padding_left;
         let idx = self.index_for_offset(local_x);
 
+        if self.drag_word_selection {
+            let (anchor_start, anchor_end) = self.word_bounds_at(self.drag_word_anchor);
+            let (word_start, word_end) = self.word_bounds_at(idx);
+
+            if idx >= self.drag_word_anchor {
+                self.selection_anchor = Some(anchor_start);
+                self.cursor_index = word_end;
+            } else {
+                self.selection_anchor = Some(anchor_end);
+                self.cursor_index = word_start;
+            }
+
+            return;
+        }
+
         if self.selection_anchor.is_none() && idx != self.cursor_index {
             self.selection_anchor = Some(self.cursor_index);
         }
+
         self.cursor_index = idx;
     }
 }
@@ -997,6 +1121,7 @@ impl Widget for TextBox {
                     ElementState::Pressed => self.handle_mouse_press(*position),
                     ElementState::Released => {
                         self.dragging = false;
+                        self.drag_word_selection = false;
                     }
                 }
                 self.recompute_style();
