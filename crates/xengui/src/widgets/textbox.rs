@@ -81,6 +81,8 @@ pub struct TextBox {
     #[allow(clippy::type_complexity)]
     on_submit: Option<Box<dyn FnMut(&str, &mut EventCtx)>>,
 
+    read_only: bool,
+
     layout_box: LayoutBox,
     content_size: Cell<(f32, f32)>,
     // Pixel offset of the caret from the text start, cached during measure()
@@ -127,6 +129,9 @@ impl TextBox {
             pending_paste: Arc::new(Mutex::new(None)),
             on_change: None,
             on_submit: None,
+
+            read_only: false,
+
             layout_box: LayoutBox::default(),
             content_size: Cell::new((0.0, 0.0)),
             cursor_offset: Cell::new(0.0),
@@ -191,6 +196,11 @@ impl TextBox {
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.interaction.set_enabled(enabled);
         self.mark_dirty();
+        self
+    }
+
+    pub fn read_only(mut self, value: bool) -> Self {
+        self.read_only = value;
         self
     }
 
