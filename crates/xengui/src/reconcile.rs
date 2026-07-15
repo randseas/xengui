@@ -155,6 +155,7 @@ impl WorkLoop {
         let old_node = &old_siblings[old_idx];
 
         if frame.new_siblings[idx].as_any().type_id() != old_node.as_any().type_id() {
+            frame.consumed[old_idx] = true;
             return;
         }
 
@@ -171,14 +172,13 @@ impl WorkLoop {
 
         let old_children: *const [Box<dyn Widget>] = old_node.children() as *const _;
 
-        if let Some(child_slot) = frame.new_siblings[idx].children_mut()
-            && !child_slot.is_empty() {
-                let taken_children = std::mem::take(child_slot);
-                // SAFETY: `old_children` is derived from the same frozen
-                // old tree this WorkLoop was constructed with.
-                let old_children: &[Box<dyn Widget>] = unsafe { &*old_children };
-                self.stack.push(Frame::new(taken_children, old_children));
-            }
+        if let Some(child_slot) = frame.new_siblings[idx].children_mut() && !child_slot.is_empty() {
+            let taken_children = std::mem::take(child_slot);
+            // SAFETY: `old_children` is derived from the same frozen
+            // old tree this WorkLoop was constructed with.
+            let old_children: &[Box<dyn Widget>] = unsafe { &*old_children };
+            self.stack.push(Frame::new(taken_children, old_children));
+        }
     }
 
     fn find_match(frame: &mut Frame, idx: usize) -> Option<usize> {

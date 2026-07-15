@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{ LayoutBox, LayoutContext, RenderCache, Style, Widget, style_to_taffy };
+use crate::{ LayoutBox, LayoutContext, RenderCache, Style, Widget, WidgetPath, style_to_taffy };
 use taffy::prelude::*;
 
 pub struct LayoutEngine;
@@ -21,10 +21,18 @@ impl LayoutEngine {
 
         let mut taffy: TaffyTree<()> = TaffyTree::new();
 
+        let mut path = WidgetPath::new();
+
         let child_ids: Vec<NodeId> = tree
             .iter()
             .enumerate()
-            .map(|(i, w)| build_taffy_node(w.as_ref(), &mut taffy, ctx, cache, &i.to_string()))
+            .map(|(i, c)| {
+                let checkpoint = path.checkpoint();
+                path.push(c.as_ref(), i);
+                let id = build_taffy_node(c.as_ref(), &mut taffy, ctx, cache, &mut path);
+                path.restore(checkpoint);
+                id
+            })
             .collect();
 
         let root_style = taffy::style::Style {
@@ -58,7 +66,7 @@ fn build_taffy_node(
     taffy: &mut TaffyTree<()>,
     ctx: &mut LayoutContext,
     cache: &mut RenderCache,
-    path: &str
+    path: &mut WidgetPath
 ) -> NodeId {
     let mut style = style_to_taffy(widget.style(), ctx.scale_factor);
     let children = widget.children();
@@ -70,12 +78,12 @@ fn build_taffy_node(
         if auto_w && auto_h {
             let (w, h) = if widget.is_dirty() {
                 let size = widget.measure(ctx);
-                cache.store_measure(path, size);
+                cache.store_measure(path.as_str(), size);
                 size
             } else {
-                cache.cached_measure(path).unwrap_or_else(|| {
+                cache.cached_measure(path.as_str()).unwrap_or_else(|| {
                     let size = widget.measure(ctx);
-                    cache.store_measure(path, size);
+                    cache.store_measure(path.as_str(), size);
                     size
                 })
             };
@@ -101,7 +109,13 @@ fn build_taffy_node(
         let child_ids: Vec<NodeId> = children
             .iter()
             .enumerate()
-            .map(|(i, c)| build_taffy_node(c.as_ref(), taffy, ctx, cache, &format!("{path}.{i}")))
+            .map(|(i, c)| {
+                let checkpoint = path.checkpoint();
+                path.push(c.as_ref(), i);
+                let id = build_taffy_node(c.as_ref(), taffy, ctx, cache, path);
+                path.restore(checkpoint);
+                id
+            })
             .collect();
         taffy.new_with_children(style, &child_ids).expect("cannot create taffy node")
     }
