@@ -23,7 +23,6 @@ use winit::window::CursorIcon;
 pub struct Button {
     dirty: bool,
     label: SmolStr,
-    font: Option<SmolStr>,
     style: Style,
     key: Option<SmolStr>,
 
@@ -47,7 +46,6 @@ impl Button {
         Self {
             dirty: true,
             label: SmolStr::new(""),
-            font: None,
             style: Style::default(),
             key: None,
 
@@ -78,7 +76,7 @@ impl Button {
     }
 
     pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
-        self.font = Some(font.into());
+        self.style.font = Some(font.into());
         self.mark_dirty();
         self
     }
@@ -240,7 +238,7 @@ impl Widget for Button {
 
         let (text_w, text_h) = ctx.text.measure(
             &self.label,
-            self.font.as_deref(),
+            style.font.as_deref(),
             font_size,
             style.font_weight.unwrap_or_default(),
             style.font_style.unwrap_or_default(),
@@ -326,11 +324,18 @@ impl Widget for Button {
             return false;
         };
         self.label == other.label &&
-            self.font == other.font &&
             format!("{:?}", self.style) == format!("{:?}", other.style) &&
             format!("{:?}", self.hover_style) == format!("{:?}", other.hover_style) &&
             format!("{:?}", self.pressed_style) == format!("{:?}", other.pressed_style) &&
             format!("{:?}", self.disabled_style) == format!("{:?}", other.disabled_style)
+    }
+
+    /// Overridden because Button keeps a separate `computed_style` for
+    /// hover/pressed/disabled overlays - the default cascade only updates
+    /// `style`, so without this the inherited font never reaches paint/measure.
+    fn cascade_style(&mut self, parent: &Style) {
+        self.style = parent.inherit_typography(&self.style);
+        self.recompute_style();
     }
 
     /// Ensures that the newly transferred interaction (hover/pressed) is reflected

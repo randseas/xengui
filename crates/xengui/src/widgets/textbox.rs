@@ -28,7 +28,6 @@ pub struct TextBox {
     dirty: bool,
     content: String,
     placeholder: SmolStr,
-    font: Option<SmolStr>,
     style: Style,
 
     hover_style: Option<Style>,
@@ -64,7 +63,6 @@ impl TextBox {
             dirty: true,
             content: String::new(),
             placeholder: SmolStr::new(""),
-            font: None,
             style: Style::default(),
             hover_style: None,
             focus_style: None,
@@ -100,7 +98,7 @@ impl TextBox {
     }
 
     pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
-        self.font = Some(font.into());
+        self.style.font = Some(font.into());
         self.mark_dirty();
         self
     }
@@ -322,7 +320,7 @@ impl Widget for TextBox {
 
         let (text_w, text_h) = ctx.text.measure(
             display_text,
-            self.font.as_deref(),
+            style.font.as_deref(),
             font_size,
             style.font_weight.unwrap_or_default(),
             style.font_style.unwrap_or_default(),
@@ -339,7 +337,7 @@ impl Widget for TextBox {
         } else {
             ctx.text.measure(
                 &self.placeholder,
-                self.font.as_deref(),
+                style.font.as_deref(),
                 font_size,
                 style.font_weight.unwrap_or_default(),
                 style.font_style.unwrap_or_default(),
@@ -353,7 +351,7 @@ impl Widget for TextBox {
         let caret_text = &self.content[..self.byte_index_for(self.cursor_index)];
         let (caret_w, _) = ctx.text.measure(
             caret_text,
-            self.font.as_deref(),
+            style.font.as_deref(),
             font_size,
             style.font_weight.unwrap_or_default(),
             style.font_style.unwrap_or_default(),
@@ -493,12 +491,19 @@ impl Widget for TextBox {
         };
         self.content == other.content &&
             self.placeholder == other.placeholder &&
-            self.font == other.font &&
             self.cursor_index == other.cursor_index &&
             format!("{:?}", self.style) == format!("{:?}", other.style) &&
             format!("{:?}", self.hover_style) == format!("{:?}", other.hover_style) &&
             format!("{:?}", self.focus_style) == format!("{:?}", other.focus_style) &&
             format!("{:?}", self.disabled_style) == format!("{:?}", other.disabled_style)
+    }
+
+    /// Overridden because TextBox keeps a separate `computed_style` for
+    /// hover/focus/disabled overlays - the default cascade only updates
+    /// `style`, so without this the inherited font never reaches paint/measure.
+    fn cascade_style(&mut self, parent: &Style) {
+        self.style = parent.inherit_typography(&self.style);
+        self.recompute_style();
     }
 
     fn after_interaction_transfer(&mut self) {
