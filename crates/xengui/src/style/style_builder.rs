@@ -301,6 +301,13 @@ pub trait StyleBuilder: Sized {
         self
     }
 
+    fn scrollbar_thumb_radius(mut self, radius: f32) -> Self {
+        self.style_mut().scrollbar.get_or_insert_with(ScrollbarStyle::default).thumb_radius =
+            Some(radius);
+        self.mark_dirty();
+        self
+    }
+
     fn scrollbar_track_color(mut self, color: Color) -> Self {
         self.style_mut().scrollbar.get_or_insert_with(ScrollbarStyle::default).track_color =
             Some(color);

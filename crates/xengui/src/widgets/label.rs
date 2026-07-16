@@ -203,7 +203,7 @@ impl Label {
             None
         };
 
-        let base = self.inherited_style.overlay(&self.style);
+        let base = self.inherited_style.inherit_style(&self.style);
 
         self.computed_style = match patch {
             Some(patch) => base.overlay(patch),

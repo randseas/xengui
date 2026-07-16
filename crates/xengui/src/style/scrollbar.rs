@@ -1,5 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
-use super::Color;
+use crate::Color;
 
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct ScrollbarStyle {
@@ -9,6 +8,7 @@ pub struct ScrollbarStyle {
     pub button_color: Option<Color>,
     pub arrow_color: Option<Color>,
     pub min_thumb_length: Option<f32>,
+    pub thumb_radius: Option<f32>,
 }
 
 impl ScrollbarStyle {
@@ -20,6 +20,7 @@ impl ScrollbarStyle {
             button_color: patch.button_color.or(self.button_color),
             arrow_color: patch.arrow_color.or(self.arrow_color),
             min_thumb_length: patch.min_thumb_length.or(self.min_thumb_length),
+            thumb_radius: patch.thumb_radius.or(self.thumb_radius),
         }
     }
 
@@ -33,6 +34,7 @@ impl ScrollbarStyle {
             button_color: self.button_color.unwrap_or(thumb_color),
             arrow_color: self.arrow_color.unwrap_or(Color::WHITE),
             min_thumb_length: self.min_thumb_length.unwrap_or(thickness * 1.5),
+            thumb_radius: self.thumb_radius.unwrap_or(thickness * 0.5),
         }
     }
 }
@@ -45,6 +47,7 @@ pub struct ResolvedScrollbar {
     pub button_color: Color,
     pub arrow_color: Color,
     pub min_thumb_length: f32,
+    pub thumb_radius: f32,
 }
 
 impl Default for ResolvedScrollbar {

@@ -222,7 +222,7 @@ impl View {
             None
         };
 
-        let base = self.inherited_style.overlay(&self.style);
+        let base = self.inherited_style.inherit_style(&self.style);
 
         self.computed_style = match patch {
             Some(patch) => base.overlay(patch),
@@ -366,15 +366,15 @@ impl View {
         &mut self,
         delta: MouseScrollDelta,
         position: (f32, f32),
-        ctx: &mut EventCtx
+        ctx: &mut EventCtx,
+        scroll_step: f32
     ) -> bool {
         if !self.hit_test(position) || (!self.is_scrollable_x() && !self.is_scrollable_y()) {
             return false;
         }
 
-        const LINE_HEIGHT: f32 = 40.0;
         let (raw_dx, raw_dy) = match delta {
-            MouseScrollDelta::LineDelta(x, y) => (x * LINE_HEIGHT, y * LINE_HEIGHT),
+            MouseScrollDelta::LineDelta(x, y) => (x * scroll_step, y * scroll_step),
             MouseScrollDelta::PixelDelta(pos) => (pos.x as f32, pos.y as f32),
         };
 
@@ -393,10 +393,14 @@ impl View {
         let current = self.scroll_target.get();
         let next = self.clamp_offset((current.0 - dx, current.1 - dy));
 
-        if next != current {
-            self.start_scroll_animation(next, ctx);
+        // A no-op scroll (already at the edge, or this widget inherited a
+        // scrollable style from an ancestor without actually overflowing)
+        // must report unhandled so the event bubbles up to a real scrollable parent.
+        if next == current {
+            return false;
         }
 
+        self.start_scroll_animation(next, ctx);
         true
     }
 
@@ -413,23 +417,33 @@ impl View {
 
         match state {
             ElementState::Pressed => {
+                let target = self.scroll_target.get();
+
                 if let Some((up, down)) = self.vertical_buttons() {
                     if point_in_rect(position, up) {
-                        self.nudge(0.0, -self.scroll_step, ctx);
+                        if target.1 > 0.0 {
+                            self.nudge(0.0, -self.scroll_step, ctx);
+                        }
                         return true;
                     }
                     if point_in_rect(position, down) {
-                        self.nudge(0.0, self.scroll_step, ctx);
+                        if target.1 < self.max_scroll_y() {
+                            self.nudge(0.0, self.scroll_step, ctx);
+                        }
                         return true;
                     }
                 }
                 if let Some((left, right)) = self.horizontal_buttons() {
                     if point_in_rect(position, left) {
-                        self.nudge(-self.scroll_step, 0.0, ctx);
+                        if target.0 > 0.0 {
+                            self.nudge(-self.scroll_step, 0.0, ctx);
+                        }
                         return true;
                     }
                     if point_in_rect(position, right) {
-                        self.nudge(self.scroll_step, 0.0, ctx);
+                        if target.0 < self.max_scroll_x() {
+                            self.nudge(self.scroll_step, 0.0, ctx);
+                        }
                         return true;
                     }
                 }
@@ -455,6 +469,36 @@ impl View {
                     );
                     return true;
                 }
+
+                // Clicking an empty stretch of track jumps the thumb straight
+                // to that point instead of requiring a drag or repeated nudges.
+                if let Some((track_y, track_h)) = self.vertical_track_bounds() {
+                    let t = self.resolved_scrollbar().thickness;
+                    let b = self.layout_box;
+                    if point_in_rect(position, (b.x + b.width - t, track_y, t, track_h)) {
+                        if let Some(target_y) = self.vertical_track_offset_for(position.1) {
+                            let next = self.clamp_offset((target.0, target_y));
+                            if next != target {
+                                self.start_scroll_animation(next, ctx);
+                            }
+                        }
+                        return true;
+                    }
+                }
+                if let Some((track_x, track_w)) = self.horizontal_track_bounds() {
+                    let t = self.resolved_scrollbar().thickness;
+                    let b = self.layout_box;
+                    if point_in_rect(position, (track_x, b.y + b.height - t, track_w, t)) {
+                        if let Some(target_x) = self.horizontal_track_offset_for(position.0) {
+                            let next = self.clamp_offset((target_x, target.1));
+                            if next != target {
+                                self.start_scroll_animation(next, ctx);
+                            }
+                        }
+                        return true;
+                    }
+                }
+
                 false
             }
             ElementState::Released => {
@@ -467,6 +511,28 @@ impl View {
                 }
             }
         }
+    }
+
+    fn vertical_track_offset_for(&self, mouse_y: f32) -> Option<f32> {
+        let (track_y, track_h) = self.vertical_track_bounds()?;
+        let b = self.layout_box;
+        let sb = self.resolved_scrollbar();
+        let content_h = self.content_size.get().1.max(b.height);
+        let thumb_h = ((track_h * b.height) / content_h).max(sb.min_thumb_length).min(track_h);
+        let travel = (track_h - thumb_h).max(1.0);
+        let progress = ((mouse_y - track_y - thumb_h * 0.5) / travel).clamp(0.0, 1.0);
+        Some(progress * self.max_scroll_y())
+    }
+
+    fn horizontal_track_offset_for(&self, mouse_x: f32) -> Option<f32> {
+        let (track_x, track_w) = self.horizontal_track_bounds()?;
+        let b = self.layout_box;
+        let sb = self.resolved_scrollbar();
+        let content_w = self.content_size.get().0.max(b.width);
+        let thumb_w = ((track_w * b.width) / content_w).max(sb.min_thumb_length).min(track_w);
+        let travel = (track_w - thumb_w).max(1.0);
+        let progress = ((mouse_x - track_x - thumb_w * 0.5) / travel).clamp(0.0, 1.0);
+        Some(progress * self.max_scroll_x())
     }
 
     fn handle_scrollbar_drag(&mut self, position: (f32, f32), ctx: &mut EventCtx) -> bool {
@@ -680,7 +746,7 @@ impl Widget for View {
                 position: (x, y),
                 size: (w, h),
                 background: Some(Background::Color(sb.thumb_color)),
-                border_radius: Some(Length::px(t * 0.5)),
+                border_radius: Some(Length::px(sb.thumb_radius)),
                 border_width: None,
                 border_color: None,
                 clip_rect: None,
@@ -703,7 +769,7 @@ impl Widget for View {
                 position: (x, y),
                 size: (w, h),
                 background: Some(Background::Color(sb.thumb_color)),
-                border_radius: Some(Length::px(t * 0.5)),
+                border_radius: Some(Length::px(sb.thumb_radius)),
                 border_width: None,
                 border_color: None,
                 clip_rect: None,
@@ -711,16 +777,22 @@ impl Widget for View {
         }
 
         if let Some((up, down)) = self.vertical_buttons() {
-            for (rect, dir) in [
-                (up, ArrowDirection::Up),
-                (down, ArrowDirection::Down),
+            let target = self.scroll_target.get();
+            let button_radius = Length::px((t * 0.35).max(2.0));
+
+            for (rect, dir, disabled) in [
+                (up, ArrowDirection::Up, target.1 <= 0.0),
+                (down, ArrowDirection::Down, target.1 >= self.max_scroll_y()),
             ] {
                 let (x, y, w, h) = rect;
+                let dim = if disabled { 0.35 } else { 1.0 };
                 ctx.draw_rect(RectCommand {
                     position: (x, y),
                     size: (w, h),
-                    background: Some(Background::Color(sb.button_color)),
-                    border_radius: Some(Length::px(2.0)),
+                    background: Some(
+                        Background::Color(sb.button_color.with_alpha_f32(sb.button_color.a() * dim))
+                    ),
+                    border_radius: Some(button_radius),
                     border_width: None,
                     border_color: None,
                     clip_rect: None,
@@ -730,23 +802,29 @@ impl Widget for View {
                     p0,
                     p1,
                     p2,
-                    color: sb.arrow_color,
+                    color: sb.arrow_color.with_alpha_f32(sb.arrow_color.a() * dim),
                     clip_rect: None,
                 });
             }
         }
 
         if let Some((left, right)) = self.horizontal_buttons() {
-            for (rect, dir) in [
-                (left, ArrowDirection::Left),
-                (right, ArrowDirection::Right),
+            let target = self.scroll_target.get();
+            let button_radius = Length::px((t * 0.35).max(2.0));
+
+            for (rect, dir, disabled) in [
+                (left, ArrowDirection::Left, target.0 <= 0.0),
+                (right, ArrowDirection::Right, target.0 >= self.max_scroll_x()),
             ] {
                 let (x, y, w, h) = rect;
+                let dim = if disabled { 0.35 } else { 1.0 };
                 ctx.draw_rect(RectCommand {
                     position: (x, y),
                     size: (w, h),
-                    background: Some(Background::Color(sb.button_color)),
-                    border_radius: Some(Length::px(2.0)),
+                    background: Some(
+                        Background::Color(sb.button_color.with_alpha_f32(sb.button_color.a() * dim))
+                    ),
+                    border_radius: Some(button_radius),
                     border_width: None,
                     border_color: None,
                     clip_rect: None,
@@ -756,7 +834,7 @@ impl Widget for View {
                     p0,
                     p1,
                     p2,
-                    color: sb.arrow_color,
+                    color: sb.arrow_color.with_alpha_f32(sb.arrow_color.a() * dim),
                     clip_rect: None,
                 });
             }
@@ -774,7 +852,7 @@ impl Widget for View {
 
         if
             let InputEvent::MouseWheel { delta, position } = event &&
-            self.handle_wheel(*delta, *position, ctx)
+            self.handle_wheel(*delta, *position, ctx, self.scroll_step)
         {
             return EventStatus::Handled;
         }
@@ -822,11 +900,8 @@ impl Widget for View {
         self.inherited_style = parent.clone();
         self.recompute_style();
 
-        // Previously this never recursed, so children never received the
-        // parent's cascaded style (font, scrollbar, etc.) past the first level.
-        let base = self.inherited_style.overlay(&self.style);
         for child in self.children.iter_mut() {
-            child.cascade_style(&base);
+            child.cascade_style(&self.computed_style);
         }
     }
 

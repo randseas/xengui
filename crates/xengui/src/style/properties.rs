@@ -172,10 +172,11 @@ impl Style {
         }
     }
 
-    /// Fills in `patch`'s unset typography fields using `self` as the
-    /// inherited parent style; every other field always comes from `patch`.
-    pub fn inherit_typography(&self, patch: &Style) -> Style {
+    /// Fills in `patch`'s unset inheritable CSS properties using `self`
+    /// as the parent style. Non-inheritable properties always come from `patch`.
+    pub fn inherit_style(&self, patch: &Style) -> Style {
         Style {
+            // Inherited properties
             color: patch.color.or(self.color),
             font: patch.font.clone().or_else(|| self.font.clone()),
             font_size: patch.font_size.or(self.font_size),
@@ -185,6 +186,20 @@ impl Style {
             text_decoration: patch.text_decoration.or(self.text_decoration),
             letter_spacing: patch.letter_spacing.or(self.letter_spacing),
             line_height: patch.line_height.or(self.line_height),
+
+            // outline inherits in CSS
+            outline: patch.outline.overlay(&self.outline),
+            focus_outline: patch.focus_outline.overlay(&self.focus_outline),
+
+            // scrollbar colors may reasonably inherit in XenGui
+            scrollbar: match (&self.scrollbar, &patch.scrollbar) {
+                (Some(base), Some(p)) => Some(base.overlay(p)),
+                (None, Some(p)) => Some(*p),
+                (Some(base), None) => Some(*base),
+                (None, None) => None,
+            },
+
+            // Everything else is NOT inherited.
             ..patch.clone()
         }
     }

@@ -241,17 +241,10 @@ pub trait Widget: Any {
         false
     }
 
-    /// Pushes inheritable typography down the tree: any typography field
-    /// left unset on this widget's own style is filled in from `parent`,
-    /// then the merged result becomes the `parent` passed to its children.
     fn cascade_style(&mut self, parent: &Style) {
-        let merged = parent.inherit_typography(self.style());
-        *self.style_mut() = merged;
-
-        let inherited = self.style().clone();
         if let Some(children) = self.children_mut() {
             for child in children.iter_mut() {
-                child.cascade_style(&inherited);
+                child.cascade_style(parent);
             }
         }
     }

@@ -476,7 +476,12 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     self.input.hovered_path = new_hover.clone();
                 }
 
-                if let Some(path) = &new_hover {
+                // While a button is held, movement is captured by the widget that was
+                // pressed, so drags (e.g. a scrollbar thumb) keep tracking the cursor
+                // even after it leaves that widget's bounds.
+                let move_target = self.input.pressed_path.clone().or(new_hover);
+
+                if let Some(path) = &move_target {
                     let mut ctx = EventCtx::new();
                     dispatch_positional(
                         &mut self.root,
@@ -499,9 +504,15 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 let Some(point) = self.input.cursor_pos else {
                     return;
                 };
-                let path = self.input.hovered_path
-                    .clone()
-                    .or_else(|| hit_test_path(&self.root, point));
+
+                // On release, target the widget that was actually pressed (mouse
+                // capture) rather than re-hit-testing the current cursor position -
+                // the cursor may have left that widget's bounds during a drag.
+                let path = if state == winit::event::ElementState::Released {
+                    self.input.pressed_path.clone()
+                } else {
+                    self.input.hovered_path.clone().or_else(|| hit_test_path(&self.root, point))
+                };
 
                 if state == winit::event::ElementState::Pressed {
                     self.input.pressed_path = path.clone();
@@ -619,7 +630,25 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 }
             }
             WindowEvent::Focused(has_focus) if !has_focus => {
-                self.input.pressed_path = None;
+                // Window losing focus mid-drag (e.g. alt-tab while holding the
+                // scrollbar thumb) never delivers a real mouse-up, so synthesize
+                // one to the captured widget before clearing capture - otherwise
+                // it's left thinking the button is still held.
+                if let Some(path) = self.input.pressed_path.take() {
+                    let point = self.input.cursor_pos.unwrap_or((0.0, 0.0));
+                    let mut ctx = EventCtx::new();
+                    dispatch_positional(
+                        &mut self.root,
+                        &path,
+                        &(InputEvent::MouseInput {
+                            state: winit::event::ElementState::Released,
+                            button: winit::event::MouseButton::Left,
+                            position: point,
+                        }),
+                        &mut ctx
+                    );
+                    self.apply_event_ctx(ctx);
+                }
             }
             _ => (),
         }
