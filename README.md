@@ -148,11 +148,7 @@ trunk serve
 
 ## Demo
 
-Demo is available at: [https://xengui.vercel.app](https://xengui.vercel.app)
-
-## Documentation
-
-Docs are available at: [https://xengui.vercel.app/docs](https://xengui.vercel.app/docs)
+Demo: [https://xengui.vercel.app](https://xengui.vercel.app)
 
 ## License
 
