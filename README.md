@@ -80,7 +80,6 @@ xengui = "0.2.4"
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Demo](#demo)
-- [Documentation](#documentation)
 
 ## Quick Start
 
