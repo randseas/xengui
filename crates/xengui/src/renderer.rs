@@ -8,6 +8,7 @@ use crate::{
     RectPipeline,
     RenderCache,
     TextPipeline,
+    TrianglePipeline,
     Widget,
 };
 use std::{ collections::HashSet, sync::Arc };
@@ -22,6 +23,7 @@ pub struct XenRenderer {
     pub config: wgpu::SurfaceConfiguration,
     pub text_pipeline: TextPipeline,
     pub rect_pipeline: RectPipeline,
+    pub triangle_pipeline: TrianglePipeline,
     pub image_pipeline: ImagePipeline,
     pub render_cache: RenderCache,
 }
@@ -107,6 +109,7 @@ impl XenRenderer {
 
         let text_pipeline = TextPipeline::new(&device, &queue, surface_format, user_fonts)?;
         let rect_pipeline = RectPipeline::new(&device, surface_format);
+        let triangle_pipeline = TrianglePipeline::new(&device, surface_format);
         let image_pipeline = ImagePipeline::new(&device, surface_format);
 
         let alpha_mode = surface_caps.alpha_modes
@@ -146,6 +149,7 @@ impl XenRenderer {
             config,
             text_pipeline,
             rect_pipeline,
+            triangle_pipeline,
             image_pipeline,
             render_cache: RenderCache::new(),
         })
@@ -246,11 +250,13 @@ impl XenRenderer {
             }
 
             let mut rect_cmds = Vec::with_capacity(commands.len());
+            let mut triangle_cmds = Vec::new();
             let mut image_cmds = Vec::new();
             let mut text_cmds = Vec::new();
             for command in commands.into_iter() {
                 match command {
                     DrawCommand::Rect(cmd) => rect_cmds.push(cmd),
+                    DrawCommand::Triangle(cmd) => triangle_cmds.push(cmd),
                     DrawCommand::Text(cmd) => text_cmds.push(cmd),
                     DrawCommand::Image(cmd) => image_cmds.push(*cmd),
                 }
@@ -263,6 +269,15 @@ impl XenRenderer {
                 self.config.width,
                 self.config.height,
                 &rect_cmds
+            );
+
+            self.triangle_pipeline.draw_batch(
+                &self.device,
+                &self.queue,
+                &mut render_pass,
+                self.config.width,
+                self.config.height,
+                &triangle_cmds
             );
 
             self.image_pipeline.draw_batch(
@@ -445,6 +460,7 @@ fn apply_clip(command: &mut DrawCommand, clip_rect: Option<(f32, f32, f32, f32)>
         DrawCommand::Rect(cmd) => &mut cmd.clip_rect,
         DrawCommand::Image(cmd) => &mut cmd.clip_rect,
         DrawCommand::Text(cmd) => &mut cmd.clip_rect,
+        DrawCommand::Triangle(cmd) => &mut cmd.clip_rect,
     };
     *target = Some(clip_intersect(*target, ancestor_clip));
 }

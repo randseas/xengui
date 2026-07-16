@@ -21,6 +21,7 @@ use super::{
     LetterSpacing,
     LineHeight,
     Position,
+    ScrollbarStyle,
     Size,
     TextAlign,
     TextDecoration,
@@ -100,6 +101,9 @@ pub struct Style {
     pub grid_template_rows: Option<Vec<GridTrack>>,
     pub grid_column: Option<GridPlacement>,
     pub grid_row: Option<GridPlacement>,
+
+    // Scrollbar
+    pub scrollbar: Option<ScrollbarStyle>,
 }
 
 impl Style {
@@ -158,6 +162,13 @@ impl Style {
                 .or_else(|| self.grid_template_rows.clone()),
             grid_column: patch.grid_column.or(self.grid_column),
             grid_row: patch.grid_row.or(self.grid_row),
+
+            scrollbar: match (&self.scrollbar, &patch.scrollbar) {
+                (Some(base), Some(p)) => Some(base.overlay(p)),
+                (None, Some(p)) => Some(*p),
+                (Some(base), None) => Some(*base),
+                (None, None) => None,
+            },
         }
     }
 

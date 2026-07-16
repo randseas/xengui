@@ -17,6 +17,7 @@ use super::{
     Length,
     LineHeight,
     Position,
+    ScrollbarStyle,
     Size,
     Style,
     TextAlign,
@@ -275,6 +276,48 @@ pub trait StyleBuilder: Sized {
 
     fn grid_row(mut self, row: GridPlacement) -> Self {
         self.style_mut().grid_row = Some(row);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_thickness(mut self, thickness: f32) -> Self {
+        self.style_mut().scrollbar.get_or_insert_with(ScrollbarStyle::default).thickness =
+            Some(thickness);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_min_thumb_length(mut self, length: f32) -> Self {
+        self.style_mut().scrollbar.get_or_insert_with(ScrollbarStyle::default).min_thumb_length =
+            Some(length);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_thumb_color(mut self, color: Color) -> Self {
+        self.style_mut().scrollbar.get_or_insert_with(ScrollbarStyle::default).thumb_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_track_color(mut self, color: Color) -> Self {
+        self.style_mut().scrollbar.get_or_insert_with(ScrollbarStyle::default).track_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_button_color(mut self, color: Color) -> Self {
+        self.style_mut().scrollbar.get_or_insert_with(ScrollbarStyle::default).button_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_arrow_color(mut self, color: Color) -> Self {
+        self.style_mut().scrollbar.get_or_insert_with(ScrollbarStyle::default).arrow_color =
+            Some(color);
         self.mark_dirty();
         self
     }

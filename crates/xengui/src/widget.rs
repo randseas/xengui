@@ -263,4 +263,10 @@ pub trait Widget: Any {
     fn blink_interval(&self) -> Option<std::time::Duration> {
         None
     }
+
+    /// Whether this widget needs a continuous per-frame animation callback
+    /// (`InputEvent::AnimationTick`) right now, independent of focus.
+    fn wants_animation_frame(&self) -> bool {
+        false
+    }
 }

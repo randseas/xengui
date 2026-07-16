@@ -42,8 +42,18 @@ pub struct ImageCommand {
 }
 
 #[derive(Clone, Debug)]
+pub struct TriangleCommand {
+    pub p0: (f32, f32),
+    pub p1: (f32, f32),
+    pub p2: (f32, f32),
+    pub color: Color,
+    pub clip_rect: Option<(f32, f32, f32, f32)>,
+}
+
+#[derive(Clone, Debug)]
 pub enum DrawCommand {
     Rect(RectCommand),
+    Triangle(TriangleCommand),
     Text(Box<TextCommand>),
     Image(Box<ImageCommand>),
 }

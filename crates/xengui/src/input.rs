@@ -72,6 +72,9 @@ pub enum InputEvent {
     },
     FocusLost,
     BlinkTick,
+    AnimationTick {
+        dt: f32,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -299,6 +302,37 @@ pub fn dispatch_to_path(
     match find_widget_mut(tree, path) {
         Some(widget) => widget.event(event, ctx),
         None => EventStatus::Ignored,
+    }
+}
+
+pub fn any_wants_animation(tree: &[Box<dyn Widget>]) -> bool {
+    tree.iter().any(|w| widget_wants_animation_recursive(w.as_ref()))
+}
+
+fn widget_wants_animation_recursive(widget: &dyn Widget) -> bool {
+    if widget.wants_animation_frame() {
+        return true;
+    }
+    widget
+        .children()
+        .iter()
+        .any(|c| widget_wants_animation_recursive(c.as_ref()))
+}
+
+pub fn dispatch_animation_tick(tree: &mut [Box<dyn Widget>], dt: f32, ctx: &mut EventCtx) {
+    for widget in tree.iter_mut() {
+        dispatch_animation_tick_recursive(widget.as_mut(), dt, ctx);
+    }
+}
+
+fn dispatch_animation_tick_recursive(widget: &mut dyn Widget, dt: f32, ctx: &mut EventCtx) {
+    if widget.wants_animation_frame() {
+        widget.event(&(InputEvent::AnimationTick { dt }), ctx);
+    }
+    if let Some(children) = widget.children_mut() {
+        for child in children.iter_mut() {
+            dispatch_animation_tick_recursive(child.as_mut(), dt, ctx);
+        }
     }
 }
 

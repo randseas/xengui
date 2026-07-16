@@ -8,8 +8,10 @@ use crate::{
     ModifiersState,
     Widget,
     XenRenderer,
+    any_wants_animation,
     collect_focusable_paths,
     convert_keyboard_event,
+    dispatch_animation_tick,
     dispatch_positional,
     dispatch_to_path,
     find_widget_mut,
@@ -108,6 +110,7 @@ pub struct App {
 
     component: Option<std::rc::Rc<dyn Fn() -> Box<dyn Widget>>>,
     next_blink: Option<Instant>,
+    next_animation: Option<Instant>,
     reconcile_work: Option<crate::reconciler::WorkLoop>,
 
     #[cfg(target_arch = "wasm32")]
@@ -128,6 +131,7 @@ impl App {
 
             component: None,
             next_blink: None,
+            next_animation: None,
             reconcile_work: None,
 
             #[cfg(target_arch = "wasm32")]
@@ -625,8 +629,6 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         if self.reconcile_work.is_some() {
             let still_pending = self.pump_reconciliation();
             if still_pending {
-                // Keep ticking without blocking on input/window events
-                // until the current reconciliation pass finishes.
                 event_loop.set_control_flow(ControlFlow::Poll);
                 if let Some(window) = &self.window {
                     window.request_redraw();
@@ -634,6 +636,22 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 return;
             }
         }
+
+        // Tree-wide animations (e.g. smooth scrolling) run independently of
+        // keyboard focus, so this is checked before the blink logic below.
+        if any_wants_animation(&self.root) {
+            let now = Instant::now();
+            let dt = now.duration_since(self.next_animation.unwrap_or(now)).as_secs_f32().min(0.05);
+
+            let mut ctx = EventCtx::new();
+            dispatch_animation_tick(&mut self.root, dt, &mut ctx);
+            self.apply_event_ctx(ctx);
+
+            self.next_animation = Some(now);
+            event_loop.set_control_flow(ControlFlow::Poll);
+            return;
+        }
+        self.next_animation = None;
 
         let Some(focused) = self.input.focused_path.clone() else {
             self.next_blink = None;

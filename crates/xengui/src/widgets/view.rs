@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background,
-    Color,
     Constraints,
     EventCtx,
     EventStatus,
@@ -14,16 +13,21 @@ use crate::{
     Overflow,
     PaintContext,
     RectCommand,
+    ResolvedScrollbar,
     Style,
     StyleBuilder,
     StylePatch,
+    TriangleCommand,
     Widget,
 };
 use smol_str::SmolStr;
 use std::cell::Cell;
 use winit::event::{ ElementState, MouseButton, MouseScrollDelta };
 
-const DEFAULT_SCROLLBAR_THICKNESS: f32 = 8.0;
+// Fixed catch-up rate for the exponential-decay scroll animation, tuned so
+// a wheel step settles in roughly a quarter of a second.
+const SCROLL_ANIM_SPEED: f32 = 18.0;
+const SCROLL_ANIM_EPSILON: f32 = 0.25;
 
 #[derive(Clone, Copy)]
 struct ScrollDrag {
@@ -32,10 +36,38 @@ struct ScrollDrag {
     start_offset: f32,
 }
 
+#[derive(Clone, Copy)]
+enum ArrowDirection {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
 fn point_in_rect(point: (f32, f32), rect: (f32, f32, f32, f32)) -> bool {
     let (px, py) = point;
     let (rx, ry, rw, rh) = rect;
     px >= rx && px <= rx + rw && py >= ry && py <= ry + rh
+}
+
+// Builds the three points of a small centered arrow triangle within `rect`,
+// pointing in `direction`.
+fn arrow_triangle(
+    rect: (f32, f32, f32, f32),
+    direction: ArrowDirection
+) -> ((f32, f32), (f32, f32), (f32, f32)) {
+    let (x, y, w, h) = rect;
+    let cx = x + w * 0.5;
+    let cy = y + h * 0.5;
+    let margin = w.min(h) * 0.3;
+    let half = (w.min(h) * 0.5 - margin).max(1.0);
+
+    match direction {
+        ArrowDirection::Up => ((cx, cy - half), (cx - half, cy + half), (cx + half, cy + half)),
+        ArrowDirection::Down => ((cx, cy + half), (cx - half, cy - half), (cx + half, cy - half)),
+        ArrowDirection::Left => ((cx - half, cy), (cx + half, cy - half), (cx + half, cy + half)),
+        ArrowDirection::Right => ((cx + half, cy), (cx - half, cy - half), (cx - half, cy + half)),
+    }
 }
 
 pub struct View {
@@ -55,12 +87,10 @@ pub struct View {
     interaction: Interaction,
 
     scroll_offset: Cell<(f32, f32)>,
+    scroll_target: Cell<(f32, f32)>,
+    scroll_animating: Cell<bool>,
     content_size: Cell<(f32, f32)>,
-    scrollbar_thickness: f32,
-    scrollbar_thumb_color: Option<Color>,
-    scrollbar_track_color: Option<Color>,
     scrollbar_drag: Cell<Option<ScrollDrag>>,
-    scrollbar_button_color: Option<Color>,
     scroll_step: f32,
 }
 
@@ -83,12 +113,10 @@ impl View {
             interaction: Interaction::new(),
 
             scroll_offset: Cell::new((0.0, 0.0)),
+            scroll_target: Cell::new((0.0, 0.0)),
+            scroll_animating: Cell::new(false),
             content_size: Cell::new((0.0, 0.0)),
-            scrollbar_thickness: DEFAULT_SCROLLBAR_THICKNESS,
-            scrollbar_thumb_color: None,
-            scrollbar_track_color: None,
             scrollbar_drag: Cell::new(None),
-            scrollbar_button_color: None,
             scroll_step: 32.0,
         };
 
@@ -178,30 +206,6 @@ impl View {
         self
     }
 
-    pub fn scrollbar_thickness(mut self, thickness: f32) -> Self {
-        self.scrollbar_thickness = thickness;
-        self.mark_dirty();
-        self
-    }
-
-    pub fn scrollbar_thumb_color(mut self, color: Color) -> Self {
-        self.scrollbar_thumb_color = Some(color);
-        self.mark_dirty();
-        self
-    }
-
-    pub fn scrollbar_track_color(mut self, color: Color) -> Self {
-        self.scrollbar_track_color = Some(color);
-        self.mark_dirty();
-        self
-    }
-
-    pub fn scrollbar_button_color(mut self, color: Color) -> Self {
-        self.scrollbar_button_color = Some(color);
-        self.mark_dirty();
-        self
-    }
-
     pub fn scroll_step(mut self, step: f32) -> Self {
         self.scroll_step = step;
         self
@@ -224,6 +228,10 @@ impl View {
             Some(patch) => base.overlay(patch),
             None => base,
         };
+    }
+
+    fn resolved_scrollbar(&self) -> ResolvedScrollbar {
+        self.computed_style.scrollbar.unwrap_or_default().resolve()
     }
 
     fn is_scrollable_x(&self) -> bool {
@@ -264,13 +272,12 @@ impl View {
     }
 
     fn vertical_track_bounds(&self) -> Option<(f32, f32)> {
-        // Returns (track start y, track length) between the up/down buttons
         let (has_x, has_y) = self.scrollbar_visibility();
         if !has_y {
             return None;
         }
         let b = self.layout_box;
-        let t = self.scrollbar_thickness;
+        let t = self.resolved_scrollbar().thickness;
         let full_h = if has_x { b.height - t } else { b.height };
         Some((b.y + t, (full_h - 2.0 * t).max(0.0)))
     }
@@ -281,7 +288,7 @@ impl View {
             return None;
         }
         let b = self.layout_box;
-        let t = self.scrollbar_thickness;
+        let t = self.resolved_scrollbar().thickness;
         let full_w = if has_y { b.width - t } else { b.width };
         Some((b.x + t, (full_w - 2.0 * t).max(0.0)))
     }
@@ -289,40 +296,39 @@ impl View {
     fn vertical_thumb_rect(&self) -> Option<(f32, f32, f32, f32)> {
         let (track_y, track_h) = self.vertical_track_bounds()?;
         let b = self.layout_box;
-        let t = self.scrollbar_thickness;
+        let sb = self.resolved_scrollbar();
         let content_h = self.content_size.get().1.max(b.height);
 
-        let thumb_h = ((track_h * b.height) / content_h).max(t * 1.5).min(track_h);
+        let thumb_h = ((track_h * b.height) / content_h).max(sb.min_thumb_length).min(track_h);
         let max_offset = self.max_scroll_y();
         let progress = if max_offset > 0.0 { self.scroll_offset.get().1 / max_offset } else { 0.0 };
         let thumb_y = track_y + progress * (track_h - thumb_h);
 
-        Some((b.x + b.width - t, thumb_y, t, thumb_h))
+        Some((b.x + b.width - sb.thickness, thumb_y, sb.thickness, thumb_h))
     }
 
     fn horizontal_thumb_rect(&self) -> Option<(f32, f32, f32, f32)> {
         let (track_x, track_w) = self.horizontal_track_bounds()?;
         let b = self.layout_box;
-        let t = self.scrollbar_thickness;
+        let sb = self.resolved_scrollbar();
         let content_w = self.content_size.get().0.max(b.width);
 
-        let thumb_w = ((track_w * b.width) / content_w).max(t * 1.5).min(track_w);
+        let thumb_w = ((track_w * b.width) / content_w).max(sb.min_thumb_length).min(track_w);
         let max_offset = self.max_scroll_x();
         let progress = if max_offset > 0.0 { self.scroll_offset.get().0 / max_offset } else { 0.0 };
         let thumb_x = track_x + progress * (track_w - thumb_w);
 
-        Some((thumb_x, b.y + b.height - t, thumb_w, t))
+        Some((thumb_x, b.y + b.height - sb.thickness, thumb_w, sb.thickness))
     }
 
     #[allow(clippy::type_complexity)]
     fn vertical_buttons(&self) -> Option<((f32, f32, f32, f32), (f32, f32, f32, f32))> {
-        // (up button rect, down button rect)
         let (_, has_y) = self.scrollbar_visibility();
         if !has_y {
             return None;
         }
         let b = self.layout_box;
-        let t = self.scrollbar_thickness;
+        let t = self.resolved_scrollbar().thickness;
         let (has_x, _) = self.scrollbar_visibility();
         let bottom = if has_x { b.y + b.height - t } else { b.y + b.height };
         Some(((b.x + b.width - t, b.y, t, t), (b.x + b.width - t, bottom - t, t, t)))
@@ -330,25 +336,29 @@ impl View {
 
     #[allow(clippy::type_complexity)]
     fn horizontal_buttons(&self) -> Option<((f32, f32, f32, f32), (f32, f32, f32, f32))> {
-        // (left button rect, right button rect)
         let (has_x, _) = self.scrollbar_visibility();
         if !has_x {
             return None;
         }
         let b = self.layout_box;
-        let t = self.scrollbar_thickness;
+        let t = self.resolved_scrollbar().thickness;
         let (_, has_y) = self.scrollbar_visibility();
         let right = if has_y { b.x + b.width - t } else { b.x + b.width };
         Some(((b.x, b.y + b.height - t, t, t), (right - t, b.y + b.height - t, t, t)))
     }
 
+    fn start_scroll_animation(&mut self, target: (f32, f32), ctx: &mut EventCtx) {
+        self.scroll_target.set(target);
+        self.scroll_animating.set(true);
+        self.dirty = true;
+        ctx.request_redraw();
+    }
+
     fn nudge(&mut self, dx: f32, dy: f32, ctx: &mut EventCtx) {
-        let current = self.scroll_offset.get();
+        let current = self.scroll_target.get();
         let next = self.clamp_offset((current.0 + dx, current.1 + dy));
         if next != current {
-            self.scroll_offset.set(next);
-            self.dirty = true;
-            ctx.request_redraw();
+            self.start_scroll_animation(next, ctx);
         }
     }
 
@@ -362,16 +372,12 @@ impl View {
             return false;
         }
 
-        // Trackpads report precise pixel deltas; wheel mice report line
-        // counts, converted here to a comfortable pixel step per line.
         const LINE_HEIGHT: f32 = 40.0;
         let (raw_dx, raw_dy) = match delta {
             MouseScrollDelta::LineDelta(x, y) => (x * LINE_HEIGHT, y * LINE_HEIGHT),
             MouseScrollDelta::PixelDelta(pos) => (pos.x as f32, pos.y as f32),
         };
 
-        // A vertical-only wheel scrolls horizontally when there is no
-        // vertical overflow, matching common desktop conventions.
         let (dx, dy) = if self.is_scrollable_y() {
             (raw_dx, raw_dy)
         } else {
@@ -384,14 +390,11 @@ impl View {
             return false;
         }
 
-        let current = self.scroll_offset.get();
-        // Flip the signs below if scroll direction feels inverted on your platform.
+        let current = self.scroll_target.get();
         let next = self.clamp_offset((current.0 - dx, current.1 - dy));
 
         if next != current {
-            self.scroll_offset.set(next);
-            self.dirty = true;
-            ctx.request_redraw();
+            self.start_scroll_animation(next, ctx);
         }
 
         true
@@ -431,6 +434,7 @@ impl View {
                     }
                 }
                 if let Some(thumb) = self.vertical_thumb_rect() && point_in_rect(position, thumb) {
+                    self.scroll_animating.set(false);
                     self.scrollbar_drag.set(
                         Some(ScrollDrag {
                             vertical: true,
@@ -441,6 +445,7 @@ impl View {
                     return true;
                 }
                 if let Some(thumb) = self.horizontal_thumb_rect() && point_in_rect(position, thumb) {
+                    self.scroll_animating.set(false);
                     self.scrollbar_drag.set(
                         Some(ScrollDrag {
                             vertical: false,
@@ -469,7 +474,7 @@ impl View {
             return false;
         };
 
-        let t = self.scrollbar_thickness;
+        let t = self.resolved_scrollbar().thickness;
 
         let (track_len, content_len, viewport_len, max_offset) = if drag.vertical {
             let (_, track) = self.vertical_track_bounds().unwrap_or((0.0, 0.0));
@@ -503,12 +508,35 @@ impl View {
         };
 
         if next != current {
+            // Thumb drag tracks the cursor 1:1 - no easing here, only wheel
+            // and button nudges go through the animated path.
             self.scroll_offset.set(next);
+            self.scroll_target.set(next);
             self.dirty = true;
             ctx.request_redraw();
         }
 
         true
+    }
+
+    fn advance_scroll_animation(&mut self, dt: f32, ctx: &mut EventCtx) {
+        let target = self.scroll_target.get();
+        let current = self.scroll_offset.get();
+
+        let t = (1.0 - (-SCROLL_ANIM_SPEED * dt).exp()).clamp(0.0, 1.0);
+        let next = (current.0 + (target.0 - current.0) * t, current.1 + (target.1 - current.1) * t);
+
+        let remaining = ((target.0 - next.0).powi(2) + (target.1 - next.1).powi(2)).sqrt();
+
+        if remaining < SCROLL_ANIM_EPSILON {
+            self.scroll_offset.set(target);
+            self.scroll_animating.set(false);
+        } else {
+            self.scroll_offset.set(next);
+        }
+
+        self.dirty = true;
+        ctx.request_redraw();
     }
 }
 
@@ -592,8 +620,8 @@ impl Widget for View {
         self.content_size.set(size);
         // Re-clamp in case the scrollable range shrank (e.g. children were
         // removed, or the viewport was resized).
-        let clamped = self.clamp_offset(self.scroll_offset.get());
-        self.scroll_offset.set(clamped);
+        self.scroll_offset.set(self.clamp_offset(self.scroll_offset.get()));
+        self.scroll_target.set(self.clamp_offset(self.scroll_target.get()));
     }
 
     fn clip_children(&self) -> Option<(f32, f32, f32, f32)> {
@@ -632,17 +660,16 @@ impl Widget for View {
     }
 
     fn paint_overlay(&self, ctx: &mut PaintContext) {
-        let track_color = self.scrollbar_track_color.unwrap_or(Color::TRANSPARENT);
-        let thumb_color = self.scrollbar_thumb_color.unwrap_or(Color::NEUTRAL_400.with_alpha(160));
+        let sb = self.resolved_scrollbar();
         let b = self.layout_box;
-        let t = self.scrollbar_thickness;
+        let t = sb.thickness;
 
         if let Some((x, y, w, h)) = self.vertical_thumb_rect() {
-            if track_color.a() > 0.0 {
+            if sb.track_color.a() > 0.0 {
                 ctx.draw_rect(RectCommand {
                     position: (b.x + b.width - t, b.y),
                     size: (t, b.height),
-                    background: Some(Background::Color(track_color)),
+                    background: Some(Background::Color(sb.track_color)),
                     border_radius: None,
                     border_width: None,
                     border_color: None,
@@ -652,7 +679,7 @@ impl Widget for View {
             ctx.draw_rect(RectCommand {
                 position: (x, y),
                 size: (w, h),
-                background: Some(Background::Color(thumb_color)),
+                background: Some(Background::Color(sb.thumb_color)),
                 border_radius: Some(Length::px(t * 0.5)),
                 border_width: None,
                 border_color: None,
@@ -661,11 +688,11 @@ impl Widget for View {
         }
 
         if let Some((x, y, w, h)) = self.horizontal_thumb_rect() {
-            if track_color.a() > 0.0 {
+            if sb.track_color.a() > 0.0 {
                 ctx.draw_rect(RectCommand {
                     position: (b.x, b.y + b.height - t),
                     size: (b.width, t),
-                    background: Some(Background::Color(track_color)),
+                    background: Some(Background::Color(sb.track_color)),
                     border_radius: None,
                     border_width: None,
                     border_color: None,
@@ -675,7 +702,7 @@ impl Widget for View {
             ctx.draw_rect(RectCommand {
                 position: (x, y),
                 size: (w, h),
-                background: Some(Background::Color(thumb_color)),
+                background: Some(Background::Color(sb.thumb_color)),
                 border_radius: Some(Length::px(t * 0.5)),
                 border_width: None,
                 border_color: None,
@@ -684,30 +711,52 @@ impl Widget for View {
         }
 
         if let Some((up, down)) = self.vertical_buttons() {
-            let btn_color = self.scrollbar_button_color.unwrap_or(thumb_color);
-            for (x, y, w, h) in [up, down] {
+            for (rect, dir) in [
+                (up, ArrowDirection::Up),
+                (down, ArrowDirection::Down),
+            ] {
+                let (x, y, w, h) = rect;
                 ctx.draw_rect(RectCommand {
                     position: (x, y),
                     size: (w, h),
-                    background: Some(Background::Color(btn_color)),
+                    background: Some(Background::Color(sb.button_color)),
                     border_radius: Some(Length::px(2.0)),
                     border_width: None,
                     border_color: None,
+                    clip_rect: None,
+                });
+                let (p0, p1, p2) = arrow_triangle(rect, dir);
+                ctx.draw_triangle(TriangleCommand {
+                    p0,
+                    p1,
+                    p2,
+                    color: sb.arrow_color,
                     clip_rect: None,
                 });
             }
         }
 
         if let Some((left, right)) = self.horizontal_buttons() {
-            let btn_color = self.scrollbar_button_color.unwrap_or(thumb_color);
-            for (x, y, w, h) in [left, right] {
+            for (rect, dir) in [
+                (left, ArrowDirection::Left),
+                (right, ArrowDirection::Right),
+            ] {
+                let (x, y, w, h) = rect;
                 ctx.draw_rect(RectCommand {
                     position: (x, y),
                     size: (w, h),
-                    background: Some(Background::Color(btn_color)),
+                    background: Some(Background::Color(sb.button_color)),
                     border_radius: Some(Length::px(2.0)),
                     border_width: None,
                     border_color: None,
+                    clip_rect: None,
+                });
+                let (p0, p1, p2) = arrow_triangle(rect, dir);
+                ctx.draw_triangle(TriangleCommand {
+                    p0,
+                    p1,
+                    p2,
+                    color: sb.arrow_color,
                     clip_rect: None,
                 });
             }
@@ -715,6 +764,14 @@ impl Widget for View {
     }
 
     fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {
+        if let InputEvent::AnimationTick { dt } = event {
+            if self.scroll_animating.get() {
+                self.advance_scroll_animation(*dt, ctx);
+                return EventStatus::Handled;
+            }
+            return EventStatus::Ignored;
+        }
+
         if
             let InputEvent::MouseWheel { delta, position } = event &&
             self.handle_wheel(*delta, *position, ctx)
@@ -764,6 +821,13 @@ impl Widget for View {
     fn cascade_style(&mut self, parent: &Style) {
         self.inherited_style = parent.clone();
         self.recompute_style();
+
+        // Previously this never recursed, so children never received the
+        // parent's cascaded style (font, scrollbar, etc.) past the first level.
+        let base = self.inherited_style.overlay(&self.style);
+        for child in self.children.iter_mut() {
+            child.cascade_style(&base);
+        }
     }
 
     fn after_interaction_transfer(&mut self) {
@@ -773,7 +837,13 @@ impl Widget for View {
     fn transfer_measured_state(&mut self, old: &dyn Widget) {
         if let Some(old) = old.as_any().downcast_ref::<View>() {
             self.scroll_offset.set(old.scroll_offset.get());
+            self.scroll_target.set(old.scroll_target.get());
+            self.scroll_animating.set(old.scroll_animating.get());
             self.content_size.set(old.content_size.get());
         }
+    }
+
+    fn wants_animation_frame(&self) -> bool {
+        self.scroll_animating.get()
     }
 }
