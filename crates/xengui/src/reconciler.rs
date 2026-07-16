@@ -166,14 +166,11 @@ impl WorkLoop {
         let content_equal = new_node.content_eq(old_node.as_ref());
         new_node.after_interaction_transfer();
 
-        log::trace!("{} content_equal={}", new_node.debug_name(), content_equal);
-
         if content_equal {
-            log::trace!("reused");
             new_node.transfer_measured_state(old_node.as_ref());
             new_node.set_dirty(false);
         }
-        
+
         let old_children: *const [Box<dyn Widget>] = old_node.children() as *const _;
 
         if let Some(child_slot) = frame.new_siblings[idx].children_mut() && !child_slot.is_empty() {

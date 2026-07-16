@@ -326,12 +326,22 @@ impl ImagePipeline {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_viewport(0.0, 0.0, surface_width as f32, surface_height as f32, 0.0, 1.0);
-        render_pass.set_scissor_rect(0, 0, surface_width, surface_height);
 
         for (i, cmd) in cmds.iter().enumerate() {
             let Some(cached) = self.textures.get(&cmd.image.id) else {
                 continue;
             };
+
+            let (sx, sy, sw, sh) = crate::paint::draw_command::scissor_for_clip(
+                cmd.clip_rect,
+                surface_width,
+                surface_height
+            );
+            if sw == 0 || sh == 0 {
+                continue;
+            }
+            render_pass.set_scissor_rect(sx, sy, sw, sh);
+
             render_pass.set_bind_group(0, &cached.bind_group, &[]);
             let start = (i * VERTICES_PER_IMAGE) as u32;
             render_pass.draw(start..start + (VERTICES_PER_IMAGE as u32), 0..1);

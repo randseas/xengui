@@ -38,8 +38,18 @@ pub use style::{
     FlexWrap,
     FontStyle,
     FontWeight,
+    Overflow,
 };
-pub use widgets::{ image_source_from_bytes, Button, Image, ImageSource, Label, ObjectFit, View, TextBox };
+pub use widgets::{
+    image_source_from_bytes,
+    Button,
+    Image,
+    ImageSource,
+    Label,
+    ObjectFit,
+    View,
+    TextBox,
+};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use widgets::image_source_from_path;

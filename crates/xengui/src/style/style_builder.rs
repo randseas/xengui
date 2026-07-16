@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{properties::StyleValue, style::{ FontStyle, FontWeight, LetterSpacing }};
+use crate::{ Overflow, properties::StyleValue, style::{ FontStyle, FontWeight, LetterSpacing } };
 
 use super::{
     AlignItems,
@@ -172,6 +172,25 @@ pub trait StyleBuilder: Sized {
 
     fn position(mut self, position: Position) -> Self {
         self.style_mut().position = Some(position);
+        self.mark_dirty();
+        self
+    }
+
+    fn overflow_x(mut self, overflow: Overflow) -> Self {
+        self.style_mut().overflow_x = Some(overflow);
+        self.mark_dirty();
+        self
+    }
+
+    fn overflow_y(mut self, overflow: Overflow) -> Self {
+        self.style_mut().overflow_y = Some(overflow);
+        self.mark_dirty();
+        self
+    }
+
+    fn overflow(mut self, x: Overflow, y: Overflow) -> Self {
+        self.style_mut().overflow_x = Some(x);
+        self.style_mut().overflow_y = Some(y);
         self.mark_dirty();
         self
     }

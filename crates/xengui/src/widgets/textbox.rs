@@ -1093,6 +1093,7 @@ impl Widget for TextBox {
                         border_radius: None,
                         border_width: None,
                         border_color: None,
+                        clip_rect: None,
                     });
                 }
             }
@@ -1133,6 +1134,7 @@ impl Widget for TextBox {
                 border_radius: None,
                 border_width: None,
                 border_color: None,
+                clip_rect: None,
             });
         }
     }

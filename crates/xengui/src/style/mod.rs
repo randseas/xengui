@@ -2,6 +2,7 @@
 pub mod background;
 pub mod border;
 pub mod outline;
+pub mod overflow;
 pub mod color;
 pub mod display;
 pub mod edges;
@@ -17,6 +18,7 @@ pub mod typography;
 pub use background::Background;
 pub use border::Border;
 pub use outline::Outline;
+pub use overflow::Overflow;
 pub use color::Color;
 pub use display::Display;
 pub use edges::Edges;

@@ -235,7 +235,8 @@ impl XenRenderer {
                     &segment,
                     &mut self.render_cache,
                     &mut commands,
-                    &mut live_keys
+                    &mut live_keys,
+                    None
                 );
             }
             self.render_cache.retain_keys(&live_keys);
@@ -352,27 +353,100 @@ fn paint_recursive(
     path: &str,
     cache: &mut RenderCache,
     commands: &mut Vec<DrawCommand>,
-    live_keys: &mut HashSet<String>
+    live_keys: &mut HashSet<String>,
+    clip_rect: Option<(f32, f32, f32, f32)>
 ) {
-    live_keys.insert(path.to_string());
     let layout_box = *widget.layout_box();
 
-    if let Some(cached) = cache.try_reuse(path, layout_box, widget.is_dirty()) {
-        commands.extend_from_slice(cached);
-    } else {
-        let mut local = Vec::new();
-        {
-            let mut paint_ctx = PaintContext::new(&mut local);
-            widget.paint(&mut paint_ctx);
+    // Off-screen subtree: nothing here can be visible, so skip painting
+    // and recursing into it entirely. This is what makes scrolling cheap
+    // regardless of how many rows exist outside the viewport.
+    if let Some((cx, cy, cw, ch)) = clip_rect {
+        let visible =
+            layout_box.x < cx + cw &&
+            layout_box.x + layout_box.width > cx &&
+            layout_box.y < cy + ch &&
+            layout_box.y + layout_box.height > cy;
+        if !visible {
+            return;
         }
-        cache.store(path, layout_box, local.clone());
-        commands.extend(local);
     }
+
+    live_keys.insert(path.to_string());
+
+    let own_commands: Vec<DrawCommand> = match cache.try_reuse(path, layout_box, widget.is_dirty()) {
+        Some(cached) => cached.to_vec(),
+        None => {
+            let mut local = Vec::new();
+            {
+                let mut paint_ctx = PaintContext::new(&mut local);
+                widget.paint(&mut paint_ctx);
+            }
+            cache.store(path, layout_box, local.clone());
+            local
+        }
+    };
+
+    for mut command in own_commands {
+        apply_clip(&mut command, clip_rect);
+        commands.push(command);
+    }
+
+    let child_clip = match widget.clip_children() {
+        Some(rect) => Some(clip_intersect(clip_rect, rect)),
+        None => clip_rect,
+    };
 
     for (i, child) in widget.children().iter().enumerate() {
         let segment = crate::path_segment(child.as_ref(), i);
-        paint_recursive(child.as_ref(), &format!("{path}.{segment}"), cache, commands, live_keys);
+        paint_recursive(
+            child.as_ref(),
+            &format!("{path}.{segment}"),
+            cache,
+            commands,
+            live_keys,
+            child_clip
+        );
     }
+
+    // Painted after every descendant so overlays (scrollbar thumbs, etc.)
+    // stay on top; never cached since they depend on live interaction state.
+    let mut overlay = Vec::new();
+    {
+        let mut paint_ctx = PaintContext::new(&mut overlay);
+        widget.paint_overlay(&mut paint_ctx);
+    }
+    for mut command in overlay {
+        apply_clip(&mut command, clip_rect);
+        commands.push(command);
+    }
+}
+
+fn clip_intersect(
+    existing: Option<(f32, f32, f32, f32)>,
+    ancestor: (f32, f32, f32, f32)
+) -> (f32, f32, f32, f32) {
+    let Some((ex, ey, ew, eh)) = existing else {
+        return ancestor;
+    };
+    let (ax, ay, aw, ah) = ancestor;
+    let x0 = ex.max(ax);
+    let y0 = ey.max(ay);
+    let x1 = (ex + ew).min(ax + aw);
+    let y1 = (ey + eh).min(ay + ah);
+    (x0, y0, (x1 - x0).max(0.0), (y1 - y0).max(0.0))
+}
+
+fn apply_clip(command: &mut DrawCommand, clip_rect: Option<(f32, f32, f32, f32)>) {
+    let Some(ancestor_clip) = clip_rect else {
+        return;
+    };
+    let target = match command {
+        DrawCommand::Rect(cmd) => &mut cmd.clip_rect,
+        DrawCommand::Image(cmd) => &mut cmd.clip_rect,
+        DrawCommand::Text(cmd) => &mut cmd.clip_rect,
+    };
+    *target = Some(clip_intersect(*target, ancestor_clip));
 }
 
 fn reset_dirty_recursive(widget: &mut dyn Widget) {

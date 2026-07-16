@@ -11,6 +11,7 @@ pub struct RectCommand {
     pub border_radius: Option<Length>,
     pub border_width: Option<Length>,
     pub border_color: Option<Color>,
+    pub clip_rect: Option<(f32, f32, f32, f32)>,
 }
 
 #[derive(Clone, Debug)]
@@ -37,6 +38,7 @@ pub struct ImageCommand {
     pub image: Arc<ImageData>,
     pub border_radius: Option<Length>,
     pub tint: Option<Color>,
+    pub clip_rect: Option<(f32, f32, f32, f32)>,
 }
 
 #[derive(Clone, Debug)]
@@ -44,4 +46,28 @@ pub enum DrawCommand {
     Rect(RectCommand),
     Text(Box<TextCommand>),
     Image(Box<ImageCommand>),
+}
+
+// Converts a logical clip rect (top-left origin) into a physical scissor
+// rect clamped to the surface bounds. `None` means the full surface.
+pub(crate) fn scissor_for_clip(
+    clip: Option<(f32, f32, f32, f32)>,
+    surface_width: u32,
+    surface_height: u32
+) -> (u32, u32, u32, u32) {
+    let Some((x, y, w, h)) = clip else {
+        return (0, 0, surface_width, surface_height);
+    };
+
+    let x0 = x.max(0.0).min(surface_width as f32);
+    let y0 = y.max(0.0).min(surface_height as f32);
+    let x1 = (x + w).max(0.0).min(surface_width as f32);
+    let y1 = (y + h).max(0.0).min(surface_height as f32);
+
+    (
+        x0.round() as u32,
+        y0.round() as u32,
+        (x1 - x0).round().max(0.0) as u32,
+        (y1 - y0).round().max(0.0) as u32,
+    )
 }

@@ -5,6 +5,7 @@ use crate::{
     FlexDirection as XFlexDir,
     FlexWrap as XFlexWrap,
     JustifyContent as XJustify,
+    Overflow as XOverflow,
     Position as XPosition,
     Style,
 };
@@ -34,6 +35,13 @@ pub fn style_to_taffy(style: &Style, scale_factor: f32) -> TaffyStyle {
         },
         ..Default::default()
     };
+
+    if let Some(ox) = style.overflow_x {
+        t.overflow.x = map_overflow(ox);
+    }
+    if let Some(oy) = style.overflow_y {
+        t.overflow.y = map_overflow(oy);
+    }
 
     if let Some(dir) = style.flex_direction {
         t.flex_direction = match dir {
@@ -194,4 +202,12 @@ fn map_grid_track(
         crate::GridTrack::Auto => auto(),
     };
     taffy::style::GridTemplateComponent::Single(sizing_function)
+}
+
+fn map_overflow(overflow: XOverflow) -> taffy::style::Overflow {
+    match overflow {
+        XOverflow::Visible => taffy::style::Overflow::Visible,
+        XOverflow::Hidden => taffy::style::Overflow::Hidden,
+        XOverflow::Scroll => taffy::style::Overflow::Scroll,
+    }
 }

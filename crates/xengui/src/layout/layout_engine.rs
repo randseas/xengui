@@ -160,10 +160,6 @@ fn apply_layout(
     let abs_right = abs_x + layout.size.width;
     let abs_bottom = abs_y + layout.size.height;
 
-    // Snap each absolute edge independently, not the width/height. Adjacent
-    // widgets share the same float edge value (one's right == the other's
-    // left), so rounding that shared value keeps them flush - no 1px gaps
-    // or overlaps regardless of which side the value happens to round to.
     let snapped_x = abs_x.round();
     let snapped_y = abs_y.round();
     let snapped_right = abs_right.round();
@@ -176,11 +172,33 @@ fn apply_layout(
         height: snapped_bottom - snapped_y,
     });
 
-    // Children accumulate from the already-snapped parent origin so
-    // rounding error can't compound across nesting depth.
-    if let Some(children) = widget.children_mut() && let Ok(child_ids) = taffy.children(node_id) {
-        for (child, child_id) in children.iter_mut().zip(child_ids) {
-            apply_layout(child.as_mut(), taffy, child_id, snapped_x, snapped_y);
+    let child_ids = taffy.children(node_id).ok();
+
+    // Union of every child's own box gives the total scrollable content
+    // size, which can exceed this node's own box when content overflows it.
+    if let Some(ids) = &child_ids {
+        let mut content_w: f32 = layout.size.width;
+        let mut content_h: f32 = layout.size.height;
+        for &child_id in ids {
+            if let Ok(child_layout) = taffy.layout(child_id) {
+                content_w = content_w.max(child_layout.location.x + child_layout.size.width);
+                content_h = content_h.max(child_layout.location.y + child_layout.size.height);
+            }
+        }
+        widget.set_content_size((content_w, content_h));
+    }
+
+    let (offset_x, offset_y) = widget.scroll_offset();
+
+    if let (Some(children), Some(ids)) = (widget.children_mut(), child_ids) {
+        for (child, child_id) in children.iter_mut().zip(ids) {
+            apply_layout(
+                child.as_mut(),
+                taffy,
+                child_id,
+                snapped_x - offset_x,
+                snapped_y - offset_y
+            );
         }
     }
 }

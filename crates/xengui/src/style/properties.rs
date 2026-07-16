@@ -24,6 +24,7 @@ use super::{
     Size,
     TextAlign,
     TextDecoration,
+    Overflow,
 };
 
 #[derive(Default, Clone, Debug, PartialEq)]
@@ -79,6 +80,8 @@ pub struct Style {
     // Layout
     pub display: Option<Display>,
     pub position: Option<Position>,
+    pub overflow_x: Option<Overflow>,
+    pub overflow_y: Option<Overflow>,
 
     // Flexbox
     pub flex_direction: Option<FlexDirection>,
@@ -133,6 +136,8 @@ impl Style {
 
             display: patch.display.or_else(|| self.display),
             position: patch.position.or_else(|| self.position),
+            overflow_x: patch.overflow_x.or_else(|| self.overflow_x),
+            overflow_y: patch.overflow_y.or_else(|| self.overflow_y),
 
             flex_direction: patch.flex_direction.or_else(|| self.flex_direction),
             flex_wrap: patch.flex_wrap.or_else(|| self.flex_wrap),

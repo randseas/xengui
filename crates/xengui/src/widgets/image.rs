@@ -396,6 +396,7 @@ impl Widget for Image {
             image: source,
             border_radius: border.map(|b| b.radius),
             tint: self.tint,
+            clip_rect: None,
         });
     }
 

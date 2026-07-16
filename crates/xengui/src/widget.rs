@@ -54,6 +54,22 @@ pub trait Widget: Any {
         None
     }
 
+    /// Additional scroll translation applied to this widget's children
+    /// during layout, in logical pixels.
+    fn scroll_offset(&self) -> (f32, f32) {
+        (0.0, 0.0)
+    }
+
+    /// Reports this widget's total content size after layout, which may
+    /// exceed `layout_box()` when children overflow it.
+    fn set_content_size(&mut self, _size: (f32, f32)) {}
+
+    /// The rectangle this widget clips its children's painted output to,
+    /// in absolute screen coordinates. `None` means no clipping.
+    fn clip_children(&self) -> Option<(f32, f32, f32, f32)> {
+        None
+    }
+
     fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult;
 
     fn layout(&mut self, rect: LayoutBox);
@@ -61,6 +77,10 @@ pub trait Widget: Any {
     fn layout_box(&self) -> &LayoutBox;
 
     fn paint(&self, ctx: &mut PaintContext);
+
+    /// Painted after every descendant, on top of them, and never cached -
+    /// used for overlays like a scrollbar thumb that depend on live state.
+    fn paint_overlay(&self, _ctx: &mut PaintContext) {}
 
     fn paint_box(&self, ctx: &mut PaintContext) {
         let style = self.computed_style();
@@ -71,13 +91,14 @@ pub trait Widget: Any {
 
         let border = style.border.as_ref();
 
-        ctx.draw_rect(crate::RectCommand {
+        ctx.draw_rect(RectCommand {
             position: (self.layout_box().x, self.layout_box().y),
             size: (self.layout_box().width, self.layout_box().height),
             background: style.background.clone(),
             border_radius: border.map(|b| b.radius),
             border_color: border.map(|b| b.color),
             border_width: border.map(|b| b.width),
+            clip_rect: None,
         });
     }
 
@@ -98,13 +119,14 @@ pub trait Widget: Any {
         let offset = outline.offset.value();
         let radius = outline.radius.or_else(|| { style.border.as_ref().map(|b| b.radius) });
 
-        ctx.draw_rect(crate::RectCommand {
+        ctx.draw_rect(RectCommand {
             position: (layout.x - offset, layout.y - offset),
             size: (layout.width + offset * 2.0, layout.height + offset * 2.0),
             background: None,
             border_radius: radius,
             border_color: Some(outline.color),
             border_width: Some(outline.width),
+            clip_rect: None,
         });
     }
 
@@ -144,6 +166,7 @@ pub trait Widget: Any {
             border_radius: radius,
             border_width: Some(focus_outline.width),
             border_color: Some(focus_outline.color),
+            clip_rect: None,
         });
     }
 
