@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use xengui::{properties::StyleValue, *};
+use xengui::{ properties::StyleValue, * };
 use xen_clipboard::Clipboard;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -202,22 +202,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         )
                                 )
                         )
-
                         .child(
-                            View::new().child(
-                                Image::new()
-                                    .bytes(
-                                        include_bytes!(
-                                            concat!(
-                                                env!("CARGO_MANIFEST_DIR"),
-                                                "/assets/ferris.png"
-                                            )
-                                        )
+                            Image::new()
+                                .bytes(
+                                    include_bytes!(
+                                        concat!(env!("CARGO_MANIFEST_DIR"), "/assets/ferris.png")
                                     )
-                                    .object_fit(ObjectFit::Fill)
-                                    .width(160)
-                                    .height(105)
-                            )
+                                )
+                                .object_fit(ObjectFit::Fill)
+                                .width(160)
+                                .height(105)
                         )
                 )
         )
