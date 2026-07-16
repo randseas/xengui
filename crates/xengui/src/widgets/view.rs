@@ -6,6 +6,8 @@ use crate::{
     EventStatus,
     InputEvent,
     Interaction,
+    Key,
+    KeyState,
     LayoutBox,
     Length,
     MeasureContext,
@@ -96,6 +98,9 @@ pub struct View {
 
 impl View {
     pub fn new() -> Self {
+        let mut interaction = Interaction::new();
+        interaction.focusable = true;
+
         let mut view = Self {
             key: None,
 
@@ -110,7 +115,7 @@ impl View {
 
             layout_box: LayoutBox::default(),
             children: Vec::new(),
-            interaction: Interaction::new(),
+            interaction,
 
             scroll_offset: Cell::new((0.0, 0.0)),
             scroll_target: Cell::new((0.0, 0.0)),
@@ -360,6 +365,31 @@ impl View {
         if next != current {
             self.start_scroll_animation(next, ctx);
         }
+    }
+
+    // PageUp/PageDown scrolls by a full viewport height, unlike the fixed
+    // scroll_step used by the wheel and the arrow buttons.
+    fn handle_page_key(&mut self, key: Key, ctx: &mut EventCtx) -> bool {
+        if !self.is_scrollable_y() {
+            return false;
+        }
+
+        let dy = match key {
+            Key::PageUp => -self.layout_box.height,
+            Key::PageDown => self.layout_box.height,
+            _ => {
+                return false;
+            }
+        };
+
+        let current = self.scroll_target.get();
+        let next = self.clamp_offset((current.0, current.1 + dy));
+        if next == current {
+            return false;
+        }
+
+        self.start_scroll_animation(next, ctx);
+        true
     }
 
     fn handle_wheel(
@@ -853,6 +883,14 @@ impl Widget for View {
         if
             let InputEvent::MouseWheel { delta, position } = event &&
             self.handle_wheel(*delta, *position, ctx, self.scroll_step)
+        {
+            return EventStatus::Handled;
+        }
+
+        if
+            let InputEvent::KeyInput { event: key_event, .. } = event &&
+            key_event.state == KeyState::Pressed &&
+            self.handle_page_key(key_event.key, ctx)
         {
             return EventStatus::Handled;
         }

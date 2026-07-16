@@ -21,6 +21,8 @@ pub enum Key {
 
     Home,
     End,
+    PageUp,
+    PageDown,
 
     Backspace,
     Delete,
@@ -147,7 +149,9 @@ pub fn convert_keyboard_event(event: winit::event::KeyEvent) -> KeyboardEvent {
 
         PhysicalKey::Code(KeyCode::Home) => Key::Home,
         PhysicalKey::Code(KeyCode::End) => Key::End,
-
+        PhysicalKey::Code(KeyCode::PageUp) => Key::PageUp,
+        PhysicalKey::Code(KeyCode::PageDown) => Key::PageDown,
+        
         PhysicalKey::Code(KeyCode::Backspace) => Key::Backspace,
         PhysicalKey::Code(KeyCode::Delete) => Key::Delete,
 
