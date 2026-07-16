@@ -26,6 +26,10 @@ pub trait Widget: Any {
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
+    fn debug_name(&self) -> &'static str {
+        "Widget"
+    }
+
     fn get_key(&self) -> Option<&SmolStr> {
         None
     }
@@ -191,16 +195,9 @@ pub trait Widget: Any {
         None
     }
 
-    fn transfer_interaction_state(&mut self, old: &dyn Widget) -> bool {
+    fn transfer_interaction_state(&mut self, old: &dyn Widget) {
         if let (Some(new), Some(old)) = (self.interaction_mut(), old.interaction()) {
-            let changed =
-                new.hovered != old.hovered ||
-                new.pressed != old.pressed ||
-                new.focused != old.focused;
             new.transfer_from(old);
-            changed
-        } else {
-            false
         }
     }
 

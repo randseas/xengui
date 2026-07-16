@@ -38,6 +38,8 @@ const MULTI_CLICK_INTERVAL: Duration = Duration::from_millis(400);
 const MULTI_CLICK_DISTANCE: f32 = 4.0;
 
 pub struct TextBox {
+    key: Option<SmolStr>,
+
     dirty: bool,
     content: String,
     placeholder: SmolStr,
@@ -46,6 +48,7 @@ pub struct TextBox {
     hover_style: Option<Style>,
     focus_style: Option<Style>,
     disabled_style: Option<Style>,
+    inherited_style: Style,
     computed_style: Style,
 
     interaction: Interaction,
@@ -108,6 +111,8 @@ impl TextBox {
         interaction.hover_cursor = Some(CursorIcon::Text);
 
         Self {
+            key: None,
+
             dirty: true,
             content: String::new(),
             placeholder: SmolStr::new(""),
@@ -115,6 +120,7 @@ impl TextBox {
             hover_style: None,
             focus_style: None,
             disabled_style: None,
+            inherited_style: Style::default(),
             computed_style: Style::default(),
             interaction,
             cursor_index: 0,
@@ -148,6 +154,14 @@ impl TextBox {
             caret_visible: Cell::new(true),
             scroll_offset: Cell::new(0.0),
         }
+    }
+
+    /// Stable identity among siblings, kept across rebuilds even when this
+    /// widget moves position (reorder, insert, remove). Use for list items
+    /// instead of relying on array index.
+    pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
+        self.key = Some(key.into());
+        self
     }
 
     pub fn value(mut self, value: impl Into<String>) -> Self {
@@ -235,9 +249,11 @@ impl TextBox {
             None
         };
 
+        let base = self.inherited_style.overlay(&self.style);
+
         self.computed_style = match patch {
-            Some(patch) => self.style.overlay(patch),
-            None => self.style.clone(),
+            Some(patch) => base.overlay(patch),
+            None => base,
         };
     }
 
@@ -868,6 +884,14 @@ impl Widget for TextBox {
         self
     }
 
+    fn get_key(&self) -> Option<&SmolStr> {
+        self.key.as_ref()
+    }
+
+    fn debug_name(&self) -> &'static str {
+        "Widget#TextBox"
+    }
+
     fn is_dirty(&self) -> bool {
         self.dirty
     }
@@ -997,6 +1021,14 @@ impl Widget for TextBox {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
+        log::trace!(
+            "paint -> '{:?}' x={} y={} dirty={:?}",
+            self.content,
+            self.layout_box.x,
+            self.layout_box.y,
+            self.is_dirty()
+        );
+
         let style = &self.computed_style;
 
         self.paint_box(ctx);
@@ -1208,17 +1240,14 @@ impl Widget for TextBox {
             self.placeholder == other.placeholder &&
             self.cursor_index == other.cursor_index &&
             self.selection_anchor == other.selection_anchor &&
-            format!("{:?}", self.style) == format!("{:?}", other.style) &&
-            format!("{:?}", self.hover_style) == format!("{:?}", other.hover_style) &&
-            format!("{:?}", self.focus_style) == format!("{:?}", other.focus_style) &&
-            format!("{:?}", self.disabled_style) == format!("{:?}", other.disabled_style)
+            self.style == other.style &&
+            self.hover_style == other.hover_style &&
+            self.focus_style == other.focus_style &&
+            self.disabled_style == other.disabled_style
     }
 
-    /// Overridden because TextBox keeps a separate `computed_style` for
-    /// hover/focus/disabled overlays - the default cascade only updates
-    /// `style`, so without this the inherited font never reaches paint/measure.
     fn cascade_style(&mut self, parent: &Style) {
-        self.style = parent.inherit_typography(&self.style);
+        self.inherited_style = parent.clone();
         self.recompute_style();
     }
 
@@ -1226,38 +1255,15 @@ impl Widget for TextBox {
         self.recompute_style();
     }
 
-    // Always runs regardless of content_eq, so cursor/selection/drag state
-    // (and any in-flight paste) survive a rebuild even on the frame where
-    // the text itself changed.
-    fn transfer_interaction_state(&mut self, old: &dyn Widget) -> bool {
-        let mut changed = if
-            let (Some(new_i), Some(old_i)) = (self.interaction_mut(), old.interaction())
-        {
-            let changed =
-                new_i.hovered != old_i.hovered ||
-                new_i.pressed != old_i.pressed ||
-                new_i.focused != old_i.focused ||
-                new_i.focus_visible != old_i.focus_visible;
+    fn transfer_interaction_state(&mut self, old: &dyn Widget) {
+        if let (Some(new_i), Some(old_i)) = (self.interaction_mut(), old.interaction()) {
             new_i.transfer_from(old_i);
-            changed
-        } else {
-            false
-        };
+        }
 
         if let Some(old_tb) = old.as_any().downcast_ref::<TextBox>() {
             let new_len = self.content.chars().count();
-            let transferred_cursor = old_tb.cursor_index.min(new_len);
-            let transferred_selection = old_tb.selection_anchor.map(|a| a.min(new_len));
-
-            if
-                transferred_cursor != self.cursor_index ||
-                transferred_selection != self.selection_anchor
-            {
-                changed = true;
-            }
-
-            self.cursor_index = transferred_cursor;
-            self.selection_anchor = transferred_selection;
+            self.cursor_index = old_tb.cursor_index.min(new_len);
+            self.selection_anchor = old_tb.selection_anchor.map(|a| a.min(new_len));
             self.dragging = old_tb.dragging;
             self.click_count.set(old_tb.click_count.get());
             self.last_click_time.set(old_tb.last_click_time.get());
@@ -1269,8 +1275,6 @@ impl Widget for TextBox {
             self.undo_stack = old_tb.undo_stack.clone();
             self.redo_stack = old_tb.redo_stack.clone();
         }
-
-        changed
     }
 
     fn transfer_measured_state(&mut self, old: &dyn Widget) {

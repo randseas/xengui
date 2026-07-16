@@ -108,7 +108,7 @@ pub struct App {
 
     component: Option<std::rc::Rc<dyn Fn() -> Box<dyn Widget>>>,
     next_blink: Option<Instant>,
-    reconcile_work: Option<crate::reconcile::WorkLoop>,
+    reconcile_work: Option<crate::reconciler::WorkLoop>,
 
     #[cfg(target_arch = "wasm32")]
     pub event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
@@ -175,7 +175,7 @@ impl App {
         crate::hooks::take_dirty();
 
         let new_tree = vec![new_root];
-        self.reconcile_work = Some(crate::reconcile::WorkLoop::new(new_tree, &self.root));
+        self.reconcile_work = Some(crate::reconciler::WorkLoop::new(new_tree, &self.root));
     }
 
     // Advances any in-progress reconciliation by one time slice. Returns
@@ -191,8 +191,8 @@ impl App {
         let deadline = Instant::now() + SLICE;
 
         match work.perform_work(deadline) {
-            crate::reconcile::WorkLoopStatus::Yielded => true,
-            crate::reconcile::WorkLoopStatus::Complete(tree) => {
+            crate::reconciler::WorkLoopStatus::Yielded => true,
+            crate::reconciler::WorkLoopStatus::Complete(tree) => {
                 self.root = tree;
                 self.reconcile_work = None;
                 if let Some(window) = &self.window {

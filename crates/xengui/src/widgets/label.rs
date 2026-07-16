@@ -2,17 +2,24 @@ use std::cell::Cell;
 
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
+    Background,
     Constraints,
+    EventCtx,
+    EventStatus,
+    InputEvent,
+    Interaction,
     LayoutBox,
     MeasureContext,
     MeasureResult,
     PaintContext,
     Style,
     StyleBuilder,
+    StylePatch,
     TextCommand,
     Widget,
 };
 use smol_str::SmolStr;
+use winit::window::CursorIcon;
 
 #[macro_export]
 macro_rules! props {
@@ -26,26 +33,55 @@ macro_rules! props {
 }
 
 pub struct Label {
-    dirty: bool,
-    content: SmolStr,
-    style: Style,
-    layout_box: LayoutBox,
-    selectable: bool,
     key: Option<SmolStr>,
+
+    dirty: bool,
+    style: Style,
+    inherited_style: Style,
+    computed_style: Style,
+
+    hover_style: Option<Style>,
+    pressed_style: Option<Style>,
+    disabled_style: Option<Style>,
+
+    interaction: Interaction,
+    selectable: bool,
+
+    content: SmolStr,
+    layout_box: LayoutBox,
+    content_size: Cell<(f32, f32)>,
     measured_max_width: Cell<Option<f32>>,
 }
 
 impl Label {
     pub fn new() -> Self {
-        Self {
-            dirty: true,
-            content: SmolStr::new(""),
-            style: Style::default(),
-            layout_box: LayoutBox::default(),
-            selectable: false,
+        let mut interaction = Interaction::new();
+        interaction.focusable = false;
+        interaction.hover_cursor = Some(CursorIcon::Text);
+
+        let mut label = Self {
             key: None,
+
+            dirty: true,
+            style: Style::default(),
+            inherited_style: Style::default(),
+            computed_style: Style::default(),
+
+            hover_style: None,
+            pressed_style: None,
+            disabled_style: None,
+
+            interaction,
+            selectable: false,
+
+            content: SmolStr::new(""),
+            layout_box: LayoutBox::default(),
+            content_size: Cell::new((0.0, 0.0)),
             measured_max_width: Cell::new(None),
-        }
+        };
+
+        label.recompute_style();
+        label
     }
 
     /// Stable identity among siblings, kept across rebuilds even when this
@@ -57,22 +93,122 @@ impl Label {
     }
 
     // Builder methods
-    pub fn label(mut self, label: impl Into<SmolStr>) -> Self {
-        self.content = label.into();
-        self.set_dirty(true);
+    pub fn label(mut self, content: impl Into<SmolStr>) -> Self {
+        self.content = content.into();
+        self.mark_dirty();
         self
     }
 
     pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
         self.style.font = Some(font.into());
-        self.set_dirty(true);
+        self.mark_dirty();
         self
     }
 
     pub fn selectable(mut self, selectable: bool) -> Self {
         self.selectable = selectable;
-        self.set_dirty(true);
+        self.mark_dirty();
         self
+    }
+
+    /// Full style overlay to be applied during hover state - includes every field of Style
+    /// such as background, border, color, font_size, padding, margin, etc.
+    /// Only the fields you provide will overwrite the base style.
+    ///
+    /// ```ignore
+    /// Label::new()
+    ///     .background(Color::NEUTRAL_200)
+    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
+    ///     .hover_style(|s| s
+    ///         .background(Color::NEUTRAL_300)
+    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
+    ///     )
+    /// ```
+    pub fn hover_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
+        self.hover_style = Some(build(StylePatch::new()).build());
+        self.mark_dirty();
+        self
+    }
+
+    /// Full style overlay to be applied during pressed state - includes every field of Style
+    /// such as background, border, color, font_size, padding, margin, etc.
+    /// Only the fields you provide will overwrite the base style.
+    ///
+    /// ```ignore
+    /// Label::new()
+    ///     .background(Color::NEUTRAL_200)
+    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
+    ///     .pressed_style(|s| s
+    ///         .background(Color::NEUTRAL_300)
+    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
+    ///     )
+    /// ```
+    pub fn pressed_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
+        self.pressed_style = Some(build(StylePatch::new()).build());
+        self.mark_dirty();
+        self
+    }
+
+    /// Full style overlay to be applied during disabled state - includes every field of Style
+    /// such as background, border, color, font_size, padding, margin, etc.
+    /// Only the fields you provide will overwrite the base style.
+    ///
+    /// ```ignore
+    /// Label::new()
+    ///     .background(Color::NEUTRAL_200)
+    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
+    ///     .disabled_style(|s| s
+    ///         .background(Color::NEUTRAL_300)
+    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
+    ///     )
+    /// ```
+    pub fn disabled_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
+        self.disabled_style = Some(build(StylePatch::new()).build());
+        self.mark_dirty();
+        self
+    }
+
+    pub fn hover_background<B: Into<Background>>(mut self, background: B) -> Self {
+        self.hover_style.get_or_insert_with(Style::default).background = Some(background.into());
+        self.mark_dirty();
+        self
+    }
+
+    pub fn pressed_background<B: Into<Background>>(mut self, background: B) -> Self {
+        self.pressed_style.get_or_insert_with(Style::default).background = Some(background.into());
+        self.mark_dirty();
+        self
+    }
+
+    pub fn disabled_background<B: Into<Background>>(mut self, background: B) -> Self {
+        self.disabled_style.get_or_insert_with(Style::default).background = Some(background.into());
+        self.mark_dirty();
+        self
+    }
+
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.interaction.set_enabled(enabled);
+        self.mark_dirty();
+        self
+    }
+
+    fn recompute_style(&mut self) {
+        let patch = if !self.interaction.enabled {
+            self.disabled_style.as_ref()
+        } else if self.interaction.pressed {
+            self.pressed_style.as_ref().or(self.hover_style.as_ref())
+        } else if self.interaction.hovered {
+            self.hover_style.as_ref()
+        } else {
+            None
+        };
+
+        let base = self.inherited_style.overlay(&self.style);
+
+        self.computed_style = match patch {
+            Some(patch) => base.overlay(patch),
+            None => base,
+        };
     }
 }
 
@@ -89,6 +225,7 @@ impl StyleBuilder for Label {
 
     fn mark_dirty(&mut self) {
         self.dirty = true;
+        self.recompute_style();
     }
 }
 
@@ -99,6 +236,10 @@ impl Widget for Label {
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn debug_name(&self) -> &'static str {
+        "Widget#Label"
     }
 
     fn get_key(&self) -> Option<&SmolStr> {
@@ -121,55 +262,20 @@ impl Widget for Label {
         &mut self.style
     }
 
-    fn paint(&self, ctx: &mut PaintContext) {
-        log::trace!("paint -> '{}' x={} y={}", self.content, self.layout_box.x, self.layout_box.y);
-
-        self.paint_box(ctx);
-        self.paint_outline(ctx);
-        self.paint_focus(ctx);
-
-        ctx.draw_text(TextCommand {
-            text: self.content.clone(),
-            position: (self.layout_box.x, self.layout_box.y),
-            style: self.style.clone(),
-            max_width: self.measured_max_width.get(),
-            clip_rect: None,
-        });
+    fn computed_style(&self) -> &Style {
+        &self.computed_style
     }
 
-    fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {
-        let scale_factor = ctx.scale_factor;
+    fn children(&self) -> &[Box<dyn Widget>] {
+        &[]
+    }
 
-        let font_size = self.style.font_size
-            .map(|s| s.to_physical(scale_factor))
-            .unwrap_or(20.0 * scale_factor);
+    fn interaction(&self) -> Option<&Interaction> {
+        Some(&self.interaction)
+    }
 
-        let letter_spacing = self.style.letter_spacing
-            .map(|ls| ls.value().to_physical(scale_factor))
-            .unwrap_or(0.0);
-
-        let line_height = self.style.line_height
-            .map(|lh| lh.value().to_physical(scale_factor))
-            .unwrap_or(0.0);
-
-        self.measured_max_width.set(constraints.max_width);
-
-        let result = ctx.text.measure(
-            &self.content,
-            self.style.font.as_deref(),
-            font_size,
-            self.style.font_weight.unwrap_or_default(),
-            self.style.font_style.unwrap_or_default(),
-            letter_spacing,
-            line_height,
-            constraints.max_width
-        );
-
-        MeasureResult {
-            width: constraints.constrain_width(result.width),
-            height: result.height,
-            baseline: result.baseline,
-        }
+    fn interaction_mut(&mut self) -> Option<&mut Interaction> {
+        Some(&mut self.interaction)
     }
 
     fn layout(&mut self, rect: LayoutBox) {
@@ -180,14 +286,119 @@ impl Widget for Label {
         &self.layout_box
     }
 
-    fn children(&self) -> &[Box<dyn Widget>] {
-        &[]
+    fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {
+        let scale_factor = ctx.scale_factor;
+        let style = &self.computed_style;
+
+        let font_size = style.font_size
+            .map(|s| s.to_physical(scale_factor))
+            .unwrap_or(20.0 * scale_factor);
+
+        let letter_spacing = style.letter_spacing
+            .map(|ls| ls.value().to_physical(scale_factor))
+            .unwrap_or(0.0);
+
+        let line_height = style.line_height
+            .map(|lh| lh.value().to_physical(scale_factor))
+            .unwrap_or(0.0);
+
+        self.measured_max_width.set(constraints.max_width);
+
+        let result = ctx.text.measure(
+            &self.content,
+            style.font.as_deref(),
+            font_size,
+            style.font_weight.unwrap_or_default(),
+            style.font_style.unwrap_or_default(),
+            letter_spacing,
+            line_height,
+            constraints.max_width
+        );
+
+        self.content_size.set((result.width, result.height));
+
+        let padding = style.padding.unwrap_or_default();
+        let width = result.width + padding.left.value() + padding.right.value();
+        let height = result.height + padding.top.value() + padding.bottom.value();
+        let (width, height) = constraints.constrain_size(width, height);
+
+        MeasureResult {
+            width,
+            height,
+            baseline: result.baseline,
+        }
+    }
+
+    fn paint(&self, ctx: &mut PaintContext) {
+        let style = &self.computed_style;
+
+        log::trace!(
+            "paint -> '{}' x={} y={} dirty={:?}",
+            self.content,
+            self.layout_box.x,
+            self.layout_box.y,
+            self.is_dirty()
+        );
+
+        self.paint_box(ctx);
+        self.paint_outline(ctx);
+        self.paint_focus(ctx);
+
+        let padding = style.padding.unwrap_or_default();
+
+        let text_x = self.layout_box.x + padding.left.value();
+        let text_y = self.layout_box.y + padding.top.value();
+
+        ctx.draw_text(TextCommand {
+            text: self.content.clone(),
+            position: (text_x, text_y),
+            style: style.clone(),
+            max_width: self.measured_max_width.get(),
+            clip_rect: None,
+        });
+    }
+
+    fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {
+        if !self.interaction.is_active() {
+            return EventStatus::Ignored;
+        }
+
+        let status = self.interaction.handle(event, ctx);
+
+        if matches!(status, EventStatus::Handled) {
+            self.recompute_style();
+            self.dirty = true;
+        }
+
+        status
     }
 
     fn content_eq(&self, other: &dyn Widget) -> bool {
         let Some(other) = other.as_any().downcast_ref::<Label>() else {
             return false;
         };
-        self.content == other.content && format!("{:?}", self.style) == format!("{:?}", other.style)
+
+        self.content == other.content &&
+            self.style == other.style &&
+            self.hover_style == other.hover_style &&
+            self.pressed_style == other.pressed_style &&
+            self.disabled_style == other.disabled_style &&
+            self.selectable == other.selectable
+    }
+
+    fn cascade_style(&mut self, parent: &Style) {
+        self.inherited_style = parent.clone();
+        self.recompute_style();
+    }
+
+    fn after_interaction_transfer(&mut self) {
+        self.recompute_style();
+    }
+
+    fn transfer_measured_state(&mut self, old: &dyn Widget) {
+        if let Some(old) = old.as_any().downcast_ref::<Label>() {
+            self.content_size.set(old.content_size.get());
+            self.measured_max_width.set(old.measured_max_width.get());
+        }
     }
 }

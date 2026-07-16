@@ -22,18 +22,20 @@ use std::cell::Cell;
 use winit::window::CursorIcon;
 
 pub struct Button {
-    dirty: bool,
-    label: SmolStr,
-    style: Style,
     key: Option<SmolStr>,
+
+    dirty: bool,
+    style: Style,
+    inherited_style: Style,
+    computed_style: Style,
 
     hover_style: Option<Style>,
     pressed_style: Option<Style>,
     disabled_style: Option<Style>,
-    computed_style: Style,
 
     interaction: Interaction,
 
+    content: SmolStr,
     layout_box: LayoutBox,
     content_size: Cell<(f32, f32)>,
 }
@@ -44,22 +46,27 @@ impl Button {
         interaction.focusable = true;
         interaction.hover_cursor = Some(CursorIcon::Pointer);
 
-        Self {
-            dirty: true,
-            label: SmolStr::new(""),
-            style: Style::default(),
+        let mut button = Self {
             key: None,
+
+            dirty: true,
+            style: Style::default(),
+            inherited_style: Style::default(),
+            computed_style: Style::default(),
 
             hover_style: None,
             pressed_style: None,
             disabled_style: None,
-            computed_style: Style::default(),
 
             interaction,
 
+            content: SmolStr::new(""),
             layout_box: LayoutBox::default(),
             content_size: Cell::new((0.0, 0.0)),
-        }
+        };
+
+        button.recompute_style();
+        button
     }
 
     /// Stable identity among siblings, kept across rebuilds even when this
@@ -70,8 +77,9 @@ impl Button {
         self
     }
 
-    pub fn label(mut self, label: impl Into<SmolStr>) -> Self {
-        self.label = label.into();
+    // Builder methods
+    pub fn label(mut self, content: impl Into<SmolStr>) -> Self {
+        self.content = content.into();
         self.mark_dirty();
         self
     }
@@ -82,7 +90,7 @@ impl Button {
         self
     }
 
-    /// Full style overlay to be applied during hover - includes every field of Style
+    /// Full style overlay to be applied during hover state - includes every field of Style
     /// such as background, border, color, font_size, padding, margin, etc.
     /// Only the fields you provide will overwrite the base style.
     ///
@@ -101,12 +109,38 @@ impl Button {
         self
     }
 
+    /// Full style overlay to be applied during pressed state - includes every field of Style
+    /// such as background, border, color, font_size, padding, margin, etc.
+    /// Only the fields you provide will overwrite the base style.
+    ///
+    /// ```ignore
+    /// Button::new()
+    ///     .background(Color::NEUTRAL_200)
+    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
+    ///     .pressed_style(|s| s
+    ///         .background(Color::NEUTRAL_300)
+    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
+    ///     )
+    /// ```
     pub fn pressed_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
         self.pressed_style = Some(build(StylePatch::new()).build());
         self.mark_dirty();
         self
     }
 
+    /// Full style overlay to be applied during disabled state - includes every field of Style
+    /// such as background, border, color, font_size, padding, margin, etc.
+    /// Only the fields you provide will overwrite the base style.
+    ///
+    /// ```ignore
+    /// Button::new()
+    ///     .background(Color::NEUTRAL_200)
+    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
+    ///     .disabled_style(|s| s
+    ///         .background(Color::NEUTRAL_300)
+    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
+    ///     )
+    /// ```
     pub fn disabled_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
         self.disabled_style = Some(build(StylePatch::new()).build());
         self.mark_dirty();
@@ -148,9 +182,11 @@ impl Button {
             None
         };
 
+        let base = self.inherited_style.overlay(&self.style);
+
         self.computed_style = match patch {
-            Some(patch) => self.style.overlay(patch),
-            None => self.style.clone(),
+            Some(patch) => base.overlay(patch),
+            None => base,
         };
     }
 }
@@ -189,6 +225,10 @@ impl Widget for Button {
         self
     }
 
+    fn debug_name(&self) -> &'static str {
+        "Widget#Button"
+    }
+
     fn get_key(&self) -> Option<&SmolStr> {
         self.key.as_ref()
     }
@@ -225,6 +265,14 @@ impl Widget for Button {
         Some(&mut self.interaction)
     }
 
+    fn layout(&mut self, rect: LayoutBox) {
+        self.layout_box = rect;
+    }
+
+    fn layout_box(&self) -> &LayoutBox {
+        &self.layout_box
+    }
+
     fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {
         let scale_factor = ctx.scale_factor;
         let style = &self.computed_style;
@@ -242,7 +290,7 @@ impl Widget for Button {
             .unwrap_or(0.0);
 
         let result = ctx.text.measure(
-            &self.label,
+            &self.content,
             style.font.as_deref(),
             font_size,
             style.font_weight.unwrap_or_default(),
@@ -254,7 +302,7 @@ impl Widget for Button {
 
         self.content_size.set((result.width, result.height));
 
-        let padding = &style.padding.unwrap_or_default();
+        let padding = style.padding.unwrap_or_default();
 
         let width = result.width + padding.left.value() + padding.right.value();
         let height = result.height + padding.top.value() + padding.bottom.value();
@@ -263,15 +311,15 @@ impl Widget for Button {
         MeasureResult::new(width, height)
     }
 
-    fn layout(&mut self, rect: LayoutBox) {
-        self.layout_box = rect;
-    }
-
-    fn layout_box(&self) -> &LayoutBox {
-        &self.layout_box
-    }
-
     fn paint(&self, ctx: &mut PaintContext) {
+        log::trace!(
+            "paint -> '{}' x={} y={} dirty={:?}",
+            self.content,
+            self.layout_box.x,
+            self.layout_box.y,
+            self.is_dirty()
+        );
+
         let style = &self.computed_style;
 
         self.paint_box(ctx);
@@ -280,14 +328,14 @@ impl Widget for Button {
 
         let (content_w, content_h) = self.content_size.get();
         let padding = style.padding.unwrap_or_default();
-        let text_x =
-            self.layout_box.x +
-            padding.left.value() +
-            (self.layout_box.width - padding.left.value() - padding.right.value() - content_w).max(
-                0.0
-            ) *
-                0.5;
+        let available_w = self.layout_box.width - padding.left.value() - padding.right.value();
 
+        // Guard against float rounding between measure() and layout: never clip
+        // tighter than the width we already measured the text at.
+        let draw_max_width = available_w.max(content_w);
+
+        let text_x =
+            self.layout_box.x + padding.left.value() + (available_w - content_w).max(0.0) * 0.5;
         let text_y =
             self.layout_box.y +
             padding.top.value() +
@@ -297,10 +345,10 @@ impl Widget for Button {
                 0.5;
 
         ctx.draw_text(TextCommand {
-            text: self.label.clone(),
+            text: self.content.clone(),
             position: (text_x, text_y),
             style: style.clone(),
-            max_width: Some(self.layout_box.width),
+            max_width: Some(draw_max_width),
             clip_rect: None,
         });
     }
@@ -324,24 +372,19 @@ impl Widget for Button {
         let Some(other) = other.as_any().downcast_ref::<Button>() else {
             return false;
         };
-        self.label == other.label &&
-            format!("{:?}", self.style) == format!("{:?}", other.style) &&
-            format!("{:?}", self.hover_style) == format!("{:?}", other.hover_style) &&
-            format!("{:?}", self.pressed_style) == format!("{:?}", other.pressed_style) &&
-            format!("{:?}", self.disabled_style) == format!("{:?}", other.disabled_style)
+
+        self.content == other.content &&
+            self.style == other.style &&
+            self.hover_style == other.hover_style &&
+            self.pressed_style == other.pressed_style &&
+            self.disabled_style == other.disabled_style
     }
 
-    /// Overridden because Button keeps a separate `computed_style` for
-    /// hover/pressed/disabled overlays - the default cascade only updates
-    /// `style`, so without this the inherited font never reaches paint/measure.
     fn cascade_style(&mut self, parent: &Style) {
-        self.style = parent.inherit_typography(&self.style);
+        self.inherited_style = parent.clone();
         self.recompute_style();
     }
 
-    /// Ensures that the newly transferred interaction (hover/pressed) is reflected
-    /// in the computed_style. If we don't call this: a button that is hovered after a
-    /// rebuild would stay with the wrong (non-hovered) style until the next mouse event.
     fn after_interaction_transfer(&mut self) {
         self.recompute_style();
     }

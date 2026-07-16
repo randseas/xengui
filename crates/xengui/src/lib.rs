@@ -5,13 +5,13 @@ pub mod macros;
 pub mod paint;
 pub mod renderer;
 pub mod style;
-pub mod widget;
 pub mod widgets;
 pub mod input;
 pub mod interaction;
 pub mod text;
 pub mod hooks;
-mod reconcile;
+pub mod widget;
+mod reconciler;
 
 pub use app::WindowPosition;
 pub use layout::*;

@@ -26,7 +26,7 @@ use super::{
     TextDecoration,
 };
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub enum StyleValue<T> {
     #[default]
     Default,
@@ -50,7 +50,7 @@ impl<T: Clone> StyleValue<T> {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Style {
     // Typography
     pub color: Option<Color>,
