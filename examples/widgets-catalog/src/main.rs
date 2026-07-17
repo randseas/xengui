@@ -67,31 +67,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .scrollbar_track_color(Color::NEUTRAL_100)
                         .scrollbar_thumb_color(Color::NEUTRAL_400)
                         .scrollbar_arrow_color(Color::NEUTRAL_400)
-                        .child(
-                            Button::new()
-                                .label("button1")
-                                .font_size(13)
-                                .color(Color::NEUTRAL_400)
-                                .background(Color::NEUTRAL_200)
-                                .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
-                                .padding(Edges::only(9, 4, 9, 7))
-                                .margin(Edges::only(0, 10, 0, 0))
-                                .hover_style(|s|
-                                    s
-                                        .background(Color::NEUTRAL_200)
-                                        .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
-                                        .color(Color::NEUTRAL_600)
-                                )
-                                .pressed_style(|s|
-                                    s
-                                        .background(Color::NEUTRAL_200)
-                                        .border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
-                                        .color(Color::NEUTRAL_700)
-                                )
-                                .disabled_style(|s|
-                                    s.background(Color::NEUTRAL_100).color(Color::NEUTRAL_400)
-                                )
-                        )
                         .child(Label::new().label("label1").color(Color::NEUTRAL_500))
                         .child(
                             Link::new()
@@ -107,6 +82,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .outline(StyleValue::None)
                                 .focus_outline(StyleValue::Default)
                                 .min_width(Length::px(150.0))
+                                .max_width(Length::px(170.0))
                                 .padding(Edges::only(10, 7, 10, 8))
                                 .background(Color::WHITE)
                                 .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
@@ -117,6 +93,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     s.border(Border::new(2, Color::BLUE_500, Length::px(8.0)))
                                 )
                                 .on_change(move |value, _ctx| set_text.set(value.to_string()))
+                        )
+                        .child(
+                            Button::new()
+                                .label("button1")
+                                .font_size(13)
+                                .color(Color::NEUTRAL_500)
+                                .background(Color::NEUTRAL_100)
+                                .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
+                                .padding(Edges::only(9, 4, 9, 7))
+                                .hover_style(|s|
+                                    s
+                                        .background(Color::NEUTRAL_200)
+                                        .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
+                                        .color(Color::NEUTRAL_600)
+                                )
+                                .pressed_style(|s|
+                                    s
+                                        .background(Color::NEUTRAL_200)
+                                        .border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
+                                        .color(Color::NEUTRAL_700)
+                                )
+                                .disabled_style(|s|
+                                    s.background(Color::NEUTRAL_100).color(Color::NEUTRAL_400)
+                                )
                         )
                         .child(
                             Image::new()

@@ -247,7 +247,7 @@ impl Link {
             .or(Some(DEFAULT_CURSOR_ICON));
     }
 
-    fn open_href(&self) {
+    fn open_href(&self, _force_new_tab: bool) {
         let Some(href) = &self.href else {
             return;
         };
@@ -257,7 +257,7 @@ impl Link {
         #[cfg(target_arch = "wasm32")]
         {
             if let Some(window) = web_sys::window() {
-                let target = if self.target_blank { "_blank" } else { "_self" };
+                let target = if self.target_blank || _force_new_tab { "_blank" } else { "_self" };
                 let _ = window.open_with_url_and_target(&url, target);
             }
         }
@@ -508,6 +508,20 @@ impl Widget for Link {
             return EventStatus::Ignored;
         }
 
+        // Middle-click opens the link in a new tab, matching browser convention.
+        if
+            let InputEvent::MouseInput {
+                state: ElementState::Released,
+                button: MouseButton::Middle,
+                ..
+            } = event &&
+            self.interaction.hovered &&
+            self.href.is_some()
+        {
+            self.open_href(true);
+            return EventStatus::Handled;
+        }
+
         if self.selectable {
             if
                 let InputEvent::MouseInput {
@@ -547,12 +561,14 @@ impl Widget for Link {
                         self.selection_anchor.set(Some(start));
                         self.selection_cursor.set(Some(end));
                         self.dragging.set(false);
+                        ctx.suppress_text_drag();
                     }
                     _ => {
                         let len = self.content.chars().count();
                         self.selection_anchor.set(Some(0));
                         self.selection_cursor.set(Some(len));
                         self.dragging.set(false);
+                        ctx.suppress_text_drag();
                     }
                 }
             }
@@ -599,7 +615,7 @@ impl Widget for Link {
         let status = self.interaction.handle(event, ctx);
 
         if is_click {
-            self.open_href();
+            self.open_href(false);
         }
 
         if matches!(status, EventStatus::Handled) {

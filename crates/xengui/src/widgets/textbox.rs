@@ -1211,12 +1211,17 @@ impl Widget for TextBox {
             return EventStatus::Ignored;
         }
 
+        // Interaction::handle() clears `pressed` on MouseExited, so the
+        // real button-held state must be captured before calling it.
+        let was_pressed = self.interaction.pressed;
+
         let status = self.interaction.handle(event, ctx);
 
-        if matches!(event, InputEvent::MouseExited) {
+        if matches!(event, InputEvent::MouseExited) && !was_pressed {
             self.dragging = false;
+            self.drag_word_selection = false;
         }
-
+        
         if matches!(event, InputEvent::FocusGained { .. }) {
             if self.focus_via_pointer.get() {
                 self.focus_via_pointer.set(false);

@@ -503,12 +503,14 @@ impl Widget for Label {
                             self.selection_anchor.set(Some(start));
                             self.selection_cursor.set(Some(end));
                             self.dragging.set(false);
+                            ctx.suppress_text_drag();
                         }
                         _ => {
                             let len = self.content.chars().count();
                             self.selection_anchor.set(Some(0));
                             self.selection_cursor.set(Some(len));
                             self.dragging.set(false);
+                            ctx.suppress_text_drag();
                         }
                     }
                 }

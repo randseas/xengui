@@ -153,6 +153,7 @@ pub struct EventCtx {
     focus_released: bool,
     pub(crate) focus_target: Option<String>,
     pub(crate) clear_focus: bool,
+    suppress_text_drag: bool,
 }
 
 impl EventCtx {
@@ -162,6 +163,15 @@ impl EventCtx {
 
     pub fn request_redraw(&mut self) {
         self.redraw_requested = true;
+    }
+
+    // Tells the cross-widget drag-selection mechanism to skip this press.
+    pub fn suppress_text_drag(&mut self) {
+        self.suppress_text_drag = true;
+    }
+
+    pub(crate) fn take_suppress_text_drag(&mut self) -> bool {
+        std::mem::take(&mut self.suppress_text_drag)
     }
 
     pub fn redraw_requested(&self) -> bool {

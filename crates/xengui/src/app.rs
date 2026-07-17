@@ -571,6 +571,9 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         }),
                         &mut ctx
                     );
+                    if ctx.take_suppress_text_drag() {
+                        self.input.text_drag_anchor = None;
+                    }
                     self.apply_event_ctx(ctx);
                 }
 
