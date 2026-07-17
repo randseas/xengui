@@ -4,5 +4,5 @@ pub enum Overflow {
     Visible,
     Hidden,
     Scroll,
-    // TODO: Auto,
+    Auto,
 }

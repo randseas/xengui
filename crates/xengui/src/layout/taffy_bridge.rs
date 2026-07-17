@@ -209,5 +209,6 @@ fn map_overflow(overflow: XOverflow) -> taffy::style::Overflow {
         XOverflow::Visible => taffy::style::Overflow::Visible,
         XOverflow::Hidden => taffy::style::Overflow::Hidden,
         XOverflow::Scroll => taffy::style::Overflow::Scroll,
+        XOverflow::Auto => taffy::style::Overflow::Scroll,
     }
 }

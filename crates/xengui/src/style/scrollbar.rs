@@ -34,7 +34,7 @@ impl ScrollbarStyle {
             button_color: self.button_color.unwrap_or(thumb_color),
             arrow_color: self.arrow_color.unwrap_or(Color::WHITE),
             min_thumb_length: self.min_thumb_length.unwrap_or(thickness * 1.5),
-            thumb_radius: self.thumb_radius.unwrap_or(thickness * 0.5),
+            thumb_radius: self.thumb_radius.unwrap_or(thickness * 2.0),
         }
     }
 }

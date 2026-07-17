@@ -1,5 +1,3 @@
-use std::cell::Cell;
-
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background,
@@ -17,23 +15,16 @@ use crate::{
     StylePatch,
     TextCommand,
     Widget,
+    WidgetContent,
     properties::DEFAULT_FONT_SIZE,
+    Color,
+    TextDecoration,
 };
 use smol_str::SmolStr;
+use std::cell::Cell;
 use winit::window::CursorIcon;
 
-#[macro_export]
-macro_rules! props {
-    ($($field:ident: $val:expr),* $(,)?) => {
-        #[allow(clippy::needless_update)]
-        TextProps {
-            $( $field: Some(($val).into()), )*
-            ..Default::default()
-        }
-    };
-}
-
-pub struct Label {
+pub struct Link {
     key: Option<SmolStr>,
 
     dirty: bool,
@@ -54,13 +45,13 @@ pub struct Label {
     measured_max_width: Cell<Option<f32>>,
 }
 
-impl Label {
+impl Link {
     pub fn new() -> Self {
         let mut interaction = Interaction::new();
-        interaction.focusable = false;
-        interaction.hover_cursor = Some(CursorIcon::Text);
+        interaction.focusable = true;
+        interaction.hover_cursor = Some(CursorIcon::Pointer);
 
-        let mut label = Self {
+        let mut link = Self {
             key: None,
 
             dirty: true,
@@ -81,8 +72,8 @@ impl Label {
             measured_max_width: Cell::new(None),
         };
 
-        label.recompute_style();
-        label
+        link.recompute_style();
+        link
     }
 
     /// Stable identity among siblings, kept across rebuilds even when this
@@ -117,12 +108,10 @@ impl Label {
     /// Only the fields you provide will overwrite the base style.
     ///
     /// ```ignore
-    /// Label::new()
-    ///     .background(Color::NEUTRAL_200)
-    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
+    /// Link::new()
+    ///     .label("Read more")
     ///     .hover_style(|s| s
-    ///         .background(Color::NEUTRAL_300)
-    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
+    ///         .text_decoration(TextDecoration::Underline)
     ///     )
     /// ```
     pub fn hover_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
@@ -136,12 +125,10 @@ impl Label {
     /// Only the fields you provide will overwrite the base style.
     ///
     /// ```ignore
-    /// Label::new()
-    ///     .background(Color::NEUTRAL_200)
-    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
+    /// Link::new()
+    ///     .label("Read more")
     ///     .pressed_style(|s| s
-    ///         .background(Color::NEUTRAL_300)
-    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
+    ///         .color(Color::NEUTRAL_600)
     ///     )
     /// ```
     pub fn pressed_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
@@ -155,12 +142,10 @@ impl Label {
     /// Only the fields you provide will overwrite the base style.
     ///
     /// ```ignore
-    /// Label::new()
-    ///     .background(Color::NEUTRAL_200)
-    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
+    /// Link::new()
+    ///     .label("Read more")
     ///     .disabled_style(|s| s
-    ///         .background(Color::NEUTRAL_300)
-    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
+    ///         .color(Color::NEUTRAL_400)
     ///     )
     /// ```
     pub fn disabled_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
@@ -213,13 +198,13 @@ impl Label {
     }
 }
 
-impl Default for Label {
+impl Default for Link {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl StyleBuilder for Label {
+impl StyleBuilder for Link {
     fn style_mut(&mut self) -> &mut Style {
         &mut self.style
     }
@@ -230,7 +215,15 @@ impl StyleBuilder for Label {
     }
 }
 
-impl Widget for Label {
+impl WidgetContent for Link {
+    fn with_content(self, content: impl Into<SmolStr>) -> Self {
+        self.label(content)
+    }
+}
+
+crate::impl_interaction_builders!(Link);
+
+impl Widget for Link {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -240,7 +233,7 @@ impl Widget for Label {
     }
 
     fn debug_name(&self) -> &'static str {
-        "Widget#Label"
+        "Widget#Link"
     }
 
     fn get_key(&self) -> Option<&SmolStr> {
@@ -352,6 +345,10 @@ impl Widget for Label {
 
         let mut text_style = style.clone();
         text_style.font_size.get_or_insert(DEFAULT_FONT_SIZE);
+        text_style.color.get_or_insert(Color::BLUE_400);
+        if self.interaction.hovered {
+            text_style.text_decoration.get_or_insert(TextDecoration::UNDERLINE);
+        }
 
         ctx.draw_text(TextCommand {
             text: self.content.clone(),
@@ -378,7 +375,7 @@ impl Widget for Label {
     }
 
     fn content_eq(&self, other: &dyn Widget) -> bool {
-        let Some(other) = other.as_any().downcast_ref::<Label>() else {
+        let Some(other) = other.as_any().downcast_ref::<Link>() else {
             return false;
         };
 
@@ -400,7 +397,7 @@ impl Widget for Label {
     }
 
     fn transfer_measured_state(&mut self, old: &dyn Widget) {
-        if let Some(old) = old.as_any().downcast_ref::<Label>() {
+        if let Some(old) = old.as_any().downcast_ref::<Link>() {
             self.content_size.set(old.content_size.get());
             self.measured_max_width.set(old.measured_max_width.get());
         }

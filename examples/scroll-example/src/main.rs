@@ -93,13 +93,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .child(
                     View::new()
                         .flex_direction(FlexDirection::Column)
-                        .overflow_y(Overflow::Scroll)
+                        .overflow_x(Overflow::Auto)
+                        .overflow_y(Overflow::Auto)
                         .scroll_step(96.0)
                         .scrollbar_thickness(8.0)
                         .scrollbar_track_color(Color::NEUTRAL_100)
                         .scrollbar_thumb_color(Color::NEUTRAL_400)
                         .scrollbar_thumb_radius(16.0)
-                        .scrollbar_arrow_color(Color::WHITE)
+                        .scrollbar_arrow_color(Color::NEUTRAL_400)
                         .child(
                             Label::new().label(
                                 "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."

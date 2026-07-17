@@ -571,6 +571,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         &(InputEvent::MouseWheel {
                             delta,
                             position: point,
+                            modifiers: self.input.modifiers,
                         }),
                         &mut ctx
                     );

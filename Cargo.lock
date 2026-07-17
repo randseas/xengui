@@ -2804,6 +2804,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "widgets-catalog"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "console_log",
+ "env_logger",
+ "log",
+ "xen-clipboard",
+ "xengui",
+]
+
+[[package]]
 name = "winapi-util"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"

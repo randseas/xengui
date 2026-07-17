@@ -28,6 +28,8 @@ use super::{
     Overflow,
 };
 
+pub const DEFAULT_FONT_SIZE: Length = Length::px(14.0);
+
 #[derive(Default, Clone, Debug, PartialEq)]
 pub enum StyleValue<T> {
     #[default]

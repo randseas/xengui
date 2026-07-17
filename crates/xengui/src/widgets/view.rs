@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background,
+    Color,
     Constraints,
     EventCtx,
     EventStatus,
@@ -12,6 +13,7 @@ use crate::{
     Length,
     MeasureContext,
     MeasureResult,
+    ModifiersState,
     Overflow,
     PaintContext,
     RectCommand,
@@ -28,7 +30,9 @@ use winit::event::{ ElementState, MouseButton, MouseScrollDelta };
 
 // Fixed catch-up rate for the exponential-decay scroll animation, tuned so
 // a wheel step settles in roughly a quarter of a second.
+// TODO: write description & method to change this on view builder
 const SCROLL_ANIM_SPEED: f32 = 18.0;
+// TODO: write description & method to change this on view builder
 const SCROLL_ANIM_EPSILON: f32 = 0.25;
 
 #[derive(Clone, Copy)]
@@ -98,9 +102,6 @@ pub struct View {
 
 impl View {
     pub fn new() -> Self {
-        let mut interaction = Interaction::new();
-        interaction.focusable = true;
-
         let mut view = Self {
             key: None,
 
@@ -115,14 +116,14 @@ impl View {
 
             layout_box: LayoutBox::default(),
             children: Vec::new(),
-            interaction,
+            interaction: Interaction::new(),
 
             scroll_offset: Cell::new((0.0, 0.0)),
             scroll_target: Cell::new((0.0, 0.0)),
             scroll_animating: Cell::new(false),
             content_size: Cell::new((0.0, 0.0)),
             scrollbar_drag: Cell::new(None),
-            scroll_step: 32.0,
+            scroll_step: 96.0,
         };
 
         view.recompute_style();
@@ -240,19 +241,25 @@ impl View {
     }
 
     fn is_scrollable_x(&self) -> bool {
-        matches!(self.computed_style.overflow_x, Some(Overflow::Scroll))
+        matches!(self.computed_style.overflow_x, Some(Overflow::Scroll | Overflow::Auto))
     }
 
     fn is_scrollable_y(&self) -> bool {
-        matches!(self.computed_style.overflow_y, Some(Overflow::Scroll))
+        matches!(self.computed_style.overflow_y, Some(Overflow::Scroll | Overflow::Auto))
     }
 
     fn clips_x(&self) -> bool {
-        matches!(self.computed_style.overflow_x, Some(Overflow::Scroll | Overflow::Hidden))
+        matches!(
+            self.computed_style.overflow_x,
+            Some(Overflow::Scroll | Overflow::Auto | Overflow::Hidden)
+        )
     }
 
     fn clips_y(&self) -> bool {
-        matches!(self.computed_style.overflow_y, Some(Overflow::Scroll | Overflow::Hidden))
+        matches!(
+            self.computed_style.overflow_y,
+            Some(Overflow::Scroll | Overflow::Auto | Overflow::Hidden)
+        )
     }
 
     fn max_scroll_x(&self) -> f32 {
@@ -271,8 +278,12 @@ impl View {
     // for that axis and there is something to scroll to).
     fn scrollbar_visibility(&self) -> (bool, bool) {
         (
-            self.is_scrollable_x() && self.max_scroll_x() > 0.0,
-            self.is_scrollable_y() && self.max_scroll_y() > 0.0,
+            self.is_scrollable_x() &&
+                (self.computed_style.overflow_x == Some(Overflow::Scroll) ||
+                    self.max_scroll_x() > 0.0),
+            self.is_scrollable_y() &&
+                (self.computed_style.overflow_y == Some(Overflow::Scroll) ||
+                    self.max_scroll_y() > 0.0),
         )
     }
 
@@ -367,14 +378,35 @@ impl View {
         }
     }
 
-    // PageUp/PageDown scrolls by a full viewport height, unlike the fixed
-    // scroll_step used by the wheel and the arrow buttons.
-    fn handle_page_key(&mut self, key: Key, ctx: &mut EventCtx) -> bool {
+    fn handle_page_key(&mut self, key: Key, modifiers: ModifiersState, ctx: &mut EventCtx) -> bool {
+        if modifiers.shift {
+            if !self.is_scrollable_x() {
+                return false;
+            }
+
+            let dx: f32 = match key {
+                Key::PageUp => -self.layout_box.width,
+                Key::PageDown => self.layout_box.width,
+                _ => {
+                    return false;
+                }
+            };
+
+            let current = self.scroll_target.get();
+            let next = self.clamp_offset((current.0 + dx, current.1));
+            if next == current {
+                return false;
+            }
+
+            self.start_scroll_animation(next, ctx);
+            return true;
+        }
+
         if !self.is_scrollable_y() {
             return false;
         }
 
-        let dy = match key {
+        let dy: f32 = match key {
             Key::PageUp => -self.layout_box.height,
             Key::PageDown => self.layout_box.height,
             _ => {
@@ -392,10 +424,15 @@ impl View {
         true
     }
 
+    fn handle_key(&mut self, key: Key, modifiers: ModifiersState, ctx: &mut EventCtx) -> bool {
+        self.handle_page_key(key, modifiers, ctx)
+    }
+
     fn handle_wheel(
         &mut self,
         delta: MouseScrollDelta,
         position: (f32, f32),
+        modifiers: ModifiersState,
         ctx: &mut EventCtx,
         scroll_step: f32
     ) -> bool {
@@ -407,6 +444,8 @@ impl View {
             MouseScrollDelta::LineDelta(x, y) => (x * scroll_step, y * scroll_step),
             MouseScrollDelta::PixelDelta(pos) => (pos.x as f32, pos.y as f32),
         };
+
+        let (raw_dx, raw_dy) = if modifiers.shift { (raw_dy, raw_dx) } else { (raw_dx, raw_dy) };
 
         let (dx, dy) = if self.is_scrollable_y() {
             (raw_dx, raw_dy)
@@ -820,7 +859,8 @@ impl Widget for View {
                     position: (x, y),
                     size: (w, h),
                     background: Some(
-                        Background::Color(sb.button_color.with_alpha_f32(sb.button_color.a() * dim))
+                        // Background::Color(sb.button_color.with_alpha_f32(sb.button_color.a() * dim))
+                        Background::Color(Color::TRANSPARENT)
                     ),
                     border_radius: Some(button_radius),
                     border_width: None,
@@ -852,7 +892,8 @@ impl Widget for View {
                     position: (x, y),
                     size: (w, h),
                     background: Some(
-                        Background::Color(sb.button_color.with_alpha_f32(sb.button_color.a() * dim))
+                        // Background::Color(sb.button_color.with_alpha_f32(sb.button_color.a() * dim))
+                        Background::Color(Color::TRANSPARENT)
                     ),
                     border_radius: Some(button_radius),
                     border_width: None,
@@ -881,16 +922,16 @@ impl Widget for View {
         }
 
         if
-            let InputEvent::MouseWheel { delta, position } = event &&
-            self.handle_wheel(*delta, *position, ctx, self.scroll_step)
+            let InputEvent::MouseWheel { delta, position, modifiers } = event &&
+            self.handle_wheel(*delta, *position, *modifiers, ctx, self.scroll_step)
         {
             return EventStatus::Handled;
         }
 
         if
-            let InputEvent::KeyInput { event: key_event, .. } = event &&
+            let InputEvent::KeyInput { event: key_event, modifiers } = event &&
             key_event.state == KeyState::Pressed &&
-            self.handle_page_key(key_event.key, ctx)
+            self.handle_key(key_event.key, *modifiers, ctx)
         {
             return EventStatus::Handled;
         }
