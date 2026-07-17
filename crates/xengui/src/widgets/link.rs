@@ -83,7 +83,7 @@ impl Link {
             disabled_style: None,
 
             interaction,
-            selectable: true,
+            selectable: false,
 
             content: SmolStr::new(""),
             layout_box: LayoutBox::default(),
