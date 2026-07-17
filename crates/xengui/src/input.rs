@@ -204,7 +204,7 @@ impl EventCtx {
 }
 
 pub fn convert_keyboard_event(event: winit::event::KeyEvent) -> KeyboardEvent {
-    use winit::keyboard::{ KeyCode, PhysicalKey };
+    use winit::keyboard::{ KeyCode, PhysicalKey, Key as WinitKey };
 
     let key = match event.physical_key {
         PhysicalKey::Code(KeyCode::Escape) => Key::Escape,
@@ -282,12 +282,18 @@ pub fn convert_keyboard_event(event: winit::event::KeyEvent) -> KeyboardEvent {
         PhysicalKey::Code(KeyCode::ArrowRight) => Key::ArrowRight,
 
         // layout-aware fallback: uses os generated text
+        // logical_key stays correct even when ctrl is held, unlike `text`
         _ =>
-            event.text
-                .as_ref()
-                .and_then(|s| s.chars().next())
-                .map(Key::Character)
-                .unwrap_or(Key::Unknown),
+            match &event.logical_key {
+                WinitKey::Character(s) =>
+                    s.chars().next().map(Key::Character).unwrap_or(Key::Unknown),
+                _ =>
+                    event.text
+                        .as_ref()
+                        .and_then(|s| s.chars().next())
+                        .map(Key::Character)
+                        .unwrap_or(Key::Unknown),
+            }
     };
 
     KeyboardEvent {
