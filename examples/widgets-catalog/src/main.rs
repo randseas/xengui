@@ -84,6 +84,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .label("https://github.com/randseas")
                                 .href("https://github.com/randseas")
                         )
+                        .child(
+                            Image::new()
+                                .bytes(
+                                    include_bytes!(
+                                        concat!(env!("CARGO_MANIFEST_DIR"), "/assets/ferris.png")
+                                    )
+                                )
+                                .object_fit(ObjectFit::Fill)
+                                .width(160)
+                                .height(105)
+                        )
                 )
         )
     });

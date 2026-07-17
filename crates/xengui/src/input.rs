@@ -1,7 +1,7 @@
 use winit::window::CursorIcon;
 
 // SPDX-License-Identifier: Apache-2.0
-use crate::{Widget};
+use crate::{ Widget };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KeyState {
@@ -463,4 +463,44 @@ pub struct InputState {
     pub pressed_path: Option<String>,
     pub focused_path: Option<String>,
     pub modifiers: ModifiersState,
+}
+
+pub fn select_all_text_recursive(tree: &mut [Box<dyn Widget>]) {
+    for widget in tree.iter_mut() {
+        widget.select_all_text();
+        if let Some(children) = widget.children_mut() {
+            select_all_text_recursive(children);
+        }
+    }
+}
+
+pub fn clear_text_selection_recursive(tree: &mut [Box<dyn Widget>]) {
+    for widget in tree.iter_mut() {
+        widget.set_text_selection(None);
+        if let Some(children) = widget.children_mut() {
+            clear_text_selection_recursive(children);
+        }
+    }
+}
+
+pub fn collect_selected_text_recursive(tree: &[Box<dyn Widget>], out: &mut String) {
+    for widget in tree.iter() {
+        if
+            let (Some(text), Some((start, end))) = (
+                widget.selectable_text(),
+                widget.text_selection(),
+            )
+        {
+            let chars: Vec<char> = text.chars().collect();
+            let s = start.min(chars.len());
+            let e = end.min(chars.len());
+            if e > s {
+                if !out.is_empty() {
+                    out.push('\n');
+                }
+                out.extend(&chars[s..e]);
+            }
+        }
+        collect_selected_text_recursive(widget.children(), out);
+    }
 }

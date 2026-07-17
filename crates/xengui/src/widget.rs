@@ -262,4 +262,18 @@ pub trait Widget: Any {
     fn wants_animation_frame(&self) -> bool {
         false
     }
+
+    /// HTML-style selectable text content for mouse selection / Ctrl+C.
+    /// `None` opts the widget out entirely (e.g. Button, TextBox).
+    fn selectable_text(&self) -> Option<&str> {
+        None
+    }
+
+    fn text_selection(&self) -> Option<(usize, usize)> {
+        None
+    }
+
+    fn set_text_selection(&mut self, _range: Option<(usize, usize)>) {}
+
+    fn select_all_text(&mut self) {}
 }

@@ -1,8 +1,7 @@
-use std::cell::Cell;
-
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background,
+    Color,
     Constraints,
     EventCtx,
     EventStatus,
@@ -12,6 +11,7 @@ use crate::{
     MeasureContext,
     MeasureResult,
     PaintContext,
+    RectCommand,
     Style,
     StyleBuilder,
     StylePatch,
@@ -20,6 +20,8 @@ use crate::{
     properties::DEFAULT_FONT_SIZE,
 };
 use smol_str::SmolStr;
+use std::cell::{ Cell, RefCell };
+use winit::event::{ ElementState, MouseButton };
 use winit::window::CursorIcon;
 
 #[macro_export]
@@ -52,6 +54,11 @@ pub struct Label {
     layout_box: LayoutBox,
     content_size: Cell<(f32, f32)>,
     measured_max_width: Cell<Option<f32>>,
+
+    char_offsets: RefCell<Vec<f32>>,
+    selection_anchor: Cell<Option<usize>>,
+    selection_cursor: Cell<Option<usize>>,
+    dragging: Cell<bool>,
 }
 
 impl Label {
@@ -79,6 +86,11 @@ impl Label {
             layout_box: LayoutBox::default(),
             content_size: Cell::new((0.0, 0.0)),
             measured_max_width: Cell::new(None),
+
+            char_offsets: RefCell::new(Vec::new()),
+            selection_anchor: Cell::new(None),
+            selection_cursor: Cell::new(None),
+            dragging: Cell::new(false),
         };
 
         label.recompute_style();
@@ -215,6 +227,23 @@ impl Label {
             .map(crate::Cursor::to_winit)
             .or(Some(CursorIcon::Text));
     }
+
+    fn index_for_offset(&self, local_x: f32) -> usize {
+        let offsets = self.char_offsets.borrow();
+        if offsets.len() <= 1 {
+            return 0;
+        }
+        let mut best = 0;
+        let mut best_dist = f32::MAX;
+        for (i, &off) in offsets.iter().enumerate() {
+            let dist = (off - local_x).abs();
+            if dist < best_dist {
+                best_dist = dist;
+                best = i;
+            }
+        }
+        best
+    }
 }
 
 impl Default for Label {
@@ -322,6 +351,18 @@ impl Widget for Label {
 
         self.content_size.set((result.width, result.height));
 
+        if self.selectable {
+            *self.char_offsets.borrow_mut() = ctx.text.character_offsets(
+                &self.content,
+                style.font.as_deref(),
+                font_size,
+                style.font_weight.unwrap_or_default(),
+                style.font_style.unwrap_or_default(),
+                letter_spacing,
+                line_height
+            );
+        }
+
         let padding = style.padding.unwrap_or_default();
         let width = result.width + padding.left.value() + padding.right.value();
         let height = result.height + padding.top.value() + padding.bottom.value();
@@ -357,6 +398,22 @@ impl Widget for Label {
         let mut text_style = style.clone();
         text_style.font_size.get_or_insert(DEFAULT_FONT_SIZE);
 
+        if self.selectable && let Some((start, end)) = self.text_selection() {
+            let offsets = self.char_offsets.borrow();
+            if let (Some(&start_x), Some(&end_x)) = (offsets.get(start), offsets.get(end)) {
+                let (_, content_h) = self.content_size.get();
+                ctx.draw_rect(RectCommand {
+                    position: (text_x + start_x, text_y),
+                    size: (end_x - start_x, content_h.max(1.0)),
+                    background: Some(Background::Color(Color::rgba(90, 140, 230, 100))),
+                    border_radius: None,
+                    border_width: None,
+                    border_color: None,
+                    clip_rect: None,
+                });
+            }
+        }
+
         ctx.draw_text(TextCommand {
             text: self.content.clone(),
             position: (text_x, text_y),
@@ -367,6 +424,41 @@ impl Widget for Label {
     }
 
     fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {
+        if
+            self.selectable &&
+            let InputEvent::MouseInput { state, button: MouseButton::Left, position } = event
+        {
+            let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
+            let local_x = position.0 - self.layout_box.x - padding_left;
+            let idx = self.index_for_offset(local_x);
+
+            match state {
+                ElementState::Pressed => {
+                    self.selection_anchor.set(Some(idx));
+                    self.selection_cursor.set(Some(idx));
+                    self.dragging.set(true);
+                }
+                ElementState::Released => {
+                    self.dragging.set(false);
+                }
+            }
+            self.dirty = true;
+            ctx.request_redraw();
+        }
+
+        if
+            self.selectable &&
+            self.dragging.get() &&
+            let InputEvent::MouseMoved { position } = event
+        {
+            let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
+            let local_x = position.0 - self.layout_box.x - padding_left;
+            self.selection_cursor.set(Some(self.index_for_offset(local_x)));
+            self.dirty = true;
+            ctx.request_redraw();
+            return EventStatus::Handled;
+        }
+
         if !self.interaction.is_active() {
             return EventStatus::Ignored;
         }
@@ -379,6 +471,31 @@ impl Widget for Label {
         }
 
         status
+    }
+
+    fn selectable_text(&self) -> Option<&str> {
+        self.selectable.then_some(self.content.as_str())
+    }
+
+    fn text_selection(&self) -> Option<(usize, usize)> {
+        let anchor = self.selection_anchor.get()?;
+        let cursor = self.selection_cursor.get()?;
+        (anchor != cursor).then(|| (anchor.min(cursor), anchor.max(cursor)))
+    }
+
+    fn set_text_selection(&mut self, range: Option<(usize, usize)>) {
+        let (anchor, cursor) = range.map_or((None, None), |(s, e)| (Some(s), Some(e)));
+        self.selection_anchor.set(anchor);
+        self.selection_cursor.set(cursor);
+    }
+
+    fn select_all_text(&mut self) {
+        if !self.selectable {
+            return;
+        }
+        self.selection_anchor.set(Some(0));
+        self.selection_cursor.set(Some(self.content.chars().count()));
+        self.dirty = true;
     }
 
     fn content_eq(&self, other: &dyn Widget) -> bool {
@@ -407,6 +524,9 @@ impl Widget for Label {
         if let Some(old) = old.as_any().downcast_ref::<Label>() {
             self.content_size.set(old.content_size.get());
             self.measured_max_width.set(old.measured_max_width.get());
+            self.char_offsets.replace(old.char_offsets.borrow().clone());
+            self.selection_anchor.set(old.selection_anchor.get());
+            self.selection_cursor.set(old.selection_cursor.get());
         }
     }
 }

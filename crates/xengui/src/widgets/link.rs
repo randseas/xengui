@@ -1,7 +1,7 @@
-use crate::properties::DEFAULT_CURSOR_ICON;
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background,
+    Color,
     Constraints,
     EventCtx,
     EventStatus,
@@ -13,18 +13,18 @@ use crate::{
     MeasureContext,
     MeasureResult,
     PaintContext,
+    RectCommand,
     Style,
     StyleBuilder,
     StylePatch,
     TextCommand,
+    TextDecoration,
     Widget,
     WidgetContent,
-    properties::DEFAULT_FONT_SIZE,
-    properties::DEFAULT_LINK_COLOR,
-    TextDecoration,
+    properties::{ DEFAULT_CURSOR_ICON, DEFAULT_FONT_SIZE, DEFAULT_LINK_COLOR },
 };
 use smol_str::SmolStr;
-use std::cell::Cell;
+use std::cell::{ Cell, RefCell };
 use winit::event::{ ElementState, MouseButton };
 
 pub struct Link {
@@ -46,6 +46,12 @@ pub struct Link {
     layout_box: LayoutBox,
     content_size: Cell<(f32, f32)>,
     measured_max_width: Cell<Option<f32>>,
+
+    char_offsets: RefCell<Vec<f32>>,
+    selection_anchor: Cell<Option<usize>>,
+    selection_cursor: Cell<Option<usize>>,
+    dragging: Cell<bool>,
+    moved_during_press: Cell<bool>,
 
     href: Option<SmolStr>,
     target_blank: bool,
@@ -76,6 +82,12 @@ impl Link {
             layout_box: LayoutBox::default(),
             content_size: Cell::new((0.0, 0.0)),
             measured_max_width: Cell::new(None),
+
+            char_offsets: RefCell::new(Vec::new()),
+            selection_anchor: Cell::new(None),
+            selection_cursor: Cell::new(None),
+            dragging: Cell::new(false),
+            moved_during_press: Cell::new(false),
 
             href: None,
             target_blank: false,
@@ -245,6 +257,23 @@ impl Link {
             open_native(&url);
         }
     }
+
+    fn index_for_offset(&self, local_x: f32) -> usize {
+        let offsets = self.char_offsets.borrow();
+        if offsets.len() <= 1 {
+            return 0;
+        }
+        let mut best = 0;
+        let mut best_dist = f32::MAX;
+        for (i, &off) in offsets.iter().enumerate() {
+            let dist = (off - local_x).abs();
+            if dist < best_dist {
+                best_dist = dist;
+                best = i;
+            }
+        }
+        best
+    }
 }
 
 impl Default for Link {
@@ -360,6 +389,18 @@ impl Widget for Link {
 
         self.content_size.set((result.width, result.height));
 
+        if self.selectable {
+            *self.char_offsets.borrow_mut() = ctx.text.character_offsets(
+                &self.content,
+                style.font.as_deref(),
+                font_size,
+                style.font_weight.unwrap_or_default(),
+                style.font_style.unwrap_or_default(),
+                letter_spacing,
+                line_height
+            );
+        }
+
         let padding = style.padding.unwrap_or_default();
         let width = result.width + padding.left.value() + padding.right.value();
         let height = result.height + padding.top.value() + padding.bottom.value();
@@ -395,8 +436,25 @@ impl Widget for Link {
         let mut text_style = style.clone();
         text_style.font_size.get_or_insert(DEFAULT_FONT_SIZE);
         text_style.color.get_or_insert(DEFAULT_LINK_COLOR);
+
         if self.interaction.hovered {
             text_style.text_decoration.get_or_insert(TextDecoration::UNDERLINE);
+        }
+
+        if self.selectable && let Some((start, end)) = self.text_selection() {
+            let offsets = self.char_offsets.borrow();
+            if let (Some(&start_x), Some(&end_x)) = (offsets.get(start), offsets.get(end)) {
+                let (_, content_h) = self.content_size.get();
+                ctx.draw_rect(RectCommand {
+                    position: (text_x + start_x, text_y),
+                    size: (end_x - start_x, content_h.max(1.0)),
+                    background: Some(Background::Color(Color::rgba(90, 140, 230, 100))),
+                    border_radius: None,
+                    border_width: None,
+                    border_color: None,
+                    clip_rect: None,
+                });
+            }
         }
 
         ctx.draw_text(TextCommand {
@@ -413,12 +471,56 @@ impl Widget for Link {
             return EventStatus::Ignored;
         }
 
+        if self.selectable {
+            if
+                let InputEvent::MouseInput {
+                    state: ElementState::Pressed,
+                    button: MouseButton::Left,
+                    position,
+                } = event
+            {
+                let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
+                let local_x = position.0 - self.layout_box.x - padding_left;
+                let idx = self.index_for_offset(local_x);
+                self.selection_anchor.set(Some(idx));
+                self.selection_cursor.set(Some(idx));
+                self.dragging.set(true);
+                self.moved_during_press.set(false);
+            }
+
+            if let InputEvent::MouseMoved { position } = event && self.dragging.get() {
+                let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
+                let local_x = position.0 - self.layout_box.x - padding_left;
+                let idx = self.index_for_offset(local_x);
+                if self.selection_anchor.get() != Some(idx) {
+                    self.moved_during_press.set(true);
+                }
+                self.selection_cursor.set(Some(idx));
+                self.dirty = true;
+                ctx.request_redraw();
+                return EventStatus::Handled;
+            }
+
+            if
+                matches!(event, InputEvent::MouseInput {
+                    state: ElementState::Released,
+                    button: MouseButton::Left,
+                    ..
+                })
+            {
+                self.dragging.set(false);
+            }
+        }
+
         let is_click = match event {
             InputEvent::MouseInput {
                 state: ElementState::Released,
                 button: MouseButton::Left,
                 ..
-            } => self.interaction.pressed && self.interaction.hovered,
+            } =>
+                self.interaction.pressed &&
+                    self.interaction.hovered &&
+                    !self.moved_during_press.get(),
             InputEvent::KeyInput { event: key_event, .. } =>
                 self.interaction.focused &&
                     !key_event.repeat &&
@@ -439,6 +541,31 @@ impl Widget for Link {
         }
 
         status
+    }
+
+    fn selectable_text(&self) -> Option<&str> {
+        self.selectable.then_some(self.content.as_str())
+    }
+
+    fn text_selection(&self) -> Option<(usize, usize)> {
+        let anchor = self.selection_anchor.get()?;
+        let cursor = self.selection_cursor.get()?;
+        (anchor != cursor).then(|| (anchor.min(cursor), anchor.max(cursor)))
+    }
+
+    fn set_text_selection(&mut self, range: Option<(usize, usize)>) {
+        let (anchor, cursor) = range.map_or((None, None), |(s, e)| (Some(s), Some(e)));
+        self.selection_anchor.set(anchor);
+        self.selection_cursor.set(cursor);
+    }
+
+    fn select_all_text(&mut self) {
+        if !self.selectable {
+            return;
+        }
+        self.selection_anchor.set(Some(0));
+        self.selection_cursor.set(Some(self.content.chars().count()));
+        self.dirty = true;
     }
 
     fn content_eq(&self, other: &dyn Widget) -> bool {
@@ -469,6 +596,9 @@ impl Widget for Link {
         if let Some(old) = old.as_any().downcast_ref::<Link>() {
             self.content_size.set(old.content_size.get());
             self.measured_max_width.set(old.measured_max_width.get());
+            self.char_offsets.replace(old.char_offsets.borrow().clone());
+            self.selection_anchor.set(old.selection_anchor.get());
+            self.selection_cursor.set(old.selection_cursor.get());
         }
     }
 }

@@ -143,19 +143,19 @@ impl Interaction {
             }
 
             InputEvent::KeyInput { event: key_event, .. } => {
+                let mut consumed = self.on_key.is_some();
+
                 if let Some(cb) = self.on_key.as_mut() {
                     cb(key_event, ctx);
                 }
 
-                // Escape universally releases focus for any focusable widget that
-                // doesn't implement its own KeyInput handling (TextBox opts out of
-                // this path entirely and handles Escape itself).
                 if
                     self.focused &&
                     key_event.key == Key::Escape &&
                     key_event.state == KeyState::Pressed
                 {
                     ctx.release_focus();
+                    consumed = true;
                 }
 
                 if self.focused && Self::is_activation_key(key_event.key) {
@@ -173,9 +173,14 @@ impl Interaction {
                         }
                         _ => {}
                     }
+                    consumed = true;
                 }
 
-                EventStatus::Handled
+                if consumed {
+                    EventStatus::Handled
+                } else {
+                    EventStatus::Ignored
+                }
             }
 
             InputEvent::FocusGained { via_keyboard } => {

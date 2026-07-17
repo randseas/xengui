@@ -112,6 +112,7 @@ pub struct App {
     next_blink: Option<Instant>,
     next_animation: Option<Instant>,
     reconcile_work: Option<crate::reconciler::WorkLoop>,
+    clipboard: xen_clipboard::Clipboard,
 
     #[cfg(target_arch = "wasm32")]
     pub event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
@@ -133,6 +134,7 @@ impl App {
             next_blink: None,
             next_animation: None,
             reconcile_work: None,
+            clipboard: xen_clipboard::Clipboard::new(),
 
             #[cfg(target_arch = "wasm32")]
             event_proxy: None,
@@ -501,6 +503,10 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
+                if state == winit::event::ElementState::Pressed {
+                    crate::clear_text_selection_recursive(&mut self.root);
+                }
+
                 let Some(point) = self.input.cursor_pos else {
                     return;
                 };
@@ -593,19 +599,41 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     return;
                 }
 
+                let mut status = crate::EventStatus::Ignored;
+
                 if let Some(path) = self.input.focused_path.clone() {
                     let mut ctx = EventCtx::new();
 
-                    dispatch_positional(
+                    status = dispatch_positional(
                         &mut self.root,
                         &path,
                         &(InputEvent::KeyInput {
-                            event: keyboard_event,
+                            event: keyboard_event.clone(),
                             modifiers: self.input.modifiers,
                         }),
                         &mut ctx
                     );
                     self.apply_event_ctx(ctx);
+                }
+
+                // Page-wide select-all / copy, only when no focused widget
+                // already consumed the shortcut for itself (e.g. TextBox).
+                if
+                    status == crate::EventStatus::Ignored &&
+                    keyboard_event.state == KeyState::Pressed &&
+                    !keyboard_event.repeat &&
+                    (self.input.modifiers.ctrl || self.input.modifiers.super_key)
+                {
+                    match keyboard_event.key {
+                        Key::Character('a' | 'A') => {
+                            crate::select_all_text_recursive(&mut self.root);
+                            if let Some(window) = &self.window {
+                                window.request_redraw();
+                            }
+                        }
+                        Key::Character('c' | 'C') => self.copy_selected_text(),
+                        _ => {}
+                    }
                 }
             }
             WindowEvent::ModifiersChanged(new_mods) => {
@@ -779,6 +807,14 @@ impl App {
         self.input.focused_path = Some(new_path.to_string());
         self.next_blink = None;
         self.apply_event_ctx(ctx);
+    }
+
+    fn copy_selected_text(&self) {
+        let mut text = String::new();
+        crate::collect_selected_text_recursive(&self.root, &mut text);
+        if !text.is_empty() {
+            self.clipboard.set_text(text, |_| {});
+        }
     }
 
     // Maps a touch point onto the existing mouse-event pipeline so widgets
