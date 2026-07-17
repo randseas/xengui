@@ -505,6 +505,9 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             WindowEvent::MouseInput { state, button, .. } => {
                 if state == winit::event::ElementState::Pressed {
                     crate::clear_text_selection_recursive(&mut self.root);
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
                 }
 
                 let Some(point) = self.input.cursor_pos else {

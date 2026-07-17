@@ -26,6 +26,10 @@ use crate::{
 use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
 use winit::event::{ ElementState, MouseButton };
+use web_time::Instant;
+
+const MULTI_CLICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
+const MULTI_CLICK_DISTANCE: f32 = 4.0;
 
 pub struct Link {
     key: Option<SmolStr>,
@@ -53,6 +57,9 @@ pub struct Link {
     dragging: Cell<bool>,
     moved_during_press: Cell<bool>,
 
+    click_count: Cell<u8>,
+    last_click_time: Cell<Option<Instant>>,
+    last_click_pos: Cell<(f32, f32)>,
     href: Option<SmolStr>,
     target_blank: bool,
 }
@@ -76,7 +83,7 @@ impl Link {
             disabled_style: None,
 
             interaction,
-            selectable: false,
+            selectable: true,
 
             content: SmolStr::new(""),
             layout_box: LayoutBox::default(),
@@ -89,6 +96,9 @@ impl Link {
             dragging: Cell::new(false),
             moved_during_press: Cell::new(false),
 
+            click_count: Cell::new(0),
+            last_click_time: Cell::new(None),
+            last_click_pos: Cell::new((0.0, 0.0)),
             href: None,
             target_blank: false,
         };
@@ -273,6 +283,29 @@ impl Link {
             }
         }
         best
+    }
+
+    fn char_class(c: char) -> u8 {
+        if c.is_whitespace() { 0 } else if c.is_alphanumeric() || c == '_' { 1 } else { 2 }
+    }
+
+    fn word_bounds_at(&self, idx: usize) -> (usize, usize) {
+        let chars: Vec<char> = self.content.chars().collect();
+        if chars.is_empty() {
+            return (0, 0);
+        }
+        let probe = idx.min(chars.len() - 1);
+        let class = Self::char_class(chars[probe]);
+
+        let mut start = probe;
+        while start > 0 && Self::char_class(chars[start - 1]) == class {
+            start -= 1;
+        }
+        let mut end = probe + 1;
+        while end < chars.len() && Self::char_class(chars[end]) == class {
+            end += 1;
+        }
+        (start, end)
     }
 }
 
@@ -482,10 +515,42 @@ impl Widget for Link {
                 let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
                 let local_x = position.0 - self.layout_box.x - padding_left;
                 let idx = self.index_for_offset(local_x);
-                self.selection_anchor.set(Some(idx));
-                self.selection_cursor.set(Some(idx));
-                self.dragging.set(true);
+
+                let now = Instant::now();
+                let (last_x, last_y) = self.last_click_pos.get();
+                let same_spot =
+                    (position.0 - last_x).abs() < MULTI_CLICK_DISTANCE &&
+                    (position.1 - last_y).abs() < MULTI_CLICK_DISTANCE;
+                let is_repeat =
+                    same_spot &&
+                    self.last_click_time
+                        .get()
+                        .is_some_and(|t| now.duration_since(t) < MULTI_CLICK_INTERVAL);
+                let click_count = if is_repeat { (self.click_count.get() + 1).min(3) } else { 1 };
+                self.click_count.set(click_count);
+                self.last_click_time.set(Some(now));
+                self.last_click_pos.set(*position);
                 self.moved_during_press.set(false);
+
+                match click_count {
+                    1 => {
+                        self.selection_anchor.set(Some(idx));
+                        self.selection_cursor.set(Some(idx));
+                        self.dragging.set(true);
+                    }
+                    2 => {
+                        let (start, end) = self.word_bounds_at(idx);
+                        self.selection_anchor.set(Some(start));
+                        self.selection_cursor.set(Some(end));
+                        self.dragging.set(false);
+                    }
+                    _ => {
+                        let len = self.content.chars().count();
+                        self.selection_anchor.set(Some(0));
+                        self.selection_cursor.set(Some(len));
+                        self.dragging.set(false);
+                    }
+                }
             }
 
             if let InputEvent::MouseMoved { position } = event && self.dragging.get() {
@@ -520,7 +585,8 @@ impl Widget for Link {
             } =>
                 self.interaction.pressed &&
                     self.interaction.hovered &&
-                    !self.moved_during_press.get(),
+                    !self.moved_during_press.get() &&
+                    self.click_count.get() <= 1,
             InputEvent::KeyInput { event: key_event, .. } =>
                 self.interaction.focused &&
                     !key_event.repeat &&
@@ -599,6 +665,9 @@ impl Widget for Link {
             self.char_offsets.replace(old.char_offsets.borrow().clone());
             self.selection_anchor.set(old.selection_anchor.get());
             self.selection_cursor.set(old.selection_cursor.get());
+            self.click_count.set(old.click_count.get());
+            self.last_click_time.set(old.last_click_time.get());
+            self.last_click_pos.set(old.last_click_pos.get());
         }
     }
 }

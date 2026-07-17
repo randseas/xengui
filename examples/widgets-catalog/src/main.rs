@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use xengui::{ widgets::Link, * };
+use xengui::{ properties::StyleValue, widgets::Link, * };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_arch = "wasm32")]
@@ -41,6 +41,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     app.render(|| {
+        let (text, set_text) = use_state(String::from("Ferris"));
+
         Box::new(
             View::new()
                 .font("Noto_Sans")
@@ -68,14 +70,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             Button::new()
                                 .label("button1")
                                 .font_size(13)
-                                .color(Color::NEUTRAL_500)
-                                .background(Color::NEUTRAL_100)
-                                .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
-                                .padding(Edges::only(10, 4, 10, 6))
+                                .color(Color::NEUTRAL_400)
+                                .background(Color::NEUTRAL_200)
+                                .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
+                                .padding(Edges::only(9, 4, 9, 7))
+                                .margin(Edges::only(0, 10, 0, 0))
                                 .hover_style(|s|
                                     s
                                         .background(Color::NEUTRAL_200)
-                                        .border(Border::new(1, Color::NEUTRAL_300, Length::px(6.0)))
+                                        .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
+                                        .color(Color::NEUTRAL_600)
+                                )
+                                .pressed_style(|s|
+                                    s
+                                        .background(Color::NEUTRAL_200)
+                                        .border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
+                                        .color(Color::NEUTRAL_700)
+                                )
+                                .disabled_style(|s|
+                                    s.background(Color::NEUTRAL_100).color(Color::NEUTRAL_400)
                                 )
                         )
                         .child(Label::new().label("label1").color(Color::NEUTRAL_500))
@@ -83,6 +96,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             Link::new()
                                 .label("https://github.com/randseas")
                                 .href("https://github.com/randseas")
+                        )
+                        .child(
+                            TextBox::new()
+                                .value(text.clone())
+                                .color(Color::NEUTRAL_400)
+                                .placeholder("textBox1...")
+                                .font_size(16)
+                                .outline(StyleValue::None)
+                                .focus_outline(StyleValue::Default)
+                                .max_width(Length::px(150.0))
+                                .padding(Edges::only(10, 7, 10, 8))
+                                .background(Color::WHITE)
+                                .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
+                                .hover_style(|s|
+                                    s.border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
+                                )
+                                .focus_style(|s|
+                                    s.border(Border::new(2, Color::BLUE_500, Length::px(8.0)))
+                                )
+                                .on_change(move |value, _ctx| set_text.set(value.to_string()))
                         )
                         .child(
                             Image::new()

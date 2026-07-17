@@ -23,6 +23,10 @@ use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
 use winit::event::{ ElementState, MouseButton };
 use winit::window::CursorIcon;
+use web_time::Instant;
+
+const MULTI_CLICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
+const MULTI_CLICK_DISTANCE: f32 = 4.0;
 
 #[macro_export]
 macro_rules! props {
@@ -59,6 +63,10 @@ pub struct Label {
     selection_anchor: Cell<Option<usize>>,
     selection_cursor: Cell<Option<usize>>,
     dragging: Cell<bool>,
+
+    click_count: Cell<u8>,
+    last_click_time: Cell<Option<Instant>>,
+    last_click_pos: Cell<(f32, f32)>,
 }
 
 impl Label {
@@ -80,7 +88,7 @@ impl Label {
             disabled_style: None,
 
             interaction,
-            selectable: false,
+            selectable: true,
 
             content: SmolStr::new(""),
             layout_box: LayoutBox::default(),
@@ -91,6 +99,10 @@ impl Label {
             selection_anchor: Cell::new(None),
             selection_cursor: Cell::new(None),
             dragging: Cell::new(false),
+
+            click_count: Cell::new(0),
+            last_click_time: Cell::new(None),
+            last_click_pos: Cell::new((0.0, 0.0)),
         };
 
         label.recompute_style();
@@ -243,6 +255,29 @@ impl Label {
             }
         }
         best
+    }
+
+    fn char_class(c: char) -> u8 {
+        if c.is_whitespace() { 0 } else if c.is_alphanumeric() || c == '_' { 1 } else { 2 }
+    }
+
+    fn word_bounds_at(&self, idx: usize) -> (usize, usize) {
+        let chars: Vec<char> = self.content.chars().collect();
+        if chars.is_empty() {
+            return (0, 0);
+        }
+        let probe = idx.min(chars.len() - 1);
+        let class = Self::char_class(chars[probe]);
+
+        let mut start = probe;
+        while start > 0 && Self::char_class(chars[start - 1]) == class {
+            start -= 1;
+        }
+        let mut end = probe + 1;
+        while end < chars.len() && Self::char_class(chars[end]) == class {
+            end += 1;
+        }
+        (start, end)
     }
 }
 
@@ -434,9 +469,44 @@ impl Widget for Label {
 
             match state {
                 ElementState::Pressed => {
-                    self.selection_anchor.set(Some(idx));
-                    self.selection_cursor.set(Some(idx));
-                    self.dragging.set(true);
+                    let now = Instant::now();
+                    let (last_x, last_y) = self.last_click_pos.get();
+                    let same_spot =
+                        (position.0 - last_x).abs() < MULTI_CLICK_DISTANCE &&
+                        (position.1 - last_y).abs() < MULTI_CLICK_DISTANCE;
+                    let is_repeat =
+                        same_spot &&
+                        self.last_click_time
+                            .get()
+                            .is_some_and(|t| now.duration_since(t) < MULTI_CLICK_INTERVAL);
+                    let click_count = if is_repeat {
+                        (self.click_count.get() + 1).min(3)
+                    } else {
+                        1
+                    };
+                    self.click_count.set(click_count);
+                    self.last_click_time.set(Some(now));
+                    self.last_click_pos.set(*position);
+
+                    match click_count {
+                        1 => {
+                            self.selection_anchor.set(Some(idx));
+                            self.selection_cursor.set(Some(idx));
+                            self.dragging.set(true);
+                        }
+                        2 => {
+                            let (start, end) = self.word_bounds_at(idx);
+                            self.selection_anchor.set(Some(start));
+                            self.selection_cursor.set(Some(end));
+                            self.dragging.set(false);
+                        }
+                        _ => {
+                            let len = self.content.chars().count();
+                            self.selection_anchor.set(Some(0));
+                            self.selection_cursor.set(Some(len));
+                            self.dragging.set(false);
+                        }
+                    }
                 }
                 ElementState::Released => {
                     self.dragging.set(false);
@@ -527,6 +597,9 @@ impl Widget for Label {
             self.char_offsets.replace(old.char_offsets.borrow().clone());
             self.selection_anchor.set(old.selection_anchor.get());
             self.selection_cursor.set(old.selection_cursor.get());
+            self.click_count.set(old.click_count.get());
+            self.last_click_time.set(old.last_click_time.get());
+            self.last_click_pos.set(old.last_click_pos.get());
         }
     }
 }
