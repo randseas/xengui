@@ -186,7 +186,6 @@ impl Style {
         Style {
             // Inherited properties
             color: patch.color.or(self.color),
-            cursor: patch.cursor.or(self.cursor),
             font: patch.font.clone().or_else(|| self.font.clone()),
             font_size: patch.font_size.or(self.font_size),
             font_weight: patch.font_weight.or(self.font_weight),

@@ -191,16 +191,16 @@ impl TextPipeline {
             );
         }
 
-        // Glyphon clips anything outside these bounds, which is what makes
-        // scrolled-off text in a single-line input disappear at the edge
-        // instead of overflowing past the widget.
+        // Only clip horizontally (needed for single-line scroll in TextBox);
+        // vertical bounds stay open so descenders are never cut off by
+        // line-height being a flat approximation of real font metrics.
         let bounds = match clip_rect {
-            Some((x, y, w, h)) =>
+            Some((x, _y, w, _h)) =>
                 TextBounds {
                     left: x.round() as i32,
-                    top: y.round() as i32,
+                    top: i32::MIN,
                     right: (x + w).round() as i32,
-                    bottom: (y + h).round() as i32,
+                    bottom: i32::MAX,
                 },
             None =>
                 TextBounds {

@@ -57,6 +57,7 @@ impl Interaction {
 
     pub fn is_active(&self) -> bool {
         self.focusable ||
+            self.hover_cursor.is_some() ||
             self.on_mouse_enter.is_some() ||
             self.on_mouse_leave.is_some() ||
             self.on_hover.is_some() ||
@@ -183,7 +184,7 @@ impl Interaction {
                 ctx.request_redraw();
                 EventStatus::Handled
             }
-            
+
             InputEvent::FocusLost => {
                 self.focused = false;
                 self.pressed = false;
