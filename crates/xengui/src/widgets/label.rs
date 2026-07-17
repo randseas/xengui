@@ -1,3 +1,4 @@
+use crate::properties::DEFAULT_CURSOR_ICON;
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background,
@@ -73,7 +74,7 @@ impl Label {
     pub fn new() -> Self {
         let mut interaction = Interaction::new();
         interaction.focusable = false;
-        interaction.hover_cursor = Some(CursorIcon::Text);
+        interaction.hover_cursor = Some(DEFAULT_CURSOR_ICON);
 
         let mut label = Self {
             key: None,
@@ -235,9 +236,10 @@ impl Label {
             None => base,
         };
 
+        // Only shows the I-beam when text selection is actually enabled.
         self.interaction.hover_cursor = self.computed_style.cursor
             .map(crate::Cursor::to_winit)
-            .or(Some(CursorIcon::Text));
+            .or(Some(if self.selectable { CursorIcon::Text } else { CursorIcon::Default }));
     }
 
     fn index_for_offset(&self, local_x: f32) -> usize {

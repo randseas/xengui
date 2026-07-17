@@ -16,11 +16,29 @@ use crate::{
     TextCommand,
     Widget,
     WidgetContent,
+    properties::{ DEFAULT_CURSOR_ICON, DEFAULT_POINTER_CURSOR_ICON },
 };
 use smol_str::SmolStr;
 use std::cell::Cell;
-use winit::window::CursorIcon;
 
+/// A clickable widget that performs an action when activated.
+///
+/// A `Button` displays a text label and responds to user interactions such as
+/// pointer clicks and keyboard activation. Its appearance can be customized
+/// through the styling API, including typography, colors, borders, spacing,
+/// and sizing.
+///
+/// Buttons can be enabled or disabled. When disabled, they remain visible but
+/// do not respond to user input.
+///
+/// ## Example
+///
+/// ```no_run
+/// use xengui::prelude::*;
+///
+/// let button = Button::new()
+///     .label("Click me");
+/// ```
 pub struct Button {
     key: Option<SmolStr>,
 
@@ -44,7 +62,7 @@ impl Button {
     pub fn new() -> Self {
         let mut interaction = Interaction::new();
         interaction.focusable = true;
-        interaction.hover_cursor = Some(CursorIcon::Pointer);
+        interaction.hover_cursor = Some(DEFAULT_POINTER_CURSOR_ICON);
 
         let mut button = Self {
             key: None,
@@ -69,21 +87,27 @@ impl Button {
         button
     }
 
-    /// Stable identity among siblings, kept across rebuilds even when this
-    /// widget moves position (reorder, insert, remove). Use for list items
-    /// instead of relying on array index.
+    /// Assigns a stable identifier to this widget.
+    ///
+    /// Keys are used to preserve widget identity across rebuilds, allowing state
+    /// to remain associated with the same logical widget even if its position in
+    /// the widget tree changes.
     pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
         self.key = Some(key.into());
         self
     }
 
-    // Builder methods
+    /// Sets the text displayed by this widget.
     pub fn label(mut self, content: impl Into<SmolStr>) -> Self {
         self.content = content.into();
         self.mark_dirty();
         self
     }
 
+    /// Sets the font family used to render the widget's text.
+    ///
+    /// The font name must correspond to a font that has been registered with the
+    /// application.
     pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
         self.style.font = Some(font.into());
         self.mark_dirty();
@@ -165,8 +189,25 @@ impl Button {
         self
     }
 
+    /// Enables or disables user interaction for this widget.
+    ///
+    /// When disabled, the widget does not receive or respond to user input events
+    /// such as pointer or keyboard interactions.
+    ///
+    /// This is equivalent to calling [`Self::disabled`] with the opposite value.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.interaction.set_enabled(enabled);
+        self.mark_dirty();
+        self
+    }
+
+    /// Enables or disables the widget using an inverted boolean.
+    ///
+    /// Passing `true` disables the widget, while `false` enables it.
+    ///
+    /// This is equivalent to calling [`Self::enabled`] with the negated value.
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.interaction.set_enabled(!disabled);
         self.mark_dirty();
         self
     }
@@ -191,7 +232,15 @@ impl Button {
 
         self.interaction.hover_cursor = self.computed_style.cursor
             .map(crate::Cursor::to_winit)
-            .or(Some(CursorIcon::Pointer));
+            .or(
+                Some(
+                    if self.interaction.enabled {
+                        DEFAULT_POINTER_CURSOR_ICON
+                    } else {
+                        DEFAULT_CURSOR_ICON
+                    }
+                )
+            );
     }
 }
 

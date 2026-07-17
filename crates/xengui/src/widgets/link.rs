@@ -1,31 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    Background,
-    Color,
-    Constraints,
-    EventCtx,
-    EventStatus,
-    InputEvent,
-    Interaction,
-    Key,
-    KeyState,
-    LayoutBox,
-    MeasureContext,
-    MeasureResult,
-    PaintContext,
-    RectCommand,
-    Style,
-    StyleBuilder,
-    StylePatch,
-    TextCommand,
-    TextDecoration,
-    Widget,
-    WidgetContent,
-    properties::{ DEFAULT_CURSOR_ICON, DEFAULT_FONT_SIZE, DEFAULT_LINK_COLOR },
+    Background, Color, Constraints, EventCtx, EventStatus, InputEvent, Interaction, Key, KeyState, LayoutBox, MeasureContext, MeasureResult, PaintContext, RectCommand, Style, StyleBuilder, StylePatch, TextCommand, TextDecoration, Widget, WidgetContent, properties::{ DEFAULT_CURSOR_ICON, DEFAULT_FONT_SIZE, DEFAULT_LINK_COLOR, DEFAULT_POINTER_CURSOR_ICON },
 };
 use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
-use winit::event::{ ElementState, MouseButton };
+use winit::{ event::{ ElementState, MouseButton }, window::CursorIcon };
 use web_time::Instant;
 
 const MULTI_CLICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
@@ -68,7 +47,7 @@ impl Link {
     pub fn new() -> Self {
         let mut interaction = Interaction::new();
         interaction.focusable = true;
-        interaction.hover_cursor = Some(DEFAULT_CURSOR_ICON);
+        interaction.hover_cursor = Some(DEFAULT_POINTER_CURSOR_ICON);
 
         let mut link = Self {
             key: None,
@@ -244,7 +223,17 @@ impl Link {
 
         self.interaction.hover_cursor = self.computed_style.cursor
             .map(crate::Cursor::to_winit)
-            .or(Some(DEFAULT_CURSOR_ICON));
+            .or(
+                Some(
+                    if self.selectable {
+                        CursorIcon::Text
+                    } else if self.href.is_some() {
+                        DEFAULT_POINTER_CURSOR_ICON
+                    } else {
+                        DEFAULT_CURSOR_ICON
+                    }
+                )
+            );
     }
 
     fn open_href(&self, _force_new_tab: bool) {

@@ -185,7 +185,22 @@ pub fn component<R>(key: impl Into<ComponentKey>, render: impl FnOnce() -> R) ->
     result
 }
 
-/// useState(initial).
+/// Creates a state value that persists across component rebuilds.
+///
+/// `use_state` returns the current state value together with a setter that can
+/// be used to update it. Calling [`SetState::set`] schedules the owning
+/// component to be rebuilt with the new value.
+///
+/// State is preserved as long as the component's identity remains stable. When
+/// rendering dynamic lists, assign a stable key to each component to ensure
+/// that state is associated with the correct item.
+///
+/// ## Panics
+///
+/// Panics if the order of hook invocations changes between rebuilds. Hooks must
+/// always be called unconditionally and in the same order on every rebuild.
+///
+/// ## Example
 ///
 /// ```ignore
 /// let (count, set_count) = use_state(0i32);
@@ -194,7 +209,7 @@ pub fn component<R>(key: impl Into<ComponentKey>, render: impl FnOnce() -> R) ->
 ///     Button::new()
 ///         .label(format!("Count: {count}"))
 ///         .on_click(move |_ctx| set_count.set(count + 1))
-/// )
+/// );
 /// ```
 pub fn use_state<T: Clone + 'static>(initial: T) -> (T, SetState<T>) {
     let id = current_component_id();

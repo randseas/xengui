@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hides console window on windows subsystem
 use xengui::{ properties::StyleValue, widgets::Link, * };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -97,6 +97,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .child(
                             Button::new()
                                 .label("button1")
+                                .font_size(13)
+                                .color(Color::NEUTRAL_500)
+                                .background(Color::NEUTRAL_100)
+                                .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
+                                .padding(Edges::only(9, 4, 9, 7))
+                                .hover_style(|s|
+                                    s
+                                        .background(Color::NEUTRAL_200)
+                                        .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
+                                        .color(Color::NEUTRAL_600)
+                                )
+                                .pressed_style(|s|
+                                    s
+                                        .background(Color::NEUTRAL_200)
+                                        .border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
+                                        .color(Color::NEUTRAL_700)
+                                )
+                                .disabled_style(|s|
+                                    s.background(Color::NEUTRAL_100).color(Color::NEUTRAL_400)
+                                )
+                        )
+                        .child(
+                            Button::new()
+                                .label("disabled_button1")
+                                .enabled(false)
                                 .font_size(13)
                                 .color(Color::NEUTRAL_500)
                                 .background(Color::NEUTRAL_100)
