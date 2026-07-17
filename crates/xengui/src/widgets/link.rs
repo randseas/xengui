@@ -643,6 +643,13 @@ impl Widget for Link {
         self.dirty = true;
     }
 
+    fn cancel_text_selection(&mut self) {
+        self.selection_anchor.set(None);
+        self.selection_cursor.set(None);
+        self.dragging.set(false);
+        self.dirty = true;
+    }
+
     fn text_index_at(&self, point: (f32, f32)) -> usize {
         let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
         let local_x = point.0 - self.layout_box.x - padding_left;

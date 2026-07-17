@@ -67,6 +67,10 @@ pub struct TextBox {
     dragging: bool,
     drag_word_selection: bool,
     drag_word_anchor: usize,
+    // Tracks the real OS-level left-button-held state, independent of
+    // hover/Interaction - MouseExited/MouseEntered never touch this.
+    mouse_button_held: Cell<bool>,
+
     click_count: Cell<u8>,
     last_click_time: Cell<Option<Instant>>,
     last_click_pos: Cell<(f32, f32)>,
@@ -134,6 +138,7 @@ impl TextBox {
             dragging: false,
             drag_word_selection: false,
             drag_word_anchor: 0,
+            mouse_button_held: Cell::new(false),
 
             click_count: Cell::new(0),
             last_click_time: Cell::new(None),
@@ -1184,8 +1189,12 @@ impl Widget for TextBox {
 
             if *button == MouseButton::Left {
                 match state {
-                    ElementState::Pressed => self.handle_mouse_press(*position),
+                    ElementState::Pressed => {
+                        self.mouse_button_held.set(true);
+                        self.handle_mouse_press(*position);
+                    }
                     ElementState::Released => {
+                        self.mouse_button_held.set(false);
                         self.dragging = false;
                         self.drag_word_selection = false;
                     }
@@ -1213,15 +1222,13 @@ impl Widget for TextBox {
 
         // Interaction::handle() clears `pressed` on MouseExited, so the
         // real button-held state must be captured before calling it.
-        let was_pressed = self.interaction.pressed;
-
         let status = self.interaction.handle(event, ctx);
 
-        if matches!(event, InputEvent::MouseExited) && !was_pressed {
+        if matches!(event, InputEvent::MouseExited) && !self.mouse_button_held.get() {
             self.dragging = false;
             self.drag_word_selection = false;
         }
-        
+
         if matches!(event, InputEvent::FocusGained { .. }) {
             if self.focus_via_pointer.get() {
                 self.focus_via_pointer.set(false);
@@ -1297,6 +1304,13 @@ impl Widget for TextBox {
             self.char_offsets.replace(old.char_offsets.borrow().clone());
             self.scroll_offset.set(old.scroll_offset.get());
         }
+    }
+
+    fn cancel_text_selection(&mut self) {
+        self.selection_anchor = None;
+        self.dragging = false;
+        self.drag_word_selection = false;
+        self.dirty = true;
     }
 
     fn blink_interval(&self) -> Option<std::time::Duration> {

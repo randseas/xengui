@@ -275,6 +275,13 @@ pub trait Widget: Any {
 
     fn set_text_selection(&mut self, _range: Option<(usize, usize)>) {}
 
+    // Called by the global Escape handler; clears the selection and also
+    // stops any drag-in-progress so a still-held mouse button can't
+    // immediately re-create the selection on the next move.
+    fn cancel_text_selection(&mut self) {
+        self.set_text_selection(None);
+    }
+
     /// Nearest character index to an absolute screen point, used by
     /// cross-widget drag selection to know where a widget's own
     /// selection should start or end.

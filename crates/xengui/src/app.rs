@@ -96,7 +96,8 @@ impl Default for AppConfig {
 }
 
 pub enum XenEvent {
-    RendererReady(XenRenderer),
+    RendererReady(Box<XenRenderer>),
+    CancelSelection,
 }
 
 pub struct App {
@@ -393,13 +394,52 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 wasm_bindgen_futures::spawn_local(async move {
                     match XenRenderer::new(window_clone, user_fonts).await {
                         Ok(renderer) => {
-                            let _ = proxy_clone.send_event(XenEvent::RendererReady(renderer));
+                            let _ = proxy_clone.send_event(
+                                XenEvent::RendererReady(Box::new(renderer))
+                            );
                         }
                         Err(e) => {
                             log::error!("wasm32(web) XenRenderer init failed: {e}");
                         }
                     }
                 });
+
+                if let Some(document) = web_sys::window().and_then(|w| w.document()) {
+                    let proxy_clone = proxy.clone();
+                    // Escape's keydown never reaches the page while the browser
+                    // is exiting fullscreen or pointer lock (spec-mandated, not
+                    // overridable) - fullscreenchange is the only signal we get.
+                    let fs_closure = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(move || {
+                        let _ = proxy_clone.send_event(XenEvent::CancelSelection);
+                    });
+                    let _ = document.add_event_listener_with_callback_and_bool(
+                        "keydown",
+                        fs_closure.as_ref().unchecked_ref(),
+                        true // capture phase: runs before winit's canvas listener,
+                        // so a stopPropagation() there can't swallow this
+                    );
+                    fs_closure.forget();
+
+                    // Direct DOM listener as a safety net: on some
+                    // browsers/focus states winit's own canvas keydown
+                    // listener doesn't reliably surface Escape, so it's
+                    // also caught here independently of winit's pipeline.
+                    let proxy_clone2 = proxy.clone();
+                    let key_closure = wasm_bindgen::closure::Closure::<
+                        dyn FnMut(web_sys::KeyboardEvent)
+                    >::new(move |event: web_sys::KeyboardEvent| {
+                        if event.key() == "Escape" {
+                            let _ = proxy_clone2.send_event(XenEvent::CancelSelection);
+                        }
+                    });
+                    let _ = document.add_event_listener_with_callback_and_bool(
+                        "keydown",
+                        key_closure.as_ref().unchecked_ref(),
+                        true // capture phase: runs before winit's canvas listener,
+                        // so a stopPropagation() there can't swallow this
+                    );
+                    key_closure.forget();
+                }
             }
             log::info!("application resumed, gpu context ready");
         }
@@ -408,11 +448,14 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: XenEvent) {
         match event {
             XenEvent::RendererReady(renderer) => {
-                self.renderer = Some(renderer);
+                self.renderer = Some(*renderer);
                 log::info!("web gpu context successfully attached to event loop");
                 if let Some(w) = &self.window {
                     w.request_redraw();
                 }
+            }
+            XenEvent::CancelSelection => {
+                self.cancel_text_selection();
             }
         }
     }
@@ -657,12 +700,14 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     }
                 }
 
+                // Deselect selection when pressed esc
                 if
                     keyboard_event.key == Key::Escape &&
                     keyboard_event.state == KeyState::Pressed &&
                     !keyboard_event.repeat
                 {
                     crate::clear_text_selection_recursive(&mut self.root);
+                    self.input.text_drag_anchor = None;
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
@@ -846,6 +891,14 @@ impl App {
         crate::collect_selected_text_recursive(&self.root, &mut text);
         if !text.is_empty() {
             self.clipboard.set_text(text, |_| {});
+        }
+    }
+
+    fn cancel_text_selection(&mut self) {
+        crate::clear_text_selection_recursive(&mut self.root);
+        self.input.text_drag_anchor = None;
+        if let Some(window) = &self.window {
+            window.request_redraw();
         }
     }
 

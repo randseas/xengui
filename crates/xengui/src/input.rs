@@ -489,7 +489,7 @@ pub fn select_all_text_recursive(tree: &mut [Box<dyn Widget>]) {
 
 pub fn clear_text_selection_recursive(tree: &mut [Box<dyn Widget>]) {
     for widget in tree.iter_mut() {
-        widget.set_text_selection(None);
+        widget.cancel_text_selection();
         if let Some(children) = widget.children_mut() {
             clear_text_selection_recursive(children);
         }
