@@ -493,6 +493,13 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     );
                     self.apply_event_ctx(ctx);
                 }
+
+                if let Some(anchor) = self.input.text_drag_anchor {
+                    crate::update_global_text_selection(&mut self.root, anchor, point);
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                }
             }
             WindowEvent::CursorLeft { .. } => {
                 self.input.cursor_pos = None;
@@ -513,6 +520,13 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 let Some(point) = self.input.cursor_pos else {
                     return;
                 };
+
+                if
+                    state == winit::event::ElementState::Pressed &&
+                    button == winit::event::MouseButton::Left
+                {
+                    self.input.text_drag_anchor = Some(point);
+                }
 
                 // On release, target the widget that was actually pressed (mouse
                 // capture) rather than re-hit-testing the current cursor position -
@@ -562,6 +576,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
 
                 if state == winit::event::ElementState::Released {
                     self.input.pressed_path = None;
+                    self.input.text_drag_anchor = None;
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
@@ -636,6 +651,17 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         }
                         Key::Character('c' | 'C') => self.copy_selected_text(),
                         _ => {}
+                    }
+                }
+
+                if
+                    keyboard_event.key == Key::Escape &&
+                    keyboard_event.state == KeyState::Pressed &&
+                    !keyboard_event.repeat
+                {
+                    crate::clear_text_selection_recursive(&mut self.root);
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
                     }
                 }
             }

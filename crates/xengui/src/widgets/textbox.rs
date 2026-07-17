@@ -1089,7 +1089,9 @@ impl Widget for TextBox {
                 let sel_right = (text_x + end_x).min(content_right);
 
                 if sel_right > sel_left {
-                    let sel_color = self.selection_color.unwrap_or(Color::rgba(90, 140, 230, 100));
+                    let sel_color = self.selection_color.unwrap_or_else(||
+                        style.selection_color.unwrap_or(Color::rgba(90, 140, 230, 100))
+                    );
                     ctx.draw_rect(RectCommand {
                         position: (sel_left, line_y),
                         size: (sel_right - sel_left, line_h),

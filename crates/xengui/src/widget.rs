@@ -275,5 +275,12 @@ pub trait Widget: Any {
 
     fn set_text_selection(&mut self, _range: Option<(usize, usize)>) {}
 
+    /// Nearest character index to an absolute screen point, used by
+    /// cross-widget drag selection to know where a widget's own
+    /// selection should start or end.
+    fn text_index_at(&self, _point: (f32, f32)) -> usize {
+        0
+    }
+
     fn select_all_text(&mut self) {}
 }

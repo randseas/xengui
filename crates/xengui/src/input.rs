@@ -463,6 +463,9 @@ pub struct InputState {
     pub pressed_path: Option<String>,
     pub focused_path: Option<String>,
     pub modifiers: ModifiersState,
+    /// Screen point where a cross-widget text-selection drag started;
+    /// `None` when no such drag is in progress.
+    pub text_drag_anchor: Option<(f32, f32)>,
 }
 
 pub fn select_all_text_recursive(tree: &mut [Box<dyn Widget>]) {
@@ -479,6 +482,59 @@ pub fn clear_text_selection_recursive(tree: &mut [Box<dyn Widget>]) {
         widget.set_text_selection(None);
         if let Some(children) = widget.children_mut() {
             clear_text_selection_recursive(children);
+        }
+    }
+}
+
+/// Recomputes every selectable widget's own text selection from two
+/// screen points, so a single mouse drag can span multiple widgets like
+/// a browser selection.
+pub fn update_global_text_selection(
+    tree: &mut [Box<dyn Widget>],
+    anchor: (f32, f32),
+    current: (f32, f32)
+) {
+    let (start, end) = if (anchor.1, anchor.0) <= (current.1, current.0) {
+        (anchor, current)
+    } else {
+        (current, anchor)
+    };
+    update_global_text_selection_recursive(tree, start, end);
+}
+
+fn update_global_text_selection_recursive(
+    widgets: &mut [Box<dyn Widget>],
+    start: (f32, f32),
+    end: (f32, f32)
+) {
+    for widget in widgets.iter_mut() {
+        if widget.selectable_text().is_some() {
+            let b = *widget.layout_box();
+            let top = b.y;
+            let bottom = b.y + b.height;
+
+            if bottom <= start.1 || top >= end.1 {
+                widget.set_text_selection(None);
+            } else {
+                let overlaps_start = top <= start.1 && bottom > start.1;
+                let overlaps_end = top <= end.1 && bottom > end.1;
+
+                let from = if overlaps_start { widget.text_index_at(start) } else { 0 };
+                let to = if overlaps_end {
+                    widget.text_index_at(end)
+                } else {
+                    widget
+                        .selectable_text()
+                        .map(|t| t.chars().count())
+                        .unwrap_or(0)
+                };
+
+                widget.set_text_selection(Some((from, to)));
+            }
+        }
+
+        if let Some(children) = widget.children_mut() {
+            update_global_text_selection_recursive(children, start, end);
         }
     }
 }

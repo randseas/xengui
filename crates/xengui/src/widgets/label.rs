@@ -440,7 +440,11 @@ impl Widget for Label {
                 ctx.draw_rect(RectCommand {
                     position: (text_x + start_x, text_y),
                     size: (end_x - start_x, content_h.max(1.0)),
-                    background: Some(Background::Color(Color::rgba(90, 140, 230, 100))),
+                    background: Some(
+                        Background::Color(
+                            style.selection_color.unwrap_or(Color::rgba(90, 140, 230, 100))
+                        )
+                    ),
                     border_radius: None,
                     border_width: None,
                     border_color: None,
@@ -516,19 +520,6 @@ impl Widget for Label {
             ctx.request_redraw();
         }
 
-        if
-            self.selectable &&
-            self.dragging.get() &&
-            let InputEvent::MouseMoved { position } = event
-        {
-            let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
-            let local_x = position.0 - self.layout_box.x - padding_left;
-            self.selection_cursor.set(Some(self.index_for_offset(local_x)));
-            self.dirty = true;
-            ctx.request_redraw();
-            return EventStatus::Handled;
-        }
-
         if !self.interaction.is_active() {
             return EventStatus::Ignored;
         }
@@ -557,6 +548,13 @@ impl Widget for Label {
         let (anchor, cursor) = range.map_or((None, None), |(s, e)| (Some(s), Some(e)));
         self.selection_anchor.set(anchor);
         self.selection_cursor.set(cursor);
+        self.dirty = true;
+    }
+
+    fn text_index_at(&self, point: (f32, f32)) -> usize {
+        let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
+        let local_x = point.0 - self.layout_box.x - padding_left;
+        self.index_for_offset(local_x)
     }
 
     fn select_all_text(&mut self) {

@@ -62,6 +62,8 @@ impl<T: Clone> StyleValue<T> {
 pub struct Style {
     // Typography
     pub color: Option<Color>,
+    /// Highlight color for selected text; inherited like `color`.
+    pub selection_color: Option<Color>,
     pub cursor: Option<Cursor>,
     pub background: Option<Background>,
     pub font: Option<SmolStr>,
@@ -118,6 +120,7 @@ impl Style {
         #[allow(clippy::unnecessary_lazy_evaluations)]
         Style {
             color: patch.color.or_else(|| self.color),
+            selection_color: patch.selection_color.or_else(|| self.selection_color),
             cursor: patch.cursor.or_else(|| self.cursor),
             background: patch.background.clone().or_else(|| self.background.clone()),
             font: patch.font.clone().or_else(|| self.font.clone()),
@@ -186,6 +189,7 @@ impl Style {
         Style {
             // Inherited properties
             color: patch.color.or(self.color),
+            selection_color: patch.selection_color.or(self.selection_color),
             font: patch.font.clone().or_else(|| self.font.clone()),
             font_size: patch.font_size.or(self.font_size),
             font_weight: patch.font_weight.or(self.font_weight),

@@ -55,8 +55,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .child(
                     Label::new()
                         .label("Widgets Catalog")
+                        .font_size(Length::px(18.0))
                         .color(Color::NEUTRAL_500)
-                        .margin(Edges::only(0, 0, 0, 10))
+                        .margin(Edges::only(0, 0, 0, 6))
                 )
                 .child(
                     View::new()
@@ -105,7 +106,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .font_size(16)
                                 .outline(StyleValue::None)
                                 .focus_outline(StyleValue::Default)
-                                .max_width(Length::px(150.0))
+                                .min_width(Length::px(150.0))
                                 .padding(Edges::only(10, 7, 10, 8))
                                 .background(Color::WHITE)
                                 .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))

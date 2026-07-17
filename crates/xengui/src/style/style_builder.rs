@@ -59,6 +59,12 @@ pub trait StyleBuilder: Sized {
         self
     }
 
+    fn selection_color(mut self, color: Color) -> Self {
+        self.style_mut().selection_color = Some(color);
+        self.mark_dirty();
+        self
+    }
+
     fn cursor(mut self, cursor: Cursor) -> Self {
         self.style_mut().cursor = Some(cursor);
         self.mark_dirty();
