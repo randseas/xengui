@@ -32,7 +32,7 @@ use super::{
 
 pub const DEFAULT_FONT_SIZE: Length = Length::px(14.0);
 pub const DEFAULT_CURSOR_ICON: CursorIcon = CursorIcon::Pointer;
-pub const DEFAULT_LINK_COLOR: Color = Color::BLUE_500;
+pub const DEFAULT_LINK_COLOR: Color = Color::BLUE_600;
 
 #[derive(Default, Clone, Debug, PartialEq)]
 pub enum StyleValue<T> {
