@@ -275,7 +275,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         #[cfg(target_arch = "wasm32")]
         {
             use winit::platform::web::WindowAttributesExtWebSys;
-            attributes = attributes.with_append(true).with_prevent_default(false);
+            attributes = attributes.with_append(true).with_prevent_default(true);
         }
 
         // Instantiate the official application window instance
@@ -653,6 +653,25 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let keyboard_event = convert_keyboard_event(event);
+
+                // Mirrors modifier state from the key event itself, since
+                // ModifiersChanged can arrive out of order relative to the
+                // following KeyboardInput on some platforms.
+                match keyboard_event.key {
+                    Key::ControlLeft | Key::ControlRight => {
+                        self.input.modifiers.ctrl = keyboard_event.state == KeyState::Pressed;
+                    }
+                    Key::ShiftLeft | Key::ShiftRight => {
+                        self.input.modifiers.shift = keyboard_event.state == KeyState::Pressed;
+                    }
+                    Key::AltLeft | Key::AltRight => {
+                        self.input.modifiers.alt = keyboard_event.state == KeyState::Pressed;
+                    }
+                    Key::SuperLeft | Key::SuperRight => {
+                        self.input.modifiers.super_key = keyboard_event.state == KeyState::Pressed;
+                    }
+                    _ => {}
+                }
 
                 if
                     keyboard_event.key == Key::Tab &&
