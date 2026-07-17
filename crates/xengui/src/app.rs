@@ -430,6 +430,23 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     >::new(move |event: web_sys::KeyboardEvent| {
                         if event.key() == "Escape" {
                             let _ = proxy_clone2.send_event(XenEvent::CancelSelection);
+                            return;
+                        }
+
+                        // winit's web backend deliberately skips preventDefault for
+                        // modifier combos (to avoid blocking browser shortcuts like
+                        // Ctrl+R), so the browser's own select-all/cut/copy/paste
+                        // fires alongside ours and interferes with focus/selection.
+                        // Stop the browser default only for the combos TextBox
+                        // already implements itself.
+                        let cmd = event.ctrl_key() || event.meta_key();
+                        if cmd {
+                            match event.key().as_str() {
+                                "a" | "A" | "x" | "X" | "c" | "C" | "v" | "V" => {
+                                    event.prevent_default();
+                                }
+                                _ => {}
+                            }
                         }
                     });
                     let _ = document.add_event_listener_with_callback_and_bool(
