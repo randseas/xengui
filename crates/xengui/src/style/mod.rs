@@ -32,7 +32,12 @@ pub use length::Length;
 pub use letter_spacing::LetterSpacing;
 pub use line_height::LineHeight;
 pub use position::Position;
-pub use scrollbar::{ ResolvedScrollbar, ScrollbarStyle };
+pub use scrollbar::{
+    ResolvedScrollbar,
+    ScrollbarStyle,
+    DEFAULT_SCROLLBAR_HOVER_THICKNESS,
+    DEFAULT_SCROLLBAR_THICKNESS,
+};
 pub use properties::Style;
 pub use size::Size;
 pub use style_builder::*;

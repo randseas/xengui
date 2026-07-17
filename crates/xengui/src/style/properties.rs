@@ -114,6 +114,8 @@ pub struct Style {
 
     // Scrollbar
     pub scrollbar: Option<ScrollbarStyle>,
+    pub scrollbar_hover: Option<ScrollbarStyle>,
+    pub scrollbar_pressed: Option<ScrollbarStyle>,
 }
 
 impl Style {
@@ -181,6 +183,18 @@ impl Style {
                 (Some(base), None) => Some(*base),
                 (None, None) => None,
             },
+            scrollbar_hover: match (&self.scrollbar_hover, &patch.scrollbar_hover) {
+                (Some(base), Some(p)) => Some(base.overlay(p)),
+                (None, Some(p)) => Some(*p),
+                (Some(base), None) => Some(*base),
+                (None, None) => None,
+            },
+            scrollbar_pressed: match (&self.scrollbar_pressed, &patch.scrollbar_pressed) {
+                (Some(base), Some(p)) => Some(base.overlay(p)),
+                (None, Some(p)) => Some(*p),
+                (Some(base), None) => Some(*base),
+                (None, None) => None,
+            },
         }
     }
 
@@ -206,6 +220,18 @@ impl Style {
 
             // scrollbar colors may reasonably inherit in XenGui
             scrollbar: match (&self.scrollbar, &patch.scrollbar) {
+                (Some(base), Some(p)) => Some(base.overlay(p)),
+                (None, Some(p)) => Some(*p),
+                (Some(base), None) => Some(*base),
+                (None, None) => None,
+            },
+            scrollbar_hover: match (&self.scrollbar_hover, &patch.scrollbar_hover) {
+                (Some(base), Some(p)) => Some(base.overlay(p)),
+                (None, Some(p)) => Some(*p),
+                (Some(base), None) => Some(*base),
+                (None, None) => None,
+            },
+            scrollbar_pressed: match (&self.scrollbar_pressed, &patch.scrollbar_pressed) {
                 (Some(base), Some(p)) => Some(base.overlay(p)),
                 (None, Some(p)) => Some(*p),
                 (Some(base), None) => Some(*base),

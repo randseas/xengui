@@ -341,6 +341,216 @@ pub trait StyleBuilder: Sized {
         self.mark_dirty();
         self
     }
+
+    fn scrollbar_thumb_border_width(mut self, width: f32) -> Self {
+        self.style_mut().scrollbar.get_or_insert_with(ScrollbarStyle::default).thumb_border_width =
+            Some(width);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_thumb_border_color(mut self, color: Color) -> Self {
+        self.style_mut().scrollbar.get_or_insert_with(ScrollbarStyle::default).thumb_border_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_track_border_width(mut self, width: f32) -> Self {
+        self.style_mut().scrollbar.get_or_insert_with(ScrollbarStyle::default).track_border_width =
+            Some(width);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_track_border_color(mut self, color: Color) -> Self {
+        self.style_mut().scrollbar.get_or_insert_with(ScrollbarStyle::default).track_border_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    // Overrides applied only while the pointer is over the scrollbar's own
+    // track/thumb/buttons; unset fields fall back to the default scrollbar style.
+    fn scrollbar_hover_thickness(mut self, thickness: f32) -> Self {
+        self.style_mut().scrollbar_hover.get_or_insert_with(ScrollbarStyle::default).thickness =
+            Some(thickness);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_hover_min_thumb_length(mut self, length: f32) -> Self {
+        self
+            .style_mut()
+            .scrollbar_hover.get_or_insert_with(ScrollbarStyle::default).min_thumb_length =
+            Some(length);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_hover_thumb_color(mut self, color: Color) -> Self {
+        self.style_mut().scrollbar_hover.get_or_insert_with(ScrollbarStyle::default).thumb_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_hover_thumb_radius(mut self, radius: f32) -> Self {
+        self.style_mut().scrollbar_hover.get_or_insert_with(ScrollbarStyle::default).thumb_radius =
+            Some(radius);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_hover_thumb_border_width(mut self, width: f32) -> Self {
+        self
+            .style_mut()
+            .scrollbar_hover.get_or_insert_with(ScrollbarStyle::default).thumb_border_width =
+            Some(width);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_hover_thumb_border_color(mut self, color: Color) -> Self {
+        self
+            .style_mut()
+            .scrollbar_hover.get_or_insert_with(ScrollbarStyle::default).thumb_border_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_hover_track_color(mut self, color: Color) -> Self {
+        self.style_mut().scrollbar_hover.get_or_insert_with(ScrollbarStyle::default).track_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_hover_track_border_width(mut self, width: f32) -> Self {
+        self
+            .style_mut()
+            .scrollbar_hover.get_or_insert_with(ScrollbarStyle::default).track_border_width =
+            Some(width);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_hover_track_border_color(mut self, color: Color) -> Self {
+        self
+            .style_mut()
+            .scrollbar_hover.get_or_insert_with(ScrollbarStyle::default).track_border_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_hover_button_color(mut self, color: Color) -> Self {
+        self.style_mut().scrollbar_hover.get_or_insert_with(ScrollbarStyle::default).button_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_hover_arrow_color(mut self, color: Color) -> Self {
+        self.style_mut().scrollbar_hover.get_or_insert_with(ScrollbarStyle::default).arrow_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    // Active while the thumb is being dragged; unset fields fall back to
+    // the hover style, then the default.
+    fn scrollbar_pressed_thickness(mut self, thickness: f32) -> Self {
+        self.style_mut().scrollbar_pressed.get_or_insert_with(ScrollbarStyle::default).thickness =
+            Some(thickness);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_pressed_min_thumb_length(mut self, length: f32) -> Self {
+        self
+            .style_mut()
+            .scrollbar_pressed.get_or_insert_with(ScrollbarStyle::default).min_thumb_length =
+            Some(length);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_pressed_thumb_color(mut self, color: Color) -> Self {
+        self.style_mut().scrollbar_pressed.get_or_insert_with(ScrollbarStyle::default).thumb_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_pressed_thumb_radius(mut self, radius: f32) -> Self {
+        self
+            .style_mut()
+            .scrollbar_pressed.get_or_insert_with(ScrollbarStyle::default).thumb_radius =
+            Some(radius);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_pressed_thumb_border_width(mut self, width: f32) -> Self {
+        self
+            .style_mut()
+            .scrollbar_pressed.get_or_insert_with(ScrollbarStyle::default).thumb_border_width =
+            Some(width);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_pressed_thumb_border_color(mut self, color: Color) -> Self {
+        self
+            .style_mut()
+            .scrollbar_pressed.get_or_insert_with(ScrollbarStyle::default).thumb_border_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_pressed_track_color(mut self, color: Color) -> Self {
+        self.style_mut().scrollbar_pressed.get_or_insert_with(ScrollbarStyle::default).track_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_pressed_track_border_width(mut self, width: f32) -> Self {
+        self
+            .style_mut()
+            .scrollbar_pressed.get_or_insert_with(ScrollbarStyle::default).track_border_width =
+            Some(width);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_pressed_track_border_color(mut self, color: Color) -> Self {
+        self
+            .style_mut()
+            .scrollbar_pressed.get_or_insert_with(ScrollbarStyle::default).track_border_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_pressed_button_color(mut self, color: Color) -> Self {
+        self
+            .style_mut()
+            .scrollbar_pressed.get_or_insert_with(ScrollbarStyle::default).button_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn scrollbar_pressed_arrow_color(mut self, color: Color) -> Self {
+        self.style_mut().scrollbar_pressed.get_or_insert_with(ScrollbarStyle::default).arrow_color =
+            Some(color);
+        self.mark_dirty();
+        self
+    }
 }
 
 #[derive(Default)]
