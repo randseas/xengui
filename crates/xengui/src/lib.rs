@@ -29,6 +29,7 @@ pub use app::{ App, AppConfig };
 pub use input::{ InputEvent, Key, KeyState };
 pub use style::{
     Color,
+    Cursor,
     Length,
     Border,
     Edges,

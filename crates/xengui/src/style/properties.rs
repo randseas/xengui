@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 use smol_str::SmolStr;
+use winit::window::CursorIcon;
 
-use crate::Outline;
+use crate::Cursor;
 
 use super::{
+    Outline,
     AlignItems,
     Background,
     Border,
@@ -29,6 +31,8 @@ use super::{
 };
 
 pub const DEFAULT_FONT_SIZE: Length = Length::px(14.0);
+pub const DEFAULT_CURSOR_ICON: CursorIcon = CursorIcon::Pointer;
+pub const DEFAULT_LINK_COLOR: Color = Color::BLUE_500;
 
 #[derive(Default, Clone, Debug, PartialEq)]
 pub enum StyleValue<T> {
@@ -58,6 +62,7 @@ impl<T: Clone> StyleValue<T> {
 pub struct Style {
     // Typography
     pub color: Option<Color>,
+    pub cursor: Option<Cursor>,
     pub background: Option<Background>,
     pub font: Option<SmolStr>,
     pub font_size: Option<Length>,
@@ -113,6 +118,7 @@ impl Style {
         #[allow(clippy::unnecessary_lazy_evaluations)]
         Style {
             color: patch.color.or_else(|| self.color),
+            cursor: patch.cursor.or_else(|| self.cursor),
             background: patch.background.clone().or_else(|| self.background.clone()),
             font: patch.font.clone().or_else(|| self.font.clone()),
             font_size: patch.font_size.or_else(|| self.font_size),
@@ -180,6 +186,7 @@ impl Style {
         Style {
             // Inherited properties
             color: patch.color.or(self.color),
+            cursor: patch.cursor.or(self.cursor),
             font: patch.font.clone().or_else(|| self.font.clone()),
             font_size: patch.font_size.or(self.font_size),
             font_weight: patch.font_weight.or(self.font_weight),

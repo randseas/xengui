@@ -1,5 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{ FontStyle, FontWeight, MeasureResult, TextCommand, TextMeasurer };
+use crate::{
+    Background,
+    FontStyle,
+    FontWeight,
+    MeasureResult,
+    RectCommand,
+    TextAlign,
+    TextCommand,
+    TextDecoration,
+    TextMeasurer,
+};
 use glyphon::{
     Attrs,
     Buffer as GlyphonBuffer,
@@ -37,6 +47,7 @@ pub struct TextPipeline {
     user_font_map: HashMap<String, String>,
     default_family_name: Option<String>,
     pending: Vec<PendingText>,
+    pending_decorations: Vec<RectCommand>,
 }
 
 impl TextPipeline {
@@ -106,6 +117,7 @@ impl TextPipeline {
             user_font_map,
             default_family_name,
             pending: Vec::new(),
+            pending_decorations: Vec::new(),
         })
     }
 
@@ -134,8 +146,12 @@ impl TextPipeline {
         weight: FontWeight,
         style: FontStyle,
         scale: f32,
+        line_height: f32,
+        align: TextAlign,
         position: (f32, f32),
         color: GlyphonColor,
+        decoration: TextDecoration,
+        decoration_color: crate::Color,
         max_width: Option<f32>,
         clip_rect: Option<(f32, f32, f32, f32)>
     ) {
@@ -147,11 +163,33 @@ impl TextPipeline {
             style
         );
 
-        let metrics = Metrics::new(scale, scale * 1.25);
+        let final_line_height = resolve_line_height(scale, line_height);
+        let metrics = Metrics::new(scale, final_line_height);
         let mut buffer = GlyphonBuffer::new(&mut self.font_system, metrics);
         buffer.set_size(Some(max_width.unwrap_or(f32::MAX)), Some(f32::MAX));
         buffer.set_text(text, &attrs, Shaping::Advanced, None);
+
+        // Alignment needs a real right edge to align against - with an
+        // unbounded buffer width it would just push glyphs far off-screen.
+        if max_width.is_some() && align != TextAlign::Start {
+            let mapped = map_text_align(align);
+            for line in buffer.lines.iter_mut() {
+                line.set_align(Some(mapped));
+            }
+        }
+
         buffer.shape_until_scroll(&mut self.font_system, false);
+
+        if decoration.underline() || decoration.strike() || decoration.overline() {
+            self.queue_decorations(
+                &buffer,
+                position,
+                scale,
+                decoration,
+                decoration_color,
+                clip_rect
+            );
+        }
 
         // Glyphon clips anything outside these bounds, which is what makes
         // scrolled-off text in a single-line input disappear at the edge
@@ -181,6 +219,70 @@ impl TextPipeline {
         });
     }
 
+    // Reads glyph x-extents straight from the shaped run, so the decoration
+    // line matches exactly what was rendered - alignment, wrapping and
+    // multi-line runs all fall out of this for free.
+    fn queue_decorations(
+        &mut self,
+        buffer: &GlyphonBuffer,
+        position: (f32, f32),
+        scale: f32,
+        decoration: TextDecoration,
+        fallback_color: crate::Color,
+        clip_rect: Option<(f32, f32, f32, f32)>
+    ) {
+        let thickness = decoration
+            .width()
+            .map(|w| w.value())
+            .unwrap_or((scale * 0.07).max(1.0));
+        let deco_color = decoration.color().unwrap_or(fallback_color);
+
+        for run in buffer.layout_runs() {
+            if run.glyphs.is_empty() {
+                continue;
+            }
+
+            let mut min_x = f32::MAX;
+            let mut max_x = f32::MIN;
+            for glyph in run.glyphs {
+                min_x = min_x.min(glyph.x);
+                max_x = max_x.max(glyph.x + glyph.w);
+            }
+
+            let line_x = position.0 + min_x;
+            let line_w = max_x - min_x;
+            let baseline_y = position.1 + run.line_y;
+
+            let mut push = |y: f32| {
+                self.pending_decorations.push(RectCommand {
+                    position: (line_x, y),
+                    size: (line_w, thickness),
+                    background: Some(Background::Color(deco_color)),
+                    border_radius: None,
+                    border_width: None,
+                    border_color: None,
+                    clip_rect,
+                });
+            };
+
+            if decoration.overline() {
+                push(position.1 + run.line_top);
+            }
+            if decoration.strike() {
+                push(baseline_y - scale * 0.3 - thickness * 0.5);
+            }
+            if decoration.underline() {
+                push(baseline_y + scale * 0.08);
+            }
+        }
+    }
+
+    // Collected decoration quads (underline/strike/overline), drained once
+    // per frame by the renderer and drawn through the existing rect pipeline.
+    pub fn take_decorations(&mut self) -> Vec<RectCommand> {
+        std::mem::take(&mut self.pending_decorations)
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn measure_raw(
         &mut self,
@@ -199,7 +301,7 @@ impl TextPipeline {
             weight,
             style
         );
-        let final_line_height = if line_height > 0.0 { line_height } else { scale * 1.2 };
+        let final_line_height = resolve_line_height(scale, line_height);
         let metrics = Metrics::new(scale, final_line_height);
         let mut buffer = GlyphonBuffer::new(&mut self.font_system, metrics);
         // A bounded width here is what makes glyphon break the text into
@@ -244,6 +346,9 @@ impl TextPipeline {
             .map(|lh| lh.value().to_physical(scale_factor))
             .unwrap_or(0.0);
 
+        let align = command.style.text_align.unwrap_or_default();
+        let decoration = command.style.text_decoration.unwrap_or_default();
+
         let glyphon_color = GlyphonColor::rgba(
             (color.r() * 255.0).round() as u8,
             (color.g() * 255.0).round() as u8,
@@ -260,15 +365,44 @@ impl TextPipeline {
                 weight,
                 style,
                 scale,
+                line_height,
+                align,
                 snapped_position,
                 glyphon_color,
+                decoration,
+                color,
                 command.max_width,
                 command.clip_rect
             );
             return;
         }
 
-        let mut cursor_x = snapped_position.0;
+        // Manual per-character layout only ever produces a single visual
+        // line (no wrapping), so alignment here just shifts the run's
+        // starting x instead of going through glyphon's line-based align.
+        let (raw_width, _) = self.measure_raw(
+            &command.text,
+            command.style.font.as_deref(),
+            weight,
+            style,
+            scale,
+            line_height,
+            None
+        );
+        let extra_spacing = if command.text.is_empty() {
+            0.0
+        } else {
+            letter_spacing * ((command.text.chars().count() as f32) - 1.0)
+        };
+        let total_width = raw_width + extra_spacing;
+
+        let start_x = match (align, command.max_width) {
+            (TextAlign::Center, Some(w)) => snapped_position.0 + ((w - total_width) * 0.5).max(0.0),
+            (TextAlign::End, Some(w)) => snapped_position.0 + (w - total_width).max(0.0),
+            _ => snapped_position.0,
+        };
+
+        let mut cursor_x = start_x;
         for ch in command.text.chars() {
             let mut buf = [0u8; 4];
             let ch_str = ch.encode_utf8(&mut buf);
@@ -279,8 +413,12 @@ impl TextPipeline {
                 weight,
                 style,
                 scale,
+                line_height,
+                TextAlign::Start,
                 (Self::snap(cursor_x), snapped_position.1),
                 glyphon_color,
+                TextDecoration::NONE,
+                color,
                 None,
                 command.clip_rect
             );
@@ -295,6 +433,39 @@ impl TextPipeline {
                 None
             );
             cursor_x += advance + letter_spacing;
+        }
+
+        // Decoration is drawn once for the whole run instead of per glyph,
+        // so it stays a single continuous line instead of dashed segments.
+        if decoration.underline() || decoration.strike() || decoration.overline() {
+            let thickness = decoration
+                .width()
+                .map(|w| w.value())
+                .unwrap_or((scale * 0.07).max(1.0));
+            let deco_color = decoration.color().unwrap_or(color);
+            let baseline_y = snapped_position.1 + scale * 0.8;
+
+            let mut push = |y: f32| {
+                self.pending_decorations.push(RectCommand {
+                    position: (start_x, y),
+                    size: (total_width, thickness),
+                    background: Some(Background::Color(deco_color)),
+                    border_radius: None,
+                    border_width: None,
+                    border_color: None,
+                    clip_rect: command.clip_rect,
+                });
+            };
+
+            if decoration.overline() {
+                push(snapped_position.1);
+            }
+            if decoration.strike() {
+                push(baseline_y - scale * 0.3 - thickness * 0.5);
+            }
+            if decoration.underline() {
+                push(baseline_y + scale * 0.08);
+            }
         }
     }
 
@@ -531,5 +702,18 @@ fn convert_style(style: FontStyle) -> GlyphonStyle {
         FontStyle::Normal => GlyphonStyle::Normal,
         FontStyle::Italic => GlyphonStyle::Italic,
         FontStyle::Oblique => GlyphonStyle::Oblique,
+    }
+}
+
+fn resolve_line_height(scale: f32, line_height: f32) -> f32 {
+    if line_height > 0.0 { line_height } else { scale * 1.2 }
+}
+
+fn map_text_align(align: TextAlign) -> glyphon::cosmic_text::Align {
+    match align {
+        TextAlign::Start => glyphon::cosmic_text::Align::Left,
+        TextAlign::Center => glyphon::cosmic_text::Align::Center,
+        TextAlign::End => glyphon::cosmic_text::Align::Right,
+        TextAlign::Justify => glyphon::cosmic_text::Align::Justified,
     }
 }

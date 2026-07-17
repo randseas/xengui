@@ -7,6 +7,7 @@ use super::{
     Border,
     Outline,
     Color,
+    Cursor,
     Display,
     Edges,
     FlexDirection,
@@ -54,6 +55,12 @@ pub trait StyleBuilder: Sized {
 
     fn color(mut self, color: Color) -> Self {
         self.style_mut().color = Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn cursor(mut self, cursor: Cursor) -> Self {
+        self.style_mut().cursor = Some(cursor);
         self.mark_dirty();
         self
     }

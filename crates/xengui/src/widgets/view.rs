@@ -234,6 +234,8 @@ impl View {
             Some(patch) => base.overlay(patch),
             None => base,
         };
+
+        self.interaction.hover_cursor = self.computed_style.cursor.map(crate::Cursor::to_winit);
     }
 
     fn resolved_scrollbar(&self) -> ResolvedScrollbar {

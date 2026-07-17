@@ -294,6 +294,38 @@ impl XenRenderer {
                 self.text_pipeline.draw(self.window.scale_factor() as f32, resolved_theme, cmd);
             }
 
+            // RectPipeline draws through a single shared GPU buffer, so all
+            // rects - including underline/strike/overline quads produced
+            // above - must go through one draw_batch call per frame.
+            rect_cmds.extend(self.text_pipeline.take_decorations());
+
+            self.rect_pipeline.draw_batch(
+                &self.device,
+                &self.queue,
+                &mut render_pass,
+                self.config.width,
+                self.config.height,
+                &rect_cmds
+            );
+
+            self.triangle_pipeline.draw_batch(
+                &self.device,
+                &self.queue,
+                &mut render_pass,
+                self.config.width,
+                self.config.height,
+                &triangle_cmds
+            );
+
+            self.image_pipeline.draw_batch(
+                &self.device,
+                &self.queue,
+                &mut render_pass,
+                self.config.width,
+                self.config.height,
+                &image_cmds
+            );
+
             drop(render_pass);
 
             const MAX_TEXT_FLUSH_RETRIES: u32 = 3;

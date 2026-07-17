@@ -15,6 +15,7 @@ pub mod scrollbar;
 pub mod size;
 pub mod style_builder;
 pub mod typography;
+pub mod cursor;
 
 pub use background::Background;
 pub use border::Border;
@@ -38,3 +39,4 @@ pub use style_builder::*;
 pub use text_align::TextAlign;
 pub use text_decoration::TextDecoration;
 pub use typography::*;
+pub use cursor::Cursor;

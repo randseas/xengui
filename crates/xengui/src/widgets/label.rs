@@ -210,6 +210,10 @@ impl Label {
             Some(patch) => base.overlay(patch),
             None => base,
         };
+
+        self.interaction.hover_cursor = self.computed_style.cursor
+            .map(crate::Cursor::to_winit)
+            .or(Some(CursorIcon::Text));
     }
 }
 

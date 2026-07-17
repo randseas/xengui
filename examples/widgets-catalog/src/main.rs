@@ -43,6 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     app.render(|| {
         Box::new(
             View::new()
+                .cursor(Cursor::Crosshair)
                 .font("Noto_Sans")
                 .display(Display::Flex)
                 .flex_direction(FlexDirection::Column)
@@ -58,6 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .child(
                     View::new()
+                        .cursor(Cursor::RowResize)
                         .flex_direction(FlexDirection::Column)
                         .overflow_x(Overflow::Auto)
                         .overflow_y(Overflow::Auto)
@@ -78,8 +80,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         .border(Border::new(1, Color::NEUTRAL_300, Length::px(6.0)))
                                 )
                         )
-                        .child(Label::new().label("label1").color(Color::NEUTRAL_500))
-                        .child(Link::new().label("github.com/randseas"))
+                        .child(
+                            Label::new()
+                                .cursor(Cursor::Grab)
+                                .label("label1")
+                                .color(Color::NEUTRAL_500)
+                        )
+                        .child(
+                            Link::new()
+                                .label("https://github.com/randseas")
+                                .href("https://github.com/randseas")
+                        )
                 )
         )
     });

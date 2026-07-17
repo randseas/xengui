@@ -1,3 +1,4 @@
+use crate::properties::DEFAULT_CURSOR_ICON;
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background,
@@ -6,6 +7,8 @@ use crate::{
     EventStatus,
     InputEvent,
     Interaction,
+    Key,
+    KeyState,
     LayoutBox,
     MeasureContext,
     MeasureResult,
@@ -17,12 +20,12 @@ use crate::{
     Widget,
     WidgetContent,
     properties::DEFAULT_FONT_SIZE,
-    Color,
+    properties::DEFAULT_LINK_COLOR,
     TextDecoration,
 };
 use smol_str::SmolStr;
 use std::cell::Cell;
-use winit::window::CursorIcon;
+use winit::event::{ ElementState, MouseButton };
 
 pub struct Link {
     key: Option<SmolStr>,
@@ -43,13 +46,16 @@ pub struct Link {
     layout_box: LayoutBox,
     content_size: Cell<(f32, f32)>,
     measured_max_width: Cell<Option<f32>>,
+
+    href: Option<SmolStr>,
+    target_blank: bool,
 }
 
 impl Link {
     pub fn new() -> Self {
         let mut interaction = Interaction::new();
         interaction.focusable = true;
-        interaction.hover_cursor = Some(CursorIcon::Pointer);
+        interaction.hover_cursor = Some(DEFAULT_CURSOR_ICON);
 
         let mut link = Self {
             key: None,
@@ -70,6 +76,9 @@ impl Link {
             layout_box: LayoutBox::default(),
             content_size: Cell::new((0.0, 0.0)),
             measured_max_width: Cell::new(None),
+
+            href: None,
+            target_blank: false,
         };
 
         link.recompute_style();
@@ -100,6 +109,21 @@ impl Link {
     pub fn selectable(mut self, selectable: bool) -> Self {
         self.selectable = selectable;
         self.mark_dirty();
+        self
+    }
+
+    /// Clicking or activating the link opens this URL through the system
+    /// browser (native targets) or `window.open` (wasm32).
+    pub fn href(mut self, href: impl Into<SmolStr>) -> Self {
+        self.href = Some(href.into());
+        self.mark_dirty();
+        self
+    }
+
+    /// Only affects wasm32 - opens the href in a new tab instead of the
+    /// current one.
+    pub fn target_blank(mut self, value: bool) -> Self {
+        self.target_blank = value;
         self
     }
 
@@ -195,6 +219,31 @@ impl Link {
             Some(patch) => base.overlay(patch),
             None => base,
         };
+
+        self.interaction.hover_cursor = self.computed_style.cursor
+            .map(crate::Cursor::to_winit)
+            .or(Some(DEFAULT_CURSOR_ICON));
+    }
+
+    fn open_href(&self) {
+        let Some(href) = &self.href else {
+            return;
+        };
+
+        let url = normalize_url(href);
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Some(window) = web_sys::window() {
+                let target = if self.target_blank { "_blank" } else { "_self" };
+                let _ = window.open_with_url_and_target(&url, target);
+            }
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            open_native(&url);
+        }
     }
 }
 
@@ -345,7 +394,7 @@ impl Widget for Link {
 
         let mut text_style = style.clone();
         text_style.font_size.get_or_insert(DEFAULT_FONT_SIZE);
-        text_style.color.get_or_insert(Color::BLUE_400);
+        text_style.color.get_or_insert(DEFAULT_LINK_COLOR);
         if self.interaction.hovered {
             text_style.text_decoration.get_or_insert(TextDecoration::UNDERLINE);
         }
@@ -364,7 +413,25 @@ impl Widget for Link {
             return EventStatus::Ignored;
         }
 
+        let is_click = match event {
+            InputEvent::MouseInput {
+                state: ElementState::Released,
+                button: MouseButton::Left,
+                ..
+            } => self.interaction.pressed && self.interaction.hovered,
+            InputEvent::KeyInput { event: key_event, .. } =>
+                self.interaction.focused &&
+                    !key_event.repeat &&
+                    key_event.state == KeyState::Pressed &&
+                    matches!(key_event.key, Key::Enter | Key::Space),
+            _ => false,
+        };
+
         let status = self.interaction.handle(event, ctx);
+
+        if is_click {
+            self.open_href();
+        }
 
         if matches!(status, EventStatus::Handled) {
             self.recompute_style();
@@ -384,7 +451,9 @@ impl Widget for Link {
             self.hover_style == other.hover_style &&
             self.pressed_style == other.pressed_style &&
             self.disabled_style == other.disabled_style &&
-            self.selectable == other.selectable
+            self.selectable == other.selectable &&
+            self.href == other.href &&
+            self.target_blank == other.target_blank
     }
 
     fn cascade_style(&mut self, parent: &Style) {
@@ -401,5 +470,31 @@ impl Widget for Link {
             self.content_size.set(old.content_size.get());
             self.measured_max_width.set(old.measured_max_width.get());
         }
+    }
+}
+
+fn normalize_url(href: &str) -> String {
+    if href.starts_with("http://") || href.starts_with("https://") {
+        href.to_string()
+    } else {
+        format!("https://{href}")
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn open_native(url: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd").args(["/C", "start", "", url]).spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open").arg(url).spawn();
+    }
+    #[cfg(
+        any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")
+    )]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
     }
 }

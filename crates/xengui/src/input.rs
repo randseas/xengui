@@ -1,5 +1,7 @@
+use winit::window::CursorIcon;
+
 // SPDX-License-Identifier: Apache-2.0
-use crate::Widget;
+use crate::{Widget};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KeyState {
@@ -146,7 +148,7 @@ pub enum EventStatus {
 #[derive(Default)]
 pub struct EventCtx {
     redraw_requested: bool,
-    cursor_icon: Option<winit::window::CursorIcon>,
+    cursor_icon: Option<CursorIcon>,
     focus_requested: bool,
     focus_released: bool,
     pub(crate) focus_target: Option<String>,
