@@ -1,3 +1,5 @@
+use crate::{ Border, Outline, properties::StyleValue };
+
 // SPDX-License-Identifier: Apache-2.0
 use super::{ Background, Color, Edges, Length };
 use std::cell::RefCell;
@@ -19,7 +21,13 @@ pub struct Theme {
     pub background: Color,
     pub surface: Color,
     pub foreground: Color,
+    pub foreground_muted: Color,
     pub border: Color,
+    pub border_hover: Color,
+
+    pub hover: Color,
+    pub pressed: Color,
+    pub disabled: Color,
 
     pub radius_sm: Length,
     pub radius_md: Length,
@@ -47,7 +55,13 @@ impl Theme {
             background: Color::WHITE,
             surface: Color::NEUTRAL_050,
             foreground: Color::NEUTRAL_900,
+            foreground_muted: Color::NEUTRAL_700,
             border: Color::NEUTRAL_200,
+            border_hover: Color::NEUTRAL_300,
+
+            hover: Color::NEUTRAL_300,
+            pressed: Color::NEUTRAL_400,
+            disabled: Color::NEUTRAL_300.with_alpha(50),
 
             radius_sm: Length::px(4.0),
             radius_md: Length::px(8.0),
@@ -116,8 +130,33 @@ impl Theme {
         self
     }
 
+    pub fn foreground_muted(mut self, color: Color) -> Self {
+        self.foreground_muted = color;
+        self
+    }
+
     pub fn border(mut self, color: Color) -> Self {
         self.border = color;
+        self
+    }
+
+    pub fn border_hover(mut self, color: Color) -> Self {
+        self.border_hover = color;
+        self
+    }
+
+    pub fn hover(mut self, color: Color) -> Self {
+        self.hover = color;
+        self
+    }
+
+    pub fn pressed(mut self, color: Color) -> Self {
+        self.pressed = color;
+        self
+    }
+
+    pub fn disabled(mut self, color: Color) -> Self {
+        self.disabled = color;
         self
     }
 
@@ -309,6 +348,48 @@ impl<T: Into<Edges>> IntoThemed<Edges, ValueMarker> for T {
 
 impl<F: FnOnce(&Theme) -> Edges> IntoThemed<Edges, FnMarker> for F {
     fn resolve_themed(self) -> Edges {
+        CURRENT_THEME.with(|cell| self(&cell.borrow()))
+    }
+}
+
+impl IntoThemed<Border, ValueMarker> for Border {
+    fn resolve_themed(self) -> Border {
+        self
+    }
+}
+
+impl<F: FnOnce(&Theme) -> Border> IntoThemed<Border, FnMarker> for F {
+    fn resolve_themed(self) -> Border {
+        CURRENT_THEME.with(|cell| self(&cell.borrow()))
+    }
+}
+
+impl IntoThemed<StyleValue<Outline>, ValueMarker> for Outline {
+    fn resolve_themed(self) -> StyleValue<Outline> {
+        StyleValue::Value(self)
+    }
+}
+
+impl IntoThemed<StyleValue<Outline>, ValueMarker> for StyleValue<Outline> {
+    fn resolve_themed(self) -> StyleValue<Outline> {
+        self
+    }
+}
+
+impl<F: FnOnce(&Theme) -> Outline> IntoThemed<StyleValue<Outline>, FnMarker> for F {
+    fn resolve_themed(self) -> StyleValue<Outline> {
+        StyleValue::Value(CURRENT_THEME.with(|cell| self(&cell.borrow())))
+    }
+}
+
+impl IntoThemed<f32, ValueMarker> for f32 {
+    fn resolve_themed(self) -> f32 {
+        self
+    }
+}
+
+impl<F: FnOnce(&Theme) -> f32> IntoThemed<f32, FnMarker> for F {
+    fn resolve_themed(self) -> f32 {
         CURRENT_THEME.with(|cell| self(&cell.borrow()))
     }
 }

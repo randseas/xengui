@@ -32,7 +32,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(not(target_arch = "wasm32"))]
         position: xengui::WindowPosition::Center,
 
-        themes: vec![Theme::light(), Theme::dark()],
+        themes: vec![
+            Theme::light(),
+            Theme::dark()
+                .primary(Color::BLUE_400)
+                .accent(Color::VIOLET_400)
+
+                .background(Color::NEUTRAL_950)
+                .surface(Color::NEUTRAL_900)
+
+                .foreground(Color::NEUTRAL_100)
+                .foreground_muted(Color::NEUTRAL_400)
+
+                .border(Color::NEUTRAL_800)
+                .border_hover(Color::NEUTRAL_700)
+
+                .hover(Color::NEUTRAL_800)
+                .pressed(Color::NEUTRAL_700)
+                .disabled(Color::NEUTRAL_600),
+            Theme::new("pearl")
+                .mode(ThemeMode::Dark)
+                .primary(Color::BLUE_400)
+                .accent(Color::VIOLET_400)
+
+                .background(Color::NEUTRAL_950)
+                .surface(Color::NEUTRAL_900)
+
+                .foreground(Color::NEUTRAL_100)
+                .foreground_muted(Color::NEUTRAL_400)
+
+                .border(Color::NEUTRAL_800)
+                .border_hover(Color::NEUTRAL_700)
+
+                .hover(Color::NEUTRAL_800)
+                .pressed(Color::NEUTRAL_700)
+                .disabled(Color::NEUTRAL_600)
+        ],
         active_theme: 1,
 
         ..Default::default()
@@ -64,13 +99,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .align_items(AlignItems::Start)
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
-                .background(|theme: &Theme| (
-                    if theme.is_dark() {
-                        Color::NEUTRAL_950
-                    } else {
-                        Color::WHITE
-                    }
-                ))
+                .background(|theme: &Theme| theme.background)
                 .padding(Edges::all(15))
                 .child(
                     View::new()
@@ -84,24 +113,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .label("My XenGui Application")
                                 .margin(Edges::only(0, 0, 0, 8))
                                 .font_size(20)
-                                .color(|theme: &Theme| (
-                                    if theme.is_dark() {
-                                        Color::NEUTRAL_100
-                                    } else {
-                                        Color::NEUTRAL_400
-                                    }
-                                ))
+                                .color(|theme: &Theme| theme.foreground)
                         )
                         .child(
                             TextBox::new()
                                 .value(text.clone())
-                                .color(|theme: &Theme| (
-                                    if theme.is_dark() {
-                                        Color::NEUTRAL_100
-                                    } else {
-                                        Color::NEUTRAL_400
-                                    }
-                                ))
+                                .color(|theme: &Theme| theme.foreground)
                                 .placeholder("Enter your name...")
                                 .font_size(16)
                                 .outline(StyleValue::None)
@@ -113,14 +130,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         Easing::EaseInOut
                                     )
                                 )
-                                .background(|theme: &Theme| (
-                                    if theme.is_dark() {
-                                        Color::NEUTRAL_800
-                                    } else {
-                                        Color::WHITE
-                                    }
-                                ))
-                                .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
+                                .background(|theme: &Theme| theme.surface)
+                                .border(|theme: &Theme|
+                                    Border::new(1, theme.border, Length::px(8.0))
+                                )
                                 .hover_style(|s|
                                     s.border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
                                 )
