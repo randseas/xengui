@@ -48,6 +48,17 @@ pub enum Fullscreen {
     Borderless(Option<MonitorHandle>),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum AppThemeMode {
+    /// `active_theme` only changes via explicit calls to
+    /// `set_active_theme`/`set_active_theme_by_name`.
+    #[default]
+    Fixed,
+    /// `active_theme` automatically follows the OS light/dark appearance,
+    /// switching between `dark_theme` and `light_theme`.
+    System,
+}
+
 pub struct AppConfig {
     #[cfg(not(target_arch = "wasm32"))]
     pub title: String,
@@ -74,6 +85,12 @@ pub struct AppConfig {
     pub themes: Vec<Theme>,
     /// Index into `themes` currently in effect.
     pub active_theme: usize,
+    /// Index into `themes` used when the resolved OS appearance is dark.
+    pub dark_theme: usize,
+    /// Index into `themes` used when the resolved OS appearance is light.
+    pub light_theme: usize,
+    /// Whether `active_theme` is picked manually or follows the OS appearance.
+    pub theme_mode: AppThemeMode,
 }
 
 impl Default for AppConfig {
@@ -99,8 +116,11 @@ impl Default for AppConfig {
 
             fonts: Vec::new(),
 
-            themes: vec![Theme::default()],
+            themes: vec![Theme::light(), Theme::dark()],
             active_theme: 0,
+            dark_theme: 1,
+            light_theme: 0,
+            theme_mode: AppThemeMode::System,
         }
     }
 }
@@ -378,6 +398,13 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
         }
 
+        // Applies dark_theme/light_theme selection now that the real OS
+        // appearance is known, before the window is ever shown.
+        if self.sync_active_theme_with_system() {
+            self.schedule_render();
+            while self.pump_reconciliation() {}
+        }
+
         self.window = Some(window.clone());
 
         set_redraw_handle(window.clone());
@@ -528,12 +555,16 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             WindowEvent::ThemeChanged(new_theme) => {
                 self.config.theme = Some(new_theme);
                 log::info!("theme changed: {:?}", new_theme);
+
+                let system_switched = self.sync_active_theme_with_system();
                 let active_is_auto = self.config.themes
                     .get(self.config.active_theme)
                     .is_some_and(Theme::is_auto);
-                if active_is_auto {
-                    // Auto colors were baked in at the last render pass,
-                    // so rebuild the tree instead of just repainting it.
+
+                if system_switched || active_is_auto {
+                    // Auto colors, or a full active_theme swap, were baked in
+                    // at the last render pass, so rebuild the tree instead of
+                    // just repainting it.
                     self.schedule_render();
                     while self.pump_reconciliation() {}
                 } else {
@@ -1104,6 +1135,24 @@ impl App {
                     self.config.active_theme = index;
                 }
             }
+        }
+    }
+
+    // Keeps `active_theme` synced with the OS appearance while `theme_mode`
+    // is `System`; returns whether the index actually changed.
+    fn sync_active_theme_with_system(&mut self) -> bool {
+        if self.config.theme_mode != AppThemeMode::System {
+            return false;
+        }
+
+        let is_dark = matches!(self.config.theme, Some(winit::window::Theme::Dark));
+        let target = if is_dark { self.config.dark_theme } else { self.config.light_theme };
+
+        if target < self.config.themes.len() && target != self.config.active_theme {
+            self.config.active_theme = target;
+            true
+        } else {
+            false
         }
     }
 }

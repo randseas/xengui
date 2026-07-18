@@ -38,7 +38,7 @@ pub use interaction::*;
 pub use text::*;
 pub use hooks::{ component, use_state, ComponentId, ComponentKey, SetState };
 
-pub use app::{ App, AppConfig };
+pub use app::{ App, AppConfig, AppThemeMode };
 pub use input::{ InputEvent, Key, KeyState };
 pub use style::{
     current_theme,
