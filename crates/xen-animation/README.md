@@ -11,23 +11,48 @@ A high-performance, framework-agnostic animation library for Rust.
 
 `xen-animation` provides a centralized animation system with CSS-compatible easing functions, transitions, interpolation, and frame-based animation management. It is designed to be reusable across GUI frameworks, game engines, and other applications.
 
+Callers never own a timer themselves - they only report their current target value every frame through [`AnimationManager::set_target`], and the manager owns the entire lifecycle: starting, easing, retargeting mid-flight, and settling once the transition finishes.
+
 ## Features
 
 - CSS-compatible cubic-bezier easing
 - Built-in easing presets (`linear`, `ease-in`, `ease-out`, `ease-in-out`)
 - Custom cubic-bezier curves
-- Centralized `AnimationManager`
-- Generic interpolation traits
-- Multiple concurrent animations
-- Duration, delay, repeat, reverse, and looping
+- Centralized `AnimationManager`, generic over any hashable key type
+- Multiple concurrent, independently keyed animations
+- Duration, delay, and per-property transition overrides
 - Zero rendering dependencies
 
 ## Example
 
 ```rust
-use xen_animation::{AnimationManager, Easing};
+use std::time::Duration;
+use xen_animation::{AnimationManager, AnimValue, Easing, Transition};
 
-// Example coming soon.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum AnimKey {
+    Opacity,
+}
+
+fn main() {
+    let mut manager: AnimationManager<AnimKey> = AnimationManager::new();
+    let transition = Transition::new(Duration::from_millis(300)).easing(Easing::EaseOut);
+
+    // Start animating opacity towards 1.0 using the given transition.
+    manager.set_target(AnimKey::Opacity, AnimValue([1.0, 0.0, 0.0, 0.0]), Some(transition));
+
+    // A typical render loop: advance the manager once per frame, then read
+    // back the (possibly mid-transition) current value.
+    for _ in 0..5 {
+        manager.tick(Duration::from_millis(16));
+
+        if let Some(value) = manager.value(AnimKey::Opacity) {
+            println!("opacity = {:.3}", value.0[0]);
+        }
+    }
+
+    println!("still animating: {}", manager.is_animating());
+}
 ```
 
 ## Installation

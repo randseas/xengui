@@ -7,6 +7,11 @@
 pub struct AnimValue(pub [f32; 4]);
 
 impl AnimValue {
+    /// Linearly interpolates component-wise between `self` and `other`.
+    ///
+    /// `t` is expected to lie in `[0.0, 1.0]` but is not clamped here, so
+    /// callers relying on overshoot easings can pass values outside that
+    /// range and get correct extrapolation.
     pub fn lerp(self, other: Self, t: f32) -> Self {
         let mut out = [0.0; 4];
 

@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::time::Duration;
 
+// A single in-flight transition: where it started from, where it's headed,
+// the timing function driving it, and how much time has elapsed since it began.
 struct Anim {
     from: AnimValue,
     to: AnimValue,
@@ -12,6 +14,8 @@ struct Anim {
 }
 
 impl Anim {
+    // Current interpolated value given elapsed time, transition delay,
+    // duration, and easing curve.
     fn value_at(&self) -> AnimValue {
         let past_delay = self.elapsed.saturating_sub(self.transition.delay);
         let t = if self.transition.duration.is_zero() {
@@ -22,6 +26,7 @@ impl Anim {
         self.from.lerp(self.to, self.transition.easing.apply(t))
     }
 
+    // Whether delay + duration has fully elapsed.
     fn finished(&self) -> bool {
         self.elapsed >= self.transition.delay + self.transition.duration
     }
@@ -47,12 +52,20 @@ impl<K: Eq + Hash + Copy> Default for AnimationManager<K> {
 }
 
 impl<K: Eq + Hash + Copy> AnimationManager<K> {
+    /// Creates an empty manager with no active or resting animations.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Starts or retargets a transition towards `target`; passing `None`
-    /// for `transition` snaps instantly and clears state.
+    /// Starts or retargets a transition towards `target`.
+    ///
+    /// - Passing `None` for `transition` snaps `key` to `target` instantly
+    ///   and clears any in-flight animation for it.
+    /// - If `key` is already mid-transition, it smoothly retargets from its
+    ///   current (possibly mid-flight) value instead of jumping.
+    /// - If `key` has no prior recorded value, `target` itself is used as
+    ///   the starting point, so the first call for a given key never
+    ///   animates - it just establishes the resting value.
     pub fn set_target(&mut self, key: K, target: AnimValue, transition: Option<Transition>) {
         let Some(transition) = transition else {
             self.active.remove(&key);
@@ -109,6 +122,8 @@ impl<K: Eq + Hash + Copy> AnimationManager<K> {
         self.active.get(&key).map(Anim::value_at)
     }
 
+    /// Whether any animation is currently in flight across all keys. Useful
+    /// to decide whether the render loop needs to keep polling for frames.
     pub fn is_animating(&self) -> bool {
         !self.active.is_empty()
     }
