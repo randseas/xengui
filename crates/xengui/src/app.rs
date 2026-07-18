@@ -128,6 +128,7 @@ impl Default for AppConfig {
 pub enum XenEvent {
     RendererReady(Box<XenRenderer>),
     CancelSelection,
+    SystemThemeChanged(winit::window::Theme),
 }
 
 pub struct App {
@@ -354,7 +355,21 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
 
         #[cfg(target_arch = "wasm32")]
         {
-            self.config.theme = Some(winit::window::Theme::Dark);
+            // Reads the browser's actual color-scheme preference on startup
+            // instead of hardcoding Dark.
+            let prefers_dark = web_sys
+                ::window()
+                .and_then(|w| w.match_media("(prefers-color-scheme: dark)").ok().flatten())
+                .map(|mql| mql.matches())
+                .unwrap_or(false);
+
+            self.config.theme = Some(
+                if prefers_dark {
+                    winit::window::Theme::Dark
+                } else {
+                    winit::window::Theme::Light
+                }
+            );
 
             use winit::platform::web::WindowExtWebSys;
 
@@ -500,6 +515,33 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     );
                     key_closure.forget();
                 }
+                // Live-updates active_theme whenever the browser's
+                // color-scheme preference flips, mirroring native's
+                // WindowEvent::ThemeChanged.
+                if
+                    let Some(web_window) = web_sys::window() &&
+                    let Ok(Some(mql)) = web_window.match_media("(prefers-color-scheme: dark)")
+                {
+                    let proxy_clone = proxy.clone();
+                    let theme_closure: wasm_bindgen::closure::Closure<
+                        dyn FnMut(web_sys::MediaQueryListEvent)
+                    > = wasm_bindgen::closure::Closure::new(
+                        move |event: web_sys::MediaQueryListEvent| {
+                            let theme = if event.matches() {
+                                winit::window::Theme::Dark
+                            } else {
+                                winit::window::Theme::Light
+                            };
+
+                            let _ = proxy_clone.send_event(XenEvent::SystemThemeChanged(theme));
+                        }
+                    );
+                    let _ = mql.add_event_listener_with_callback(
+                        "change",
+                        theme_closure.as_ref().unchecked_ref()
+                    );
+                    theme_closure.forget();
+                }
             }
             log::info!("application resumed, gpu context ready");
         }
@@ -516,6 +558,27 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
             XenEvent::CancelSelection => {
                 self.cancel_text_selection();
+            }
+            XenEvent::SystemThemeChanged(new_theme) => {
+                self.config.theme = Some(new_theme);
+                log::info!("browser color-scheme changed: {:?}", new_theme);
+
+                let system_switched = self.sync_active_theme_with_system();
+                let active_is_auto = self.config.themes
+                    .get(self.config.active_theme)
+                    .is_some_and(Theme::is_auto);
+
+                if system_switched || active_is_auto {
+                    self.schedule_render();
+                    while self.pump_reconciliation() {}
+                } else {
+                    for node in &mut self.root {
+                        node.set_dirty(true);
+                    }
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
             }
         }
     }
