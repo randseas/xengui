@@ -29,6 +29,10 @@ pub struct Theme {
     pub pressed: Color,
     pub disabled: Color,
 
+    pub selection: Color,
+    pub selection_color: Color,
+    pub caret_color: Color,
+
     pub radius_xs: Length,
     pub radius_sm: Length,
     pub radius_md: Length,
@@ -73,6 +77,10 @@ impl Theme {
             pressed: Color::NEUTRAL_200,
             disabled: Color::NEUTRAL_300.with_alpha(50),
 
+            selection: Color::BLUE_500.with_alpha(80),
+            selection_color: Color::BLUE_200,
+            caret_color: Color::WHITE,
+
             // Border radius
             radius_xs: Length::px(2.0), // rounded-sm
             radius_sm: Length::px(4.0), // rounded
@@ -115,6 +123,10 @@ impl Theme {
             .hover(Color::NEUTRAL_100)
             .pressed(Color::NEUTRAL_200)
             .disabled(Color::NEUTRAL_300.with_alpha(50))
+
+            .selection(Color::BLUE_500.with_alpha(80))
+            .selection_color(Color::BLUE_200)
+            .caret_color(Color::NEUTRAL_900)
     }
 
     pub fn dark() -> Self {
@@ -135,6 +147,10 @@ impl Theme {
             .hover(Color::NEUTRAL_800)
             .pressed(Color::NEUTRAL_700)
             .disabled(Color::NEUTRAL_700.with_alpha(50))
+
+            .selection(Color::BLUE_500.with_alpha(80))
+            .selection_color(Color::BLUE_200)
+            .caret_color(Color::NEUTRAL_50)
     }
 
     pub fn auto() -> Self {
@@ -200,6 +216,21 @@ impl Theme {
 
     pub fn disabled(mut self, color: Color) -> Self {
         self.disabled = color;
+        self
+    }
+
+    pub fn selection(mut self, color: Color) -> Self {
+        self.selection = color;
+        self
+    }
+
+    pub fn selection_color(mut self, color: Color) -> Self {
+        self.selection_color = color;
+        self
+    }
+
+    pub fn caret_color(mut self, color: Color) -> Self {
+        self.caret_color = color;
         self
     }
 

@@ -50,6 +50,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .hover(Color::NEUTRAL_800)
                 .pressed(Color::NEUTRAL_700)
                 .disabled(Color::NEUTRAL_600)
+
+                .selection(Color::VIOLET_500.with_alpha(80))
+                .selection_color(Color::VIOLET_200)
+                .caret_color(Color::VIOLET_500)
         ],
         active_theme: 0,
 
@@ -83,9 +87,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
                 .background(|theme: &Theme| theme.background)
-                .selection_background(|theme: &Theme| theme.primary.with_alpha(80))
-                .selection_color(|theme: &Theme| theme.primary)
-                .caret_color(|theme: &Theme| theme.primary)
+                .selection_background(|theme: &Theme| theme.selection)
+                .selection_color(|theme: &Theme| theme.selection_color)
+                .caret_color(|theme: &Theme| theme.caret_color)
                 .padding(Edges::all(15))
                 .child(
                     View::new()
