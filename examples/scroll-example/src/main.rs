@@ -95,10 +95,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .flex_direction(FlexDirection::Column)
                         .overflow_x(Overflow::Auto)
                         .overflow_y(Overflow::Auto)
+                        .scrollbar_track_color(Color::NEUTRAL_100)
+                        .scrollbar_thumb_color(Color::NEUTRAL_400)
+                        .scrollbar_arrow_color(Color::NEUTRAL_400)
                         .child({
-                            // Two paragraph variants reused for every row, so the
-                            // widget tree is built in a loop instead of one giant
-                            // chained expression.
                             let label = "label";
                             let mut children: Vec<Box<dyn Widget>> = Vec::with_capacity(50);
 
@@ -113,9 +113,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 );
                             }
 
-                            View::new()
-                                .flex_direction(FlexDirection::Column)
-                                .children_vec(children)
+                            View::new().flex_direction(FlexDirection::Column).children_vec(children)
                         })
                 )
         )

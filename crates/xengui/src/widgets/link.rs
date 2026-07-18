@@ -1,6 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    Background, Color, Constraints, EventCtx, EventStatus, InputEvent, Interaction, Key, KeyState, LayoutBox, MeasureContext, MeasureResult, PaintContext, RectCommand, Style, StyleBuilder, StylePatch, TextCommand, TextDecoration, Widget, WidgetContent, properties::{ DEFAULT_CURSOR_ICON, DEFAULT_FONT_SIZE, DEFAULT_LINK_COLOR, DEFAULT_POINTER_CURSOR_ICON },
+    AnimationManager,
+    Background,
+    Color,
+    Constraints,
+    EventCtx,
+    EventStatus,
+    InputEvent,
+    Interaction,
+    Key,
+    KeyState,
+    LayoutBox,
+    MeasureContext,
+    MeasureResult,
+    PaintContext,
+    RectCommand,
+    Style,
+    StyleBuilder,
+    StylePatch,
+    TextCommand,
+    TextDecoration,
+    Widget,
+    WidgetContent,
+    properties::{
+        DEFAULT_CURSOR_ICON,
+        DEFAULT_FONT_SIZE,
+        DEFAULT_LINK_COLOR,
+        DEFAULT_POINTER_CURSOR_ICON,
+    },
 };
 use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
@@ -669,7 +696,7 @@ impl Widget for Link {
             self.target_blank == other.target_blank
     }
 
-    fn cascade_style(&mut self, parent: &Style) {
+    fn cascade_style(&mut self, parent: &Style, _anim: &mut AnimationManager) {
         self.inherited_style = parent.clone();
         self.recompute_style();
     }

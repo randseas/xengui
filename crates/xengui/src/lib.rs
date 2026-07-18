@@ -11,6 +11,7 @@ pub mod interaction;
 pub mod text;
 pub mod hooks;
 pub mod widget;
+pub mod animation;
 mod reconciler;
 
 pub use app::WindowPosition;
@@ -19,7 +20,16 @@ pub use macros::WidgetContent;
 pub use paint::*;
 pub use renderer::XenRenderer;
 pub use style::*;
-pub use widget::Widget;
+pub use widget::{ Widget, scaled_layout_box };
+pub use animation::{
+    AnimKey,
+    AnimLayer,
+    AnimProperty,
+    AnimValue,
+    AnimationManager,
+    Easing,
+    Transition,
+};
 pub use input::*;
 pub use interaction::*;
 pub use text::*;

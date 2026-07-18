@@ -1,28 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    Background,
-    Constraints,
-    DEFAULT_SCROLLBAR_HOVER_THICKNESS,
-    EventCtx,
-    EventStatus,
-    InputEvent,
-    Interaction,
-    Key,
-    KeyState,
-    LayoutBox,
-    Length,
-    MeasureContext,
-    MeasureResult,
-    ModifiersState,
-    Overflow,
-    PaintContext,
-    RectCommand,
-    ResolvedScrollbar,
-    Style,
-    StyleBuilder,
-    StylePatch,
-    TriangleCommand,
-    Widget,
+    AnimationManager, Background, Constraints, DEFAULT_SCROLLBAR_HOVER_THICKNESS, EventCtx, EventStatus, InputEvent, Interaction, Key, KeyState, LayoutBox, Length, MeasureContext, MeasureResult, ModifiersState, Overflow, PaintContext, RectCommand, ResolvedScrollbar, Style, StyleBuilder, StylePatch, TriangleCommand, Widget,
 };
 use smol_str::SmolStr;
 use std::cell::Cell;
@@ -1014,10 +992,9 @@ impl Widget for View {
         }
 
         if let InputEvent::MouseMoved { position } = event {
-            if self.scrollbar_drag.get().is_some()
-                && self.handle_scrollbar_drag(*position, ctx) {
-                    return EventStatus::Handled;
-                }
+            if self.scrollbar_drag.get().is_some() && self.handle_scrollbar_drag(*position, ctx) {
+                return EventStatus::Handled;
+            }
 
             let now_hovered = self.point_in_scrollbar(*position);
             if now_hovered != self.scrollbar_hovered.get() {
@@ -1080,12 +1057,12 @@ impl Widget for View {
             self.disabled_style == other.disabled_style
     }
 
-    fn cascade_style(&mut self, parent: &Style) {
+    fn cascade_style(&mut self, parent: &Style, anim: &mut AnimationManager) {
         self.inherited_style = parent.clone();
         self.recompute_style();
 
         for child in self.children.iter_mut() {
-            child.cascade_style(&self.computed_style);
+            child.cascade_style(&self.computed_style, anim);
         }
     }
 

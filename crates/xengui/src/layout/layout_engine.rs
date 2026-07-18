@@ -25,7 +25,7 @@ impl LayoutEngine {
         // widget below keeps whatever it set explicitly and inherits the
         // rest from its own parent in the tree.
         for widget in tree.iter_mut() {
-            widget.cascade_style(&Style::default());
+            widget.cascade_style(&Style::default(), ctx.anim);
         }
 
         let mut taffy: TaffyTree<()> = TaffyTree::new();

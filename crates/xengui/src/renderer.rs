@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
+    AnimationManager,
     DrawCommand,
     ImagePipeline,
     LayoutContext,
@@ -13,6 +14,7 @@ use crate::{
 };
 use std::{ collections::HashSet, sync::Arc };
 use winit::window::Window;
+use web_time::Instant;
 
 pub struct XenRenderer {
     pub window: Arc<Window>,
@@ -26,6 +28,8 @@ pub struct XenRenderer {
     pub triangle_pipeline: TrianglePipeline,
     pub image_pipeline: ImagePipeline,
     pub render_cache: RenderCache,
+    pub anim: AnimationManager,
+    last_tick: Instant,
 }
 
 impl XenRenderer {
@@ -152,6 +156,8 @@ impl XenRenderer {
             triangle_pipeline,
             image_pipeline,
             render_cache: RenderCache::new(),
+            anim: AnimationManager::new(),
+            last_tick: Instant::now(),
         })
     }
 
@@ -160,6 +166,11 @@ impl XenRenderer {
         tree: &mut [Box<dyn Widget>],
         theme: &Option<winit::window::Theme>
     ) {
+        let now = Instant::now();
+        let dt = now.duration_since(self.last_tick);
+        self.last_tick = now;
+        self.anim.tick(dt);
+
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(surface_texture) => surface_texture,
             wgpu::CurrentSurfaceTexture::Suboptimal(surface_texture) => surface_texture,
@@ -218,9 +229,10 @@ impl XenRenderer {
 
             let mut layout_ctx = LayoutContext {
                 text: &mut self.text_pipeline,
+                anim: &mut self.anim,
                 scale_factor: self.window.scale_factor() as f32,
             };
-
+            
             LayoutEngine::layout(
                 tree,
                 &mut layout_ctx,

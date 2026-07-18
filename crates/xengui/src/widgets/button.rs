@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
+    AnimKey,
+    AnimLayer,
+    AnimProperty,
+    AnimValue,
+    AnimationManager,
     Background,
+    Color,
     Constraints,
     EventCtx,
     EventStatus,
@@ -10,12 +16,14 @@ use crate::{
     MeasureContext,
     MeasureResult,
     PaintContext,
+    RectCommand,
     Style,
     StyleBuilder,
     StylePatch,
     TextCommand,
     Widget,
     WidgetContent,
+    WidgetId,
     properties::{ DEFAULT_CURSOR_ICON, DEFAULT_POINTER_CURSOR_ICON },
 };
 use smol_str::SmolStr;
@@ -56,6 +64,11 @@ pub struct Button {
     content: SmolStr,
     layout_box: LayoutBox,
     content_size: Cell<(f32, f32)>,
+
+    anim_id: WidgetId,
+    animated_background: Option<Color>,
+    animated_scale: f32,
+    animated_content_scale: f32,
 }
 
 impl Button {
@@ -81,6 +94,11 @@ impl Button {
             content: SmolStr::new(""),
             layout_box: LayoutBox::default(),
             content_size: Cell::new((0.0, 0.0)),
+
+            anim_id: WidgetId::new_unique(),
+            animated_background: None,
+            animated_scale: 1.0,
+            animated_content_scale: 1.0,
         };
 
         button.recompute_style();
@@ -242,6 +260,51 @@ impl Button {
                 )
             );
     }
+
+    // Feeds this frame's resolved target values into the AnimationManager
+    // and reads back whatever value (mid-transition or settled) should
+    // actually be painted this frame.
+    fn apply_animations(&mut self, anim: &mut AnimationManager) {
+        let transition = self.computed_style.transition;
+
+        if let Some(Background::Color(color)) = &self.computed_style.background {
+            let key = AnimKey {
+                widget: self.anim_id,
+                layer: AnimLayer::Background,
+                property: AnimProperty::BackgroundColor,
+            };
+            anim.set_target(key, AnimValue(color.to_f32_array()), transition);
+            self.animated_background = anim
+                .value(key)
+                .map(|v| Color::rgba_f32(v.0[0], v.0[1], v.0[2], v.0[3]));
+        } else {
+            self.animated_background = None;
+        }
+
+        let root_scale = self.computed_style.scale.unwrap_or(1.0);
+        let scale_key = AnimKey {
+            widget: self.anim_id,
+            layer: AnimLayer::Root,
+            property: AnimProperty::Scale,
+        };
+        anim.set_target(scale_key, AnimValue([root_scale, 0.0, 0.0, 0.0]), transition);
+        self.animated_scale = anim
+            .value(scale_key)
+            .map(|v| v.0[0])
+            .unwrap_or(root_scale);
+
+        let content_scale = self.computed_style.content_scale.unwrap_or(root_scale);
+        let content_key = AnimKey {
+            widget: self.anim_id,
+            layer: AnimLayer::Content,
+            property: AnimProperty::Scale,
+        };
+        anim.set_target(content_key, AnimValue([content_scale, 0.0, 0.0, 0.0]), transition);
+        self.animated_content_scale = anim
+            .value(content_key)
+            .map(|v| v.0[0])
+            .unwrap_or(content_scale);
+    }
 }
 
 impl Default for Button {
@@ -375,16 +438,32 @@ impl Widget for Button {
 
         let style = &self.computed_style;
 
-        self.paint_box(ctx);
+        // Background is painted through its own animated rect instead of
+        // paint_box(), so scale/color transitions apply independently of
+        // the content layer below.
+        let background_box = crate::scaled_layout_box(self.layout_box, self.animated_scale);
+
+        if style.background.is_some() || style.border.is_some() {
+            let border = style.border.as_ref();
+            ctx.draw_rect(RectCommand {
+                position: (background_box.x, background_box.y),
+                size: (background_box.width, background_box.height),
+                background: self.animated_background
+                    .map(Background::Color)
+                    .or_else(|| style.background.clone()),
+                border_radius: border.map(|b| b.radius),
+                border_color: border.map(|b| b.color),
+                border_width: border.map(|b| b.width),
+                clip_rect: None,
+            });
+        }
+
         self.paint_outline(ctx);
         self.paint_focus(ctx);
 
         let (content_w, content_h) = self.content_size.get();
         let padding = style.padding.unwrap_or_default();
         let available_w = self.layout_box.width - padding.left.value() - padding.right.value();
-
-        // Guard against float rounding between measure() and layout: never clip
-        // tighter than the width we already measured the text at.
         let draw_max_width = available_w.max(content_w);
 
         let text_x =
@@ -397,9 +476,14 @@ impl Widget for Button {
             ) *
                 0.5;
 
+        let content_box = crate::scaled_layout_box(
+            LayoutBox { x: text_x, y: text_y, width: content_w, height: content_h },
+            self.animated_content_scale
+        );
+
         ctx.draw_text(TextCommand {
             text: self.content.clone(),
-            position: (text_x, text_y),
+            position: (content_box.x, content_box.y),
             style: style.clone(),
             max_width: Some(draw_max_width),
             clip_rect: None,
@@ -433,9 +517,10 @@ impl Widget for Button {
             self.disabled_style == other.disabled_style
     }
 
-    fn cascade_style(&mut self, parent: &Style) {
+    fn cascade_style(&mut self, parent: &Style, anim: &mut AnimationManager) {
         self.inherited_style = parent.clone();
         self.recompute_style();
+        self.apply_animations(anim);
     }
 
     fn after_interaction_transfer(&mut self) {
@@ -445,6 +530,11 @@ impl Widget for Button {
     fn transfer_measured_state(&mut self, old: &dyn Widget) {
         if let Some(old) = old.as_any().downcast_ref::<Button>() {
             self.content_size.set(old.content_size.get());
+            self.anim_id = old.anim_id;
         }
+    }
+
+    fn anim_id(&self) -> WidgetId {
+        self.anim_id
     }
 }

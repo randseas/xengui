@@ -808,6 +808,14 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
         }
 
+        if let Some(renderer) = &self.renderer && renderer.anim.is_animating() {
+            event_loop.set_control_flow(ControlFlow::Poll);
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+            return;
+        }
+
         // Tree-wide animations (e.g. smooth scrolling) run independently of
         // keyboard focus, so this is checked before the blink logic below.
         if any_wants_animation(&self.root) {

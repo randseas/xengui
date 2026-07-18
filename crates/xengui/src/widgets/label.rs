@@ -1,3 +1,4 @@
+use crate::AnimationManager;
 use crate::properties::DEFAULT_CURSOR_ICON;
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
@@ -590,7 +591,7 @@ impl Widget for Label {
             self.selectable == other.selectable
     }
 
-    fn cascade_style(&mut self, parent: &Style) {
+    fn cascade_style(&mut self, parent: &Style, _anim: &mut AnimationManager) {
         self.inherited_style = parent.clone();
         self.recompute_style();
     }

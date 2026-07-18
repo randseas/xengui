@@ -551,6 +551,24 @@ pub trait StyleBuilder: Sized {
         self.mark_dirty();
         self
     }
+
+    fn scale(mut self, scale: f32) -> Self {
+        self.style_mut().scale = Some(scale);
+        self.mark_dirty();
+        self
+    }
+
+    fn content_scale(mut self, scale: f32) -> Self {
+        self.style_mut().content_scale = Some(scale);
+        self.mark_dirty();
+        self
+    }
+
+    fn transition(mut self, transition: crate::Transition) -> Self {
+        self.style_mut().transition = Some(transition);
+        self.mark_dirty();
+        self
+    }
 }
 
 #[derive(Default)]

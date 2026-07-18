@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
+    AnimationManager,
     Background,
     Color,
     Constraints,
@@ -1266,7 +1267,7 @@ impl Widget for TextBox {
             self.disabled_style == other.disabled_style
     }
 
-    fn cascade_style(&mut self, parent: &Style) {
+    fn cascade_style(&mut self, parent: &Style, _anim: &mut AnimationManager) {
         self.inherited_style = parent.clone();
         self.recompute_style();
     }

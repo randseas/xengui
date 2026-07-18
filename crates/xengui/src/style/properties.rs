@@ -116,6 +116,12 @@ pub struct Style {
     pub scrollbar: Option<ScrollbarStyle>,
     pub scrollbar_hover: Option<ScrollbarStyle>,
     pub scrollbar_pressed: Option<ScrollbarStyle>,
+
+    /// Overrides `scale` for the content layer only; `None` means the
+    /// content follows the same scale as the rest of the widget.
+    pub scale: Option<f32>,
+    pub content_scale: Option<f32>,
+    pub transition: Option<crate::Transition>,
 }
 
 impl Style {
@@ -195,6 +201,10 @@ impl Style {
                 (Some(base), None) => Some(*base),
                 (None, None) => None,
             },
+
+            scale: patch.scale.or(self.scale),
+            content_scale: patch.content_scale.or(self.content_scale),
+            transition: patch.transition.or(self.transition),
         }
     }
 

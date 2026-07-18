@@ -17,6 +17,8 @@ use crate::{
     RectCommand,
     Style,
     properties::StyleValue,
+    AnimationManager,
+    WidgetId,
 };
 
 use std::any::Any;
@@ -241,10 +243,10 @@ pub trait Widget: Any {
         false
     }
 
-    fn cascade_style(&mut self, parent: &Style) {
+    fn cascade_style(&mut self, parent: &Style, anim: &mut AnimationManager) {
         if let Some(children) = self.children_mut() {
             for child in children.iter_mut() {
-                child.cascade_style(parent);
+                child.cascade_style(parent, anim);
             }
         }
     }
@@ -290,4 +292,26 @@ pub trait Widget: Any {
     }
 
     fn select_all_text(&mut self) {}
+
+    /// Stable per-instance animation key namespace. Assign once in the
+    /// constructor via `WidgetId::new_unique()` and preserve it across
+    /// reconciliation so in-flight transitions aren't reset.
+    fn anim_id(&self) -> WidgetId {
+        WidgetId::default()
+    }
+}
+
+/// Shrinks or grows `rect` around its own center by `scale`, so an
+/// animated scale transform can be painted without touching layout.
+pub fn scaled_layout_box(rect: LayoutBox, scale: f32) -> LayoutBox {
+    let cx = rect.x + rect.width * 0.5;
+    let cy = rect.y + rect.height * 0.5;
+    let w = rect.width * scale;
+    let h = rect.height * scale;
+    LayoutBox {
+        x: cx - w * 0.5,
+        y: cy - h * 0.5,
+        width: w,
+        height: h,
+    }
 }

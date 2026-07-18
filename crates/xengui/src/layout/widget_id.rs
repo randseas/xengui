@@ -19,3 +19,15 @@ impl WidgetId {
         self.0
     }
 }
+
+use std::sync::atomic::{ AtomicU64, Ordering };
+
+impl WidgetId {
+    /// Fresh identifier for a newly-constructed widget instance; carry it
+    /// forward via `transfer_measured_state` so animation keys stay stable
+    /// across reconciliation.
+    pub fn new_unique() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(1);
+        Self(NEXT.fetch_add(1, Ordering::Relaxed))
+    }
+}

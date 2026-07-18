@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hides console window on windows subsystem
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use std::time::Duration;
+
+// hides console window on windows subsystem
 use xengui::{ properties::StyleValue, widgets::Link, * };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -101,7 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .color(Color::NEUTRAL_500)
                                 .background(Color::NEUTRAL_100)
                                 .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
-                                .padding(Edges::only(9, 4, 9, 7))
+                                .padding(Edges::only(9, 5, 9, 6))
                                 .hover_style(|s|
                                     s
                                         .background(Color::NEUTRAL_200)
@@ -120,13 +123,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         )
                         .child(
                             Button::new()
+                                .label("button1")
+                                .font_size(13)
+                                .background(Color::BLUE_500)
+                                .border(Border::new(1, Color::BLUE_500, Length::px(8.0)))
+                                .padding(Edges::only(9, 5, 9, 6))
+                                .transition(
+                                    Transition::new(Duration::from_millis(500)).easing(
+                                        Easing::Linear
+                                    )
+                                )
+                                .hover_style(|s| s.background(Color::BLUE_600))
+                                .pressed_style(|s|
+                                    s.background(Color::BLUE_700).scale(0.95).content_scale(1.0)
+                                )
+                        )
+                        .child(
+                            Button::new()
                                 .label("disabled_button1")
                                 .enabled(false)
                                 .font_size(13)
                                 .color(Color::NEUTRAL_500)
                                 .background(Color::NEUTRAL_100)
                                 .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
-                                .padding(Edges::only(9, 4, 9, 7))
+                                .padding(Edges::only(9, 5, 9, 6))
                                 .hover_style(|s|
                                     s
                                         .background(Color::NEUTRAL_200)
