@@ -1088,6 +1088,7 @@ impl Widget for TextBox {
         ));
 
         let active_selection = self.interaction.focused.then(|| self.selection_range()).flatten();
+        let mut sel_bounds: Option<(f32, f32)> = None;
 
         if let Some((start, end)) = active_selection {
             let offsets = self.char_offsets.borrow();
@@ -1097,83 +1098,55 @@ impl Widget for TextBox {
                 let sel_right = (text_x + end_x).min(content_right);
 
                 if sel_right > sel_left {
-                    let sel_color = style.selection_background.unwrap_or(
+                    let sel_bg = style.selection_background.unwrap_or(
                         Color::rgba(90, 140, 230, 100)
                     );
                     ctx.draw_rect(RectCommand {
                         position: (sel_left, line_y),
                         size: (sel_right - sel_left, line_h),
-                        background: Some(Background::Color(sel_color)),
+                        background: Some(Background::Color(sel_bg)),
                         border_radius: None,
                         border_width: None,
                         border_color: None,
                         clip_rect: None,
                     });
+                    sel_bounds = Some((sel_left, sel_right));
                 }
             }
         }
 
         let is_empty = self.content.is_empty();
+        let display_text: SmolStr = if is_empty {
+            self.placeholder.clone()
+        } else {
+            SmolStr::new(&self.content)
+        };
 
         let mut text_style = style.clone();
         if is_empty {
             text_style.color = Some(style.color.unwrap_or(Color::NEUTRAL_400).with_alpha_f32(0.6));
         }
 
-        // Selected text is split into three runs so it can carry its own
-        // foreground color; everything else keeps drawing as one run.
-        if
-            !is_empty &&
-            let Some((start, end)) = active_selection &&
-            let Some(sel_fg) = style.selection_color
-        {
-            let start_b = self.byte_index_for(start);
-            let end_b = self.byte_index_for(end);
+        ctx.draw_text(TextCommand {
+            text: display_text.clone(),
+            position: (text_x, text_y),
+            style: text_style.clone(),
+            max_width: None,
+            clip_rect: text_clip,
+        });
 
-            if start_b > 0 {
-                ctx.draw_text(TextCommand {
-                    text: SmolStr::new(&self.content[..start_b]),
-                    position: (text_x, text_y),
-                    style: text_style.clone(),
-                    max_width: None,
-                    clip_rect: text_clip,
-                });
-            }
-            if end_b > start_b {
-                let mut sel_style = text_style.clone();
-                sel_style.color = Some(sel_fg);
-                let sel_x = text_x + self.char_offsets.borrow().get(start).copied().unwrap_or(0.0);
-                ctx.draw_text(TextCommand {
-                    text: SmolStr::new(&self.content[start_b..end_b]),
-                    position: (sel_x, text_y),
-                    style: sel_style,
-                    max_width: None,
-                    clip_rect: text_clip,
-                });
-            }
-            if end_b < self.content.len() {
-                let after_x = text_x + self.char_offsets.borrow().get(end).copied().unwrap_or(0.0);
-                ctx.draw_text(TextCommand {
-                    text: SmolStr::new(&self.content[end_b..]),
-                    position: (after_x, text_y),
-                    style: text_style,
-                    max_width: None,
-                    clip_rect: text_clip,
-                });
-            }
-        } else {
-            let display_text: SmolStr = if is_empty {
-                self.placeholder.clone()
-            } else {
-                SmolStr::new(&self.content)
-            };
-
+        // Draws the exact same shaped text a second time, colored for selection
+        // and scissored to the selection rect - reshaping only the substring
+        // would produce different kerning and jitter glyph positions during drag.
+        if let (Some((sel_left, sel_right)), Some(sel_fg)) = (sel_bounds, style.selection_color) {
+            let mut sel_style = text_style;
+            sel_style.color = Some(sel_fg);
             ctx.draw_text(TextCommand {
                 text: display_text,
                 position: (text_x, text_y),
-                style: text_style,
+                style: sel_style,
                 max_width: None,
-                clip_rect: text_clip,
+                clip_rect: Some((sel_left, line_y, sel_right - sel_left, line_h)),
             });
         }
 
