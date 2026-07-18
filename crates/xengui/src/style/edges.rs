@@ -10,10 +10,7 @@ pub struct Edges {
 }
 
 impl Edges {
-    pub fn all<L>(value: L) -> Self
-    where
-        L: Into<Length>,
-    {
+    pub fn all<L>(value: L) -> Self where L: Into<Length> {
         let value = value.into();
 
         Self {
@@ -25,13 +22,11 @@ impl Edges {
     }
 
     pub fn symmetric<H, V>(horizontal: H, vertical: V) -> Self
-    where
-        H: Into<Length>,
-        V: Into<Length>,
+        where H: Into<Length>, V: Into<Length>
     {
         let horizontal = horizontal.into();
         let vertical = vertical.into();
-        
+
         Self {
             left: horizontal,
             right: horizontal,
@@ -41,11 +36,7 @@ impl Edges {
     }
 
     pub fn only<L, T, R, B>(left: L, top: T, right: R, bottom: B) -> Self
-    where
-        L: Into<Length>,
-        T: Into<Length>,
-        R: Into<Length>,
-        B: Into<Length>,
+        where L: Into<Length>, T: Into<Length>, R: Into<Length>, B: Into<Length>
     {
         Self {
             left: left.into(),
@@ -69,5 +60,11 @@ impl Edges {
 
     pub const fn bottom(&self) -> Length {
         self.bottom
+    }
+}
+
+impl From<Length> for Edges {
+    fn from(value: Length) -> Self {
+        Self::all(value)
     }
 }

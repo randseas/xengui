@@ -86,19 +86,28 @@ fn build_taffy_node(
         let auto_w = style.size.width == taffy::style::Dimension::auto();
         let auto_h = style.size.height == taffy::style::Dimension::auto();
 
-        if auto_w && auto_h {
-            // Read max_size directly from the widget's own Style, before
-            // taffy's conversion, so we don't need to inspect taffy's
-            // internal Dimension representation. Percent is skipped here
-            // since resolving it needs a parent basis that isn't available
-            // during intrinsic content measurement.
+        if auto_w || auto_h {
             let mut constraints = super::Constraints::default();
+
             if let Some(max_size) = widget.computed_style().max_size {
                 if let Some(crate::Length::Px(w)) = max_size.width {
                     constraints = constraints.with_max_width(w * ctx.scale_factor);
                 }
                 if let Some(crate::Length::Px(h)) = max_size.height {
                     constraints = constraints.with_max_height(h * ctx.scale_factor);
+                }
+            }
+
+            // If one axis is already fixed (e.g. width set, height auto), read
+            // it from xengui's own Style (not taffy's Dimension, which is an
+            // opaque struct in this taffy version) and pass it as a known
+            // constraint so the auto axis measures against the real size.
+            if let Some(size) = widget.computed_style().size {
+                if !auto_w && let Some(crate::Length::Px(w)) = size.width {
+                    constraints = constraints.with_known_width(w * ctx.scale_factor);
+                }
+                if !auto_h && let Some(crate::Length::Px(h)) = size.height {
+                    constraints = constraints.with_known_height(h * ctx.scale_factor);
                 }
             }
 
@@ -113,21 +122,20 @@ fn build_taffy_node(
                     size
                 })
             };
-            // Round intrinsic content size before it enters taffy's flex
-            // solve. Otherwise sibling boxes accumulate independent
-            // fractional heights from text metrics, and the shared edge
-            // between two rows stops being the exact same float value -
-            // which breaks the edge-snapping in apply_layout below.
+
             let (w, h) = (measure.width.round(), measure.height.round());
-            style.size = Size {
-                width: length(w),
-                height: length(h),
-            };
-            if style.min_size.width == taffy::style::Dimension::auto() {
-                style.min_size.width = length(w);
+
+            if auto_w {
+                style.size.width = length(w);
+                if style.min_size.width == taffy::style::Dimension::auto() {
+                    style.min_size.width = length(w);
+                }
             }
-            if style.min_size.height == taffy::style::Dimension::auto() {
-                style.min_size.height = length(h);
+            if auto_h {
+                style.size.height = length(h);
+                if style.min_size.height == taffy::style::Dimension::auto() {
+                    style.min_size.height = length(h);
+                }
             }
         }
         taffy.new_leaf(style).expect("cannot create taffy leaf")

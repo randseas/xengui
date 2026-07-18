@@ -1,3 +1,4 @@
+use crate::IntoThemed;
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background,
@@ -198,20 +199,26 @@ impl Label {
         self
     }
 
-    pub fn hover_background<B: Into<Background>>(mut self, background: B) -> Self {
-        self.hover_style.get_or_insert_with(Style::default).background = Some(background.into());
+    pub fn hover_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
+        self.hover_style.get_or_insert_with(Style::default).background = Some(
+            background.resolve_themed()
+        );
         self.mark_dirty();
         self
     }
 
-    pub fn pressed_background<B: Into<Background>>(mut self, background: B) -> Self {
-        self.pressed_style.get_or_insert_with(Style::default).background = Some(background.into());
+    pub fn pressed_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
+        self.pressed_style.get_or_insert_with(Style::default).background = Some(
+            background.resolve_themed()
+        );
         self.mark_dirty();
         self
     }
 
-    pub fn disabled_background<B: Into<Background>>(mut self, background: B) -> Self {
-        self.disabled_style.get_or_insert_with(Style::default).background = Some(background.into());
+    pub fn disabled_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
+        self.disabled_style.get_or_insert_with(Style::default).background = Some(
+            background.resolve_themed()
+        );
         self.mark_dirty();
         self
     }

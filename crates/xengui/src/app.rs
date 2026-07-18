@@ -6,6 +6,7 @@ use crate::{
     Key,
     KeyState,
     ModifiersState,
+    Theme,
     Widget,
     XenRenderer,
     any_wants_animation,
@@ -67,6 +68,12 @@ pub struct AppConfig {
     pub position: WindowPosition,
 
     pub fonts: Vec<(String, Vec<u8>)>,
+
+    /// Every theme registered for this app; switch between them at
+    /// runtime with `set_active_theme`/`set_active_theme_by_name`.
+    pub themes: Vec<Theme>,
+    /// Index into `themes` currently in effect.
+    pub active_theme: usize,
 }
 
 impl Default for AppConfig {
@@ -91,6 +98,9 @@ impl Default for AppConfig {
             position: WindowPosition::Center,
 
             fonts: Vec::new(),
+
+            themes: vec![Theme::default()],
+            active_theme: 0,
         }
     }
 }
@@ -174,6 +184,12 @@ impl App {
         let Some(builder) = self.component.clone() else {
             return;
         };
+
+        self.apply_pending_theme_switch();
+
+        let system_is_dark = matches!(self.config.theme, Some(winit::window::Theme::Dark));
+        let active = self.config.themes.get(self.config.active_theme).cloned().unwrap_or_default();
+        crate::style::theme::set_current_theme(active.resolved_for_system(system_is_dark));
 
         crate::hooks::begin_render();
         let new_root = crate::hooks::component("root", || builder());
@@ -512,8 +528,18 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             WindowEvent::ThemeChanged(new_theme) => {
                 self.config.theme = Some(new_theme);
                 log::info!("theme changed: {:?}", new_theme);
-                for node in &mut self.root {
-                    node.set_dirty(true);
+                let active_is_auto = self.config.themes
+                    .get(self.config.active_theme)
+                    .is_some_and(Theme::is_auto);
+                if active_is_auto {
+                    // Auto colors were baked in at the last render pass,
+                    // so rebuild the tree instead of just repainting it.
+                    self.schedule_render();
+                    while self.pump_reconciliation() {}
+                } else {
+                    for node in &mut self.root {
+                        node.set_dirty(true);
+                    }
                 }
                 if let Some(window) = &self.window {
                     window.request_redraw();
@@ -1057,6 +1083,26 @@ impl App {
                 }
                 self.input.pressed_path = None;
                 self.input.cursor_pos = None;
+            }
+        }
+    }
+
+    // Applies a theme switch requested via `set_active_theme`/
+    // `set_active_theme_by_name` since the last render pass.
+    fn apply_pending_theme_switch(&mut self) {
+        let Some(switch) = crate::style::theme::take_theme_switch() else {
+            return;
+        };
+        match switch {
+            crate::style::theme::ThemeSwitch::Index(index) => {
+                if index < self.config.themes.len() {
+                    self.config.active_theme = index;
+                }
+            }
+            crate::style::theme::ThemeSwitch::Name(name) => {
+                if let Some(index) = self.config.themes.iter().position(|t| t.name() == name) {
+                    self.config.active_theme = index;
+                }
             }
         }
     }

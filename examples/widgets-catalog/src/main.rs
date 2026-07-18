@@ -31,6 +31,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         height: 700,
         #[cfg(not(target_arch = "wasm32"))]
         position: xengui::WindowPosition::Center,
+
+        themes: vec![
+            Theme::light(),
+            Theme::dark(),
+            Theme::new("ocean").primary(Color::CYAN_500).background(Color::SKY_950)
+        ],
+        active_theme: 1,
+
         ..Default::default()
     };
 
@@ -54,7 +62,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .flex_direction(FlexDirection::Column)
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
-                .background(Color::WHITE)
+                .background(|theme: &Theme| (
+                    if theme.is_dark() {
+                        Color::NEUTRAL_950
+                    } else {
+                        Color::WHITE
+                    }
+                ))
                 .padding(Edges::all(15))
                 .child(
                     Label::new()

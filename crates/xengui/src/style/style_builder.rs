@@ -3,7 +3,7 @@ use crate::{
     Overflow,
     TransitionProperty,
     properties::StyleValue,
-    style::{ FontStyle, FontWeight, LetterSpacing },
+    style::{ FontStyle, FontWeight, LetterSpacing, IntoThemed },
 };
 
 use super::{
@@ -52,20 +52,20 @@ pub trait StyleBuilder: Sized {
         self
     }
 
-    fn padding<E: Into<Edges>>(mut self, padding: E) -> Self {
-        self.style_mut().padding = Some(padding.into());
+    fn padding<M>(mut self, padding: impl IntoThemed<Edges, M>) -> Self {
+        self.style_mut().padding = Some(padding.resolve_themed());
         self.mark_dirty();
         self
     }
 
-    fn color(mut self, color: Color) -> Self {
-        self.style_mut().color = Some(color);
+    fn color<M>(mut self, color: impl IntoThemed<Color, M>) -> Self {
+        self.style_mut().color = Some(color.resolve_themed());
         self.mark_dirty();
         self
     }
 
-    fn selection_color(mut self, color: Color) -> Self {
-        self.style_mut().selection_color = Some(color);
+    fn selection_color<M>(mut self, color: impl IntoThemed<Color, M>) -> Self {
+        self.style_mut().selection_color = Some(color.resolve_themed());
         self.mark_dirty();
         self
     }
@@ -76,8 +76,8 @@ pub trait StyleBuilder: Sized {
         self
     }
 
-    fn background<B: Into<Background>>(mut self, background: B) -> Self {
-        self.style_mut().background = Some(background.into());
+    fn background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
+        self.style_mut().background = Some(background.resolve_themed());
         self.mark_dirty();
         self
     }
@@ -123,8 +123,8 @@ pub trait StyleBuilder: Sized {
         self
     }
 
-    fn margin<E: Into<Edges>>(mut self, margin: E) -> Self {
-        self.style_mut().margin = Some(margin.into());
+    fn margin<M>(mut self, margin: impl IntoThemed<Edges, M>) -> Self {
+        self.style_mut().margin = Some(margin.resolve_themed());
         self.mark_dirty();
         self
     }

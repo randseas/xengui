@@ -31,6 +31,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         height: 480,
         #[cfg(not(target_arch = "wasm32"))]
         position: xengui::WindowPosition::Center,
+
+        themes: vec![Theme::light(), Theme::dark()],
+        active_theme: 1,
+
         ..Default::default()
     };
 
@@ -60,7 +64,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .align_items(AlignItems::Start)
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
-                .background(Color::WHITE)
+                .background(|theme: &Theme| (
+                    if theme.is_dark() {
+                        Color::NEUTRAL_950
+                    } else {
+                        Color::WHITE
+                    }
+                ))
                 .padding(Edges::all(15))
                 .child(
                     View::new()
@@ -74,24 +84,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .label("My XenGui Application")
                                 .margin(Edges::only(0, 0, 0, 8))
                                 .font_size(20)
-                                .color(Color::NEUTRAL_400)
+                                .color(|theme: &Theme| (
+                                    if theme.is_dark() {
+                                        Color::NEUTRAL_100
+                                    } else {
+                                        Color::NEUTRAL_400
+                                    }
+                                ))
                         )
                         .child(
                             TextBox::new()
                                 .value(text.clone())
-                                .color(Color::NEUTRAL_400)
+                                .color(|theme: &Theme| (
+                                    if theme.is_dark() {
+                                        Color::NEUTRAL_100
+                                    } else {
+                                        Color::NEUTRAL_400
+                                    }
+                                ))
                                 .placeholder("Enter your name...")
                                 .font_size(16)
                                 .outline(StyleValue::None)
                                 .focus_outline(StyleValue::Default)
-                                .max_width(Length::px(150.0))
+                                .width(Length::px(150.0))
                                 .padding(Edges::only(10, 7, 10, 8))
                                 .transition_all(
                                     Transition::new(Duration::from_millis(200)).easing(
                                         Easing::EaseInOut
                                     )
                                 )
-                                .background(Color::WHITE)
+                                .background(|theme: &Theme| (
+                                    if theme.is_dark() {
+                                        Color::NEUTRAL_800
+                                    } else {
+                                        Color::WHITE
+                                    }
+                                ))
                                 .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
                                 .hover_style(|s|
                                     s.border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
@@ -113,7 +141,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             Label::new()
                                 .label(format!("Hello {text}, age {counter}"))
                                 .font_size(16)
-                                .color(Color::NEUTRAL_400)
+                                .color(|theme: &Theme| (
+                                    if theme.is_dark() {
+                                        Color::NEUTRAL_100
+                                    } else {
+                                        Color::NEUTRAL_400
+                                    }
+                                ))
                                 .margin(Edges::only(0, 6, 0, 0))
                         )
                         .child(
@@ -124,8 +158,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     Button::new()
                                         .label("Increment")
                                         .font_size(16)
-                                        .color(Color::NEUTRAL_400)
-                                        .background(Color::NEUTRAL_200)
+                                        .color(|theme: &Theme| (
+                                            if theme.is_dark() {
+                                                Color::NEUTRAL_100
+                                            } else {
+                                                Color::NEUTRAL_400
+                                            }
+                                        ))
+                                        .background(|theme: &Theme| (
+                                            if theme.is_dark() {
+                                                Color::NEUTRAL_700
+                                            } else {
+                                                Color::NEUTRAL_200
+                                            }
+                                        ))
                                         .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
                                         .padding(Edges::only(9, 4, 9, 7))
                                         .margin(Edges::only(0, 10, 0, 0))
@@ -173,8 +219,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     Button::new()
                                         .label("Decrement")
                                         .font_size(16)
-                                        .color(Color::NEUTRAL_400)
-                                        .background(Color::NEUTRAL_200)
+                                        .color(|theme: &Theme| (
+                                            if theme.is_dark() {
+                                                Color::NEUTRAL_100
+                                            } else {
+                                                Color::NEUTRAL_400
+                                            }
+                                        ))
+                                        .background(|theme: &Theme| (
+                                            if theme.is_dark() {
+                                                Color::NEUTRAL_700
+                                            } else {
+                                                Color::NEUTRAL_200
+                                            }
+                                        ))
                                         .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
                                         .padding(Edges::only(9, 4, 9, 7))
                                         .margin(Edges::only(0, 10, 0, 0))

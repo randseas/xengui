@@ -4,19 +4,23 @@ use crate::{
     Background,
     Color,
     Constraints,
+    Edges,
     EventCtx,
     EventStatus,
     InputEvent,
     Interaction,
+    IntoThemed,
     Key,
     KeyState,
     KeyboardEvent,
     LayoutBox,
+    Length,
     MeasureContext,
     MeasureResult,
     ModifiersState,
     PaintContext,
     RectCommand,
+    Size,
     Style,
     StyleBuilder,
     StylePatch,
@@ -117,6 +121,12 @@ impl TextBox {
         interaction.focusable = true;
         interaction.hover_cursor = Some(CursorIcon::Text);
 
+        let style = Style {
+            padding: Some(Edges::symmetric(8.0, 6.0)),
+            min_size: Some(Size { width: Some(Length::px(120.0)), height: None }),
+            ..Default::default()
+        };
+
         Self {
             key: None,
             anim_id: WidgetId::new_unique(),
@@ -124,7 +134,7 @@ impl TextBox {
             dirty: true,
             content: String::new(),
             placeholder: SmolStr::new(""),
-            style: Style::default(),
+            style,
             hover_style: None,
             focus_style: None,
             disabled_style: None,
@@ -202,8 +212,8 @@ impl TextBox {
         self
     }
 
-    pub fn selection_color(mut self, color: Color) -> Self {
-        self.selection_color = Some(color);
+    pub fn selection_color<M>(mut self, color: impl IntoThemed<Color, M>) -> Self {
+        self.selection_color = Some(color.resolve_themed());
         self.mark_dirty();
         self
     }
@@ -967,7 +977,7 @@ impl Widget for TextBox {
             style.font_style.unwrap_or_default(),
             letter_spacing,
             line_height,
-            None
+            constraints.max_width
         );
 
         self.content_size.set((result.width, result.height));

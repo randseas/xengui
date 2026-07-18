@@ -41,13 +41,19 @@ pub use hooks::{ component, use_state, ComponentId, ComponentKey, SetState };
 pub use app::{ App, AppConfig };
 pub use input::{ InputEvent, Key, KeyState };
 pub use style::{
+    current_theme,
+    set_active_theme,
+    set_active_theme_by_name,
     Color,
     Cursor,
+    IntoThemed,
     Length,
     Border,
     Edges,
     Style,
     StyleBuilder,
+    Theme,
+    ThemeMode,
     FlexDirection,
     FlexWrap,
     FontStyle,

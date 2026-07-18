@@ -16,6 +16,7 @@ pub mod size;
 pub mod style_builder;
 pub mod typography;
 pub mod cursor;
+pub mod theme;
 
 pub use background::Background;
 pub use border::Border;
@@ -45,3 +46,11 @@ pub use text_align::TextAlign;
 pub use text_decoration::TextDecoration;
 pub use typography::*;
 pub use cursor::Cursor;
+pub use theme::{
+    current_theme,
+    set_active_theme,
+    set_active_theme_by_name,
+    IntoThemed,
+    Theme,
+    ThemeMode,
+};
