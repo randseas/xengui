@@ -59,6 +59,10 @@ impl Anim {
 #[derive(Default)]
 pub struct AnimationManager {
     active: HashMap<AnimKey, Anim>,
+    // Last settled value per key, kept around after an animation finishes
+    // and is dropped from `active` - without this, the next retarget would
+    // have no baseline to interpolate from and would snap instantly.
+    resting: HashMap<AnimKey, AnimValue>,
 }
 
 impl AnimationManager {
@@ -72,6 +76,7 @@ impl AnimationManager {
     pub fn set_target(&mut self, key: AnimKey, target: AnimValue, transition: Option<Transition>) {
         let Some(transition) = transition else {
             self.active.remove(&key);
+            self.resting.insert(key, target);
             return;
         };
 
@@ -84,12 +89,18 @@ impl AnimationManager {
                 anim.elapsed = Duration::ZERO;
             }
             None => {
-                // Already resting on `target`; nothing to animate from yet.
+                let from = self.resting.get(&key).copied().unwrap_or(target);
+                self.resting.insert(key, target);
+
+                if from == target {
+                    return;
+                }
+
                 self.active.insert(key, Anim {
-                    from: target,
+                    from,
                     to: target,
                     transition,
-                    elapsed: transition.delay + transition.duration,
+                    elapsed: Duration::ZERO,
                 });
             }
         }
@@ -101,6 +112,15 @@ impl AnimationManager {
         for anim in self.active.values_mut() {
             anim.elapsed += dt;
         }
+
+        // Preserve the settled value before dropping finished entries so
+        // a future retarget still has a baseline to animate from.
+        for (key, anim) in self.active.iter() {
+            if anim.finished() {
+                self.resting.insert(*key, anim.to);
+            }
+        }
+
         self.active.retain(|_, anim| !anim.finished());
     }
 
