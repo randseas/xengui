@@ -2,7 +2,7 @@
 use smol_str::SmolStr;
 use winit::window::CursorIcon;
 
-use crate::Cursor;
+use crate::{ Cursor, TransitionProperty };
 
 use super::{
     Outline,
@@ -122,6 +122,7 @@ pub struct Style {
     pub scale: Option<f32>,
     pub content_scale: Option<f32>,
     pub transition: Option<crate::Transition>,
+    pub transition_properties: Option<TransitionProperty>,
 }
 
 impl Style {
@@ -205,6 +206,7 @@ impl Style {
             scale: patch.scale.or(self.scale),
             content_scale: patch.content_scale.or(self.content_scale),
             transition: patch.transition.or(self.transition),
+            transition_properties: patch.transition_properties.or(self.transition_properties),
         }
     }
 

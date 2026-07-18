@@ -18,6 +18,7 @@ use crate::{
     StyleBuilder,
     StylePatch,
     Widget,
+    WidgetId,
 };
 use smol_str::SmolStr;
 use std::hash::{ Hash, Hasher };
@@ -86,6 +87,7 @@ pub fn image_source_from_path(path: impl AsRef<std::path::Path>) -> Result<Image
 
 pub struct Image {
     key: Option<SmolStr>,
+    anim_id: WidgetId,
 
     dirty: bool,
     style: Style,
@@ -108,6 +110,7 @@ impl Image {
     pub fn new() -> Self {
         let mut image = Self {
             key: None,
+            anim_id: WidgetId::new_unique(),
 
             dirty: true,
             style: Style::default(),
@@ -438,12 +441,25 @@ impl Widget for Image {
             self.disabled_style == other.disabled_style
     }
 
-    fn cascade_style(&mut self, parent: &Style, _anim: &mut AnimationManager) {
-        self.inherited_style = parent.clone();
+    fn after_interaction_transfer(&mut self) {
         self.recompute_style();
     }
 
-    fn after_interaction_transfer(&mut self) {
+    fn cascade_style(&mut self, parent: &Style, anim: &mut AnimationManager) {
+        self.inherited_style = parent.clone();
         self.recompute_style();
+        if crate::animate_computed_style(self.anim_id, &mut self.computed_style, anim) {
+            self.dirty = true;
+        }
+    }
+
+    fn transfer_measured_state(&mut self, old: &dyn Widget) {
+        if let Some(old) = old.as_any().downcast_ref::<Image>() {
+            self.anim_id = old.anim_id;
+        }
+    }
+
+    fn anim_id(&self) -> WidgetId {
+        self.anim_id
     }
 }

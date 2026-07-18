@@ -79,7 +79,7 @@ fn build_taffy_node(
 ) -> NodeId {
     let mut measure_ctx = MeasureContext::new(ctx.text, ctx.scale_factor);
 
-    let mut style = style_to_taffy(widget.style(), ctx.scale_factor);
+    let mut style = style_to_taffy(widget.computed_style(), ctx.scale_factor);
     let children = widget.children();
 
     if children.is_empty() {
@@ -93,7 +93,7 @@ fn build_taffy_node(
             // since resolving it needs a parent basis that isn't available
             // during intrinsic content measurement.
             let mut constraints = super::Constraints::default();
-            if let Some(max_size) = widget.style().max_size {
+            if let Some(max_size) = widget.computed_style().max_size {
                 if let Some(crate::Length::Px(w)) = max_size.width {
                     constraints = constraints.with_max_width(w * ctx.scale_factor);
                 }

@@ -1,6 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    AnimationManager, Background, Constraints, DEFAULT_SCROLLBAR_HOVER_THICKNESS, EventCtx, EventStatus, InputEvent, Interaction, Key, KeyState, LayoutBox, Length, MeasureContext, MeasureResult, ModifiersState, Overflow, PaintContext, RectCommand, ResolvedScrollbar, Style, StyleBuilder, StylePatch, TriangleCommand, Widget,
+    AnimationManager,
+    Background,
+    Constraints,
+    DEFAULT_SCROLLBAR_HOVER_THICKNESS,
+    EventCtx,
+    EventStatus,
+    InputEvent,
+    Interaction,
+    Key,
+    KeyState,
+    LayoutBox,
+    Length,
+    MeasureContext,
+    MeasureResult,
+    ModifiersState,
+    Overflow,
+    PaintContext,
+    RectCommand,
+    ResolvedScrollbar,
+    Style,
+    StyleBuilder,
+    StylePatch,
+    TriangleCommand,
+    Widget,
+    WidgetId,
 };
 use smol_str::SmolStr;
 use std::cell::Cell;
@@ -58,6 +82,7 @@ fn arrow_triangle(
 
 pub struct View {
     key: Option<SmolStr>,
+    anim_id: WidgetId,
 
     dirty: bool,
     style: Style,
@@ -90,6 +115,7 @@ impl View {
     pub fn new() -> Self {
         let mut view = Self {
             key: None,
+            anim_id: WidgetId::new_unique(),
 
             dirty: true,
             style: Style::default(),
@@ -1061,6 +1087,10 @@ impl Widget for View {
         self.inherited_style = parent.clone();
         self.recompute_style();
 
+        if crate::animate_computed_style(self.anim_id, &mut self.computed_style, anim) {
+            self.dirty = true;
+        }
+
         for child in self.children.iter_mut() {
             child.cascade_style(&self.computed_style, anim);
         }
@@ -1078,10 +1108,15 @@ impl Widget for View {
             self.content_size.set(old.content_size.get());
             self.scrollbar_hovered.set(old.scrollbar_hovered.get());
             self.scrollbar_thickness_anim.set(old.scrollbar_thickness_anim.get());
+            self.anim_id = old.anim_id;
         }
     }
 
     fn wants_animation_frame(&self) -> bool {
         self.scroll_animating.get() || !self.scrollbar_thickness_settled()
+    }
+
+    fn anim_id(&self) -> WidgetId {
+        self.anim_id
     }
 }

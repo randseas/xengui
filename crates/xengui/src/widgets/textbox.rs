@@ -23,6 +23,7 @@ use crate::{
     TextCommand,
     Widget,
     WidgetContent,
+    WidgetId,
 };
 use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
@@ -40,6 +41,7 @@ const MULTI_CLICK_DISTANCE: f32 = 4.0;
 
 pub struct TextBox {
     key: Option<SmolStr>,
+    anim_id: WidgetId,
 
     dirty: bool,
     content: String,
@@ -117,6 +119,7 @@ impl TextBox {
 
         Self {
             key: None,
+            anim_id: WidgetId::new_unique(),
 
             dirty: true,
             content: String::new(),
@@ -1267,9 +1270,12 @@ impl Widget for TextBox {
             self.disabled_style == other.disabled_style
     }
 
-    fn cascade_style(&mut self, parent: &Style, _anim: &mut AnimationManager) {
+    fn cascade_style(&mut self, parent: &Style, anim: &mut AnimationManager) {
         self.inherited_style = parent.clone();
         self.recompute_style();
+        if crate::animate_computed_style(self.anim_id, &mut self.computed_style, anim) {
+            self.dirty = true;
+        }
     }
 
     fn after_interaction_transfer(&mut self) {
@@ -1304,6 +1310,7 @@ impl Widget for TextBox {
             self.cursor_offset.set(old.cursor_offset.get());
             self.char_offsets.replace(old.char_offsets.borrow().clone());
             self.scroll_offset.set(old.scroll_offset.get());
+            self.anim_id = old.anim_id;
         }
     }
 
@@ -1316,5 +1323,9 @@ impl Widget for TextBox {
 
     fn blink_interval(&self) -> Option<std::time::Duration> {
         self.interaction.focused.then_some(std::time::Duration::from_millis(530))
+    }
+
+    fn anim_id(&self) -> WidgetId {
+        self.anim_id
     }
 }

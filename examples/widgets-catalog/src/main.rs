@@ -49,6 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(
             View::new()
                 .font("Noto_Sans")
+                .font_size(14)
                 .display(Display::Flex)
                 .flex_direction(FlexDirection::Column)
                 .width(Length::Percent(100.0))
@@ -79,13 +80,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .child(
                             TextBox::new()
                                 .value(text.clone())
-                                .color(Color::NEUTRAL_400)
+                                .color(Color::NEUTRAL_500)
                                 .placeholder("textBox1...")
-                                .font_size(16)
+                                .font_size(14)
                                 .outline(StyleValue::None)
                                 .focus_outline(StyleValue::Default)
                                 .min_width(Length::px(150.0))
                                 .max_width(Length::px(170.0))
+                                .transition_all(
+                                    Transition::new(Duration::from_millis(200)).easing(
+                                        Easing::EaseInOut
+                                    )
+                                )
                                 .padding(Edges::only(10, 7, 10, 8))
                                 .background(Color::WHITE)
                                 .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
@@ -100,11 +106,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .child(
                             Button::new()
                                 .label("button1")
-                                .font_size(13)
+                                .font_size(14)
                                 .color(Color::NEUTRAL_500)
                                 .background(Color::NEUTRAL_100)
                                 .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
                                 .padding(Edges::only(9, 5, 9, 6))
+                                .transition_all(
+                                    Transition::new(Duration::from_millis(200)).easing(
+                                        Easing::EaseInOut
+                                    )
+                                )
                                 .hover_style(|s|
                                     s
                                         .background(Color::NEUTRAL_200)
@@ -124,18 +135,72 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .child(
                             Button::new()
                                 .label("button1")
-                                .font_size(13)
+                                .font_size(14)
                                 .background(Color::BLUE_500)
                                 .border(Border::new(1, Color::BLUE_500, Length::px(8.0)))
                                 .padding(Edges::only(9, 5, 9, 6))
-                                .transition(
-                                    Transition::new(Duration::from_millis(500)).easing(
-                                        Easing::Linear
+                                .transition_all(
+                                    Transition::new(Duration::from_millis(200)).easing(
+                                        Easing::EaseInOut
                                     )
                                 )
-                                .hover_style(|s| s.background(Color::BLUE_600))
+                                .hover_style(|s|
+                                    s
+                                        .background(Color::BLUE_600)
+                                        .border(Border::new(1, Color::BLUE_600, Length::px(8.0)))
+                                )
                                 .pressed_style(|s|
-                                    s.background(Color::BLUE_700).scale(0.95).content_scale(1.0)
+                                    s
+                                        .background(Color::BLUE_700)
+                                        .scale(0.98)
+                                        .content_scale(1.0)
+                                        .border(Border::new(1, Color::BLUE_700, Length::px(8.0)))
+                                )
+                        )
+                        .child(
+                            Button::new()
+                                .label("Sign in with GitHub")
+                                .font_size(15)
+                                .background(Color::NEUTRAL_800)
+                                .padding(Edges::only(12, 8, 12, 8))
+                                .border(Border::new(1, Color::NEUTRAL_700, Length::px(10.0)))
+                                .transition_all(
+                                    Transition::new(Duration::from_millis(200)).easing(
+                                        Easing::EaseInOut
+                                    )
+                                )
+                                .transition_transform(
+                                    Transition::new(Duration::from_millis(200)).easing(
+                                        Easing::EaseInOut
+                                    )
+                                )
+                                .hover_style(|s|
+                                    s
+                                        .background(Color::NEUTRAL_900)
+                                        .border(
+                                            Border::new(1, Color::NEUTRAL_800, Length::px(10.0))
+                                        )
+                                )
+                                .pressed_style(|s|
+                                    s
+                                        .background(Color::NEUTRAL_900)
+                                        .scale(0.98)
+                                        .content_scale(1.0)
+                                        .border(
+                                            Border::new(1, Color::NEUTRAL_800, Length::px(10.0))
+                                        )
+                                )
+                        )
+                        .child(
+                            Button::new()
+                                .label("Animated Button")
+                                .font_size(15)
+                                .background(Color::BLUE_500)
+                                .padding(Edges::only(12, 8, 12, 8))
+                                .border(Border::new(1, Color::BLUE_500, Length::px(8.0)))
+                                .transition_all(Transition::new(Duration::from_millis(200)))
+                                .hover_style(|s|
+                                    s.border(Border::new(1, Color::BLUE_500, Length::px(20.0)))
                                 )
                         )
                         .child(

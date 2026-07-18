@@ -19,7 +19,22 @@ pub enum AnimProperty {
     BorderColor,
     Opacity,
     Scale,
+    ContentScale,
     ShadowColor,
+    BorderWidth,
+    BorderRadius,
+    Width,
+    Height,
+    PaddingLeft,
+    PaddingTop,
+    PaddingRight,
+    PaddingBottom,
+    MarginLeft,
+    MarginTop,
+    MarginRight,
+    MarginBottom,
+    GapX,
+    GapY,
 }
 
 /// Identifies one animatable value on one widget's layer.
@@ -113,8 +128,6 @@ impl AnimationManager {
             anim.elapsed += dt;
         }
 
-        // Preserve the settled value before dropping finished entries so
-        // a future retarget still has a baseline to animate from.
         for (key, anim) in self.active.iter() {
             if anim.finished() {
                 self.resting.insert(*key, anim.to);

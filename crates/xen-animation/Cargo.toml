@@ -1,0 +1,15 @@
+[package]
+name = "xen-animation"
+version = "0.1.0"
+edition = { workspace = true }
+rust-version = { workspace = true }
+authors = ["randseas <waultbank@gmail.com>"]
+
+description = "a high-performance animation library for rust applications."
+license = "Apache-2.0"
+
+repository = "https://github.com/randseas/xen-animation"
+readme = "README.md"
+
+keywords = ["animation", "transition", "easing", "interpolation", "gui"]
+categories = ["gui", "graphics", "game-development"]

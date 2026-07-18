@@ -27,6 +27,6 @@ impl Transition {
 
 impl Default for Transition {
     fn default() -> Self {
-        Self::new(Duration::from_millis(150))
+        Self::new(Duration::from_millis(200))
     }
 }

@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    AnimKey,
-    AnimLayer,
-    AnimProperty,
-    AnimValue,
     AnimationManager,
     Background,
-    Color,
     Constraints,
     EventCtx,
     EventStatus,
@@ -66,9 +61,6 @@ pub struct Button {
     content_size: Cell<(f32, f32)>,
 
     anim_id: WidgetId,
-    animated_background: Option<Color>,
-    animated_scale: f32,
-    animated_content_scale: f32,
 }
 
 impl Button {
@@ -96,9 +88,6 @@ impl Button {
             content_size: Cell::new((0.0, 0.0)),
 
             anim_id: WidgetId::new_unique(),
-            animated_background: None,
-            animated_scale: 1.0,
-            animated_content_scale: 1.0,
         };
 
         button.recompute_style();
@@ -260,51 +249,6 @@ impl Button {
                 )
             );
     }
-
-    // Feeds this frame's resolved target values into the AnimationManager
-    // and reads back whatever value (mid-transition or settled) should
-    // actually be painted this frame.
-    fn apply_animations(&mut self, anim: &mut AnimationManager) {
-        let transition = self.computed_style.transition;
-
-        if let Some(Background::Color(color)) = &self.computed_style.background {
-            let key = AnimKey {
-                widget: self.anim_id,
-                layer: AnimLayer::Background,
-                property: AnimProperty::BackgroundColor,
-            };
-            anim.set_target(key, AnimValue(color.to_f32_array()), transition);
-            self.animated_background = anim
-                .value(key)
-                .map(|v| Color::rgba_f32(v.0[0], v.0[1], v.0[2], v.0[3]));
-        } else {
-            self.animated_background = None;
-        }
-
-        let root_scale = self.computed_style.scale.unwrap_or(1.0);
-        let scale_key = AnimKey {
-            widget: self.anim_id,
-            layer: AnimLayer::Root,
-            property: AnimProperty::Scale,
-        };
-        anim.set_target(scale_key, AnimValue([root_scale, 0.0, 0.0, 0.0]), transition);
-        self.animated_scale = anim
-            .value(scale_key)
-            .map(|v| v.0[0])
-            .unwrap_or(root_scale);
-
-        let content_scale = self.computed_style.content_scale.unwrap_or(root_scale);
-        let content_key = AnimKey {
-            widget: self.anim_id,
-            layer: AnimLayer::Content,
-            property: AnimProperty::Scale,
-        };
-        anim.set_target(content_key, AnimValue([content_scale, 0.0, 0.0, 0.0]), transition);
-        self.animated_content_scale = anim
-            .value(content_key)
-            .map(|v| v.0[0])
-            .unwrap_or(content_scale);
-    }
 }
 
 impl Default for Button {
@@ -438,19 +382,18 @@ impl Widget for Button {
 
         let style = &self.computed_style;
 
-        // Background is painted through its own animated rect instead of
-        // paint_box(), so scale/color transitions apply independently of
+        // Background is painted through its own scaled rect instead of
+        // paint_box(), so a scale transition applies independently of
         // the content layer below.
-        let background_box = crate::scaled_layout_box(self.layout_box, self.animated_scale);
+        let scale = style.scale.unwrap_or(1.0);
+        let background_box = crate::scaled_layout_box(self.layout_box, scale);
 
         if style.background.is_some() || style.border.is_some() {
             let border = style.border.as_ref();
             ctx.draw_rect(RectCommand {
                 position: (background_box.x, background_box.y),
                 size: (background_box.width, background_box.height),
-                background: self.animated_background
-                    .map(Background::Color)
-                    .or_else(|| style.background.clone()),
+                background: style.background.clone(),
                 border_radius: border.map(|b| b.radius),
                 border_color: border.map(|b| b.color),
                 border_width: border.map(|b| b.width),
@@ -476,9 +419,10 @@ impl Widget for Button {
             ) *
                 0.5;
 
+        let content_scale = style.content_scale.unwrap_or(scale);
         let content_box = crate::scaled_layout_box(
             LayoutBox { x: text_x, y: text_y, width: content_w, height: content_h },
-            self.animated_content_scale
+            content_scale
         );
 
         ctx.draw_text(TextCommand {
@@ -520,7 +464,9 @@ impl Widget for Button {
     fn cascade_style(&mut self, parent: &Style, anim: &mut AnimationManager) {
         self.inherited_style = parent.clone();
         self.recompute_style();
-        self.apply_animations(anim);
+        if crate::animate_computed_style(self.anim_id, &mut self.computed_style, anim) {
+            self.dirty = true;
+        }
     }
 
     fn after_interaction_transfer(&mut self) {

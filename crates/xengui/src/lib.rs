@@ -29,6 +29,8 @@ pub use animation::{
     AnimationManager,
     Easing,
     Transition,
+    TransitionProperty,
+    animate_computed_style,
 };
 pub use input::*;
 pub use interaction::*;

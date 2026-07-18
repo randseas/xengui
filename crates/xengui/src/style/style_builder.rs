@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{ Overflow, properties::StyleValue, style::{ FontStyle, FontWeight, LetterSpacing } };
+use crate::{
+    Overflow,
+    TransitionProperty,
+    properties::StyleValue,
+    style::{ FontStyle, FontWeight, LetterSpacing },
+};
 
 use super::{
     AlignItems,
@@ -564,8 +569,52 @@ pub trait StyleBuilder: Sized {
         self
     }
 
-    fn transition(mut self, transition: crate::Transition) -> Self {
+   fn transition(mut self, transition: crate::Transition) -> Self {
         self.style_mut().transition = Some(transition);
+        self.style_mut().transition_properties = Some(TransitionProperty::DEFAULT);
+        self.mark_dirty();
+        self
+    }
+
+    fn transition_all(mut self, transition: crate::Transition) -> Self {
+        self.style_mut().transition = Some(transition);
+        self.style_mut().transition_properties = Some(TransitionProperty::ALL);
+        self.mark_dirty();
+        self
+    }
+
+    fn transition_colors(mut self, transition: crate::Transition) -> Self {
+        self.style_mut().transition = Some(transition);
+        self.style_mut().transition_properties = Some(TransitionProperty::COLORS);
+        self.mark_dirty();
+        self
+    }
+
+    fn transition_opacity(mut self, transition: crate::Transition) -> Self {
+        self.style_mut().transition = Some(transition);
+        self.style_mut().transition_properties = Some(TransitionProperty::OPACITY);
+        self.mark_dirty();
+        self
+    }
+
+    // Reserved for the future box-shadow system; has no visible effect yet.
+    fn transition_shadow(mut self, transition: crate::Transition) -> Self {
+        self.style_mut().transition = Some(transition);
+        self.style_mut().transition_properties = Some(TransitionProperty::SHADOW);
+        self.mark_dirty();
+        self
+    }
+
+    fn transition_transform(mut self, transition: crate::Transition) -> Self {
+        self.style_mut().transition = Some(transition);
+        self.style_mut().transition_properties = Some(TransitionProperty::TRANSFORM);
+        self.mark_dirty();
+        self
+    }
+
+    fn transition_none(mut self) -> Self {
+        self.style_mut().transition = None;
+        self.style_mut().transition_properties = Some(TransitionProperty::NONE);
         self.mark_dirty();
         self
     }

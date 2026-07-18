@@ -1,5 +1,3 @@
-use crate::AnimationManager;
-use crate::properties::DEFAULT_CURSOR_ICON;
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background,
@@ -20,6 +18,9 @@ use crate::{
     TextCommand,
     Widget,
     properties::DEFAULT_FONT_SIZE,
+    properties::DEFAULT_CURSOR_ICON,
+    AnimationManager,
+    WidgetId,
 };
 use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
@@ -43,6 +44,7 @@ macro_rules! props {
 
 pub struct Label {
     key: Option<SmolStr>,
+    anim_id: WidgetId,
 
     dirty: bool,
     style: Style,
@@ -79,6 +81,7 @@ impl Label {
 
         let mut label = Self {
             key: None,
+            anim_id: WidgetId::new_unique(),
 
             dirty: true,
             style: Style::default(),
@@ -591,9 +594,12 @@ impl Widget for Label {
             self.selectable == other.selectable
     }
 
-    fn cascade_style(&mut self, parent: &Style, _anim: &mut AnimationManager) {
+    fn cascade_style(&mut self, parent: &Style, anim: &mut AnimationManager) {
         self.inherited_style = parent.clone();
         self.recompute_style();
+        if crate::animate_computed_style(self.anim_id, &mut self.computed_style, anim) {
+            self.dirty = true;
+        }
     }
 
     fn after_interaction_transfer(&mut self) {
@@ -610,6 +616,11 @@ impl Widget for Label {
             self.click_count.set(old.click_count.get());
             self.last_click_time.set(old.last_click_time.get());
             self.last_click_pos.set(old.last_click_pos.get());
+            self.anim_id = old.anim_id;
         }
+    }
+
+    fn anim_id(&self) -> WidgetId {
+        self.anim_id
     }
 }
