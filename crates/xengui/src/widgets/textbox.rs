@@ -9,7 +9,6 @@ use crate::{
     EventStatus,
     InputEvent,
     Interaction,
-    IntoThemed,
     Key,
     KeyState,
     KeyboardEvent,
@@ -65,7 +64,6 @@ pub struct TextBox {
     // Selection anchor; the selected range spans [anchor, cursor_index)
     // in whichever order is smaller-to-larger. `None` means no selection.
     selection_anchor: Option<usize>,
-    selection_color: Option<Color>,
 
     undo_stack: Vec<(String, usize, Option<usize>)>,
     redo_stack: Vec<(String, usize, Option<usize>)>,
@@ -143,7 +141,6 @@ impl TextBox {
             cursor_index: 0,
             max_length: None,
             selection_anchor: None,
-            selection_color: None,
 
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
@@ -208,12 +205,6 @@ impl TextBox {
 
     pub fn max_length(mut self, max_length: usize) -> Self {
         self.max_length = Some(max_length);
-        self
-    }
-
-    pub fn selection_color<M>(mut self, color: impl IntoThemed<Color, M>) -> Self {
-        self.selection_color = Some(color.resolve_themed());
-        self.mark_dirty();
         self
     }
 
@@ -1089,7 +1080,16 @@ impl Widget for TextBox {
         };
         let line_y = (self.layout_box.y + (self.layout_box.height - line_h).max(0.0) * 0.5).round();
 
-        if self.interaction.focused && let Some((start, end)) = self.selection_range() {
+        let text_clip = Some((
+            content_left,
+            self.layout_box.y,
+            content_width,
+            self.layout_box.height,
+        ));
+
+        let active_selection = self.interaction.focused.then(|| self.selection_range()).flatten();
+
+        if let Some((start, end)) = active_selection {
             let offsets = self.char_offsets.borrow();
             if let (Some(&start_x), Some(&end_x)) = (offsets.get(start), offsets.get(end)) {
                 let content_right = content_left + content_width;
@@ -1097,8 +1097,8 @@ impl Widget for TextBox {
                 let sel_right = (text_x + end_x).min(content_right);
 
                 if sel_right > sel_left {
-                    let sel_color = self.selection_color.unwrap_or_else(||
-                        style.selection_color.unwrap_or(Color::rgba(90, 140, 230, 100))
+                    let sel_color = style.selection_background.unwrap_or(
+                        Color::rgba(90, 140, 230, 100)
                     );
                     ctx.draw_rect(RectCommand {
                         position: (sel_left, line_y),
@@ -1114,37 +1114,77 @@ impl Widget for TextBox {
         }
 
         let is_empty = self.content.is_empty();
-        let display_text: SmolStr = if is_empty {
-            self.placeholder.clone()
-        } else {
-            SmolStr::new(&self.content)
-        };
 
         let mut text_style = style.clone();
         if is_empty {
             text_style.color = Some(style.color.unwrap_or(Color::NEUTRAL_400).with_alpha_f32(0.6));
         }
 
-        ctx.draw_text(TextCommand {
-            text: display_text,
-            position: (text_x, text_y),
-            style: text_style,
-            max_width: None,
-            clip_rect: Some((
-                content_left,
-                self.layout_box.y,
-                content_width,
-                self.layout_box.height,
-            )),
-        });
+        // Selected text is split into three runs so it can carry its own
+        // foreground color; everything else keeps drawing as one run.
+        if
+            !is_empty &&
+            let Some((start, end)) = active_selection &&
+            let Some(sel_fg) = style.selection_color
+        {
+            let start_b = self.byte_index_for(start);
+            let end_b = self.byte_index_for(end);
+
+            if start_b > 0 {
+                ctx.draw_text(TextCommand {
+                    text: SmolStr::new(&self.content[..start_b]),
+                    position: (text_x, text_y),
+                    style: text_style.clone(),
+                    max_width: None,
+                    clip_rect: text_clip,
+                });
+            }
+            if end_b > start_b {
+                let mut sel_style = text_style.clone();
+                sel_style.color = Some(sel_fg);
+                let sel_x = text_x + self.char_offsets.borrow().get(start).copied().unwrap_or(0.0);
+                ctx.draw_text(TextCommand {
+                    text: SmolStr::new(&self.content[start_b..end_b]),
+                    position: (sel_x, text_y),
+                    style: sel_style,
+                    max_width: None,
+                    clip_rect: text_clip,
+                });
+            }
+            if end_b < self.content.len() {
+                let after_x = text_x + self.char_offsets.borrow().get(end).copied().unwrap_or(0.0);
+                ctx.draw_text(TextCommand {
+                    text: SmolStr::new(&self.content[end_b..]),
+                    position: (after_x, text_y),
+                    style: text_style,
+                    max_width: None,
+                    clip_rect: text_clip,
+                });
+            }
+        } else {
+            let display_text: SmolStr = if is_empty {
+                self.placeholder.clone()
+            } else {
+                SmolStr::new(&self.content)
+            };
+
+            ctx.draw_text(TextCommand {
+                text: display_text,
+                position: (text_x, text_y),
+                style: text_style,
+                max_width: None,
+                clip_rect: text_clip,
+            });
+        }
 
         if self.interaction.focused && self.caret_visible.get() {
             let cursor_x = (text_x + self.cursor_offset.get()).round();
+            let caret_color = style.caret_color.unwrap_or(style.color.unwrap_or(Color::BLACK));
 
             ctx.draw_rect(RectCommand {
                 position: (cursor_x, line_y),
                 size: (2.0, line_h),
-                background: Some(Background::Color(style.color.unwrap_or(Color::BLACK))),
+                background: Some(Background::Color(caret_color)),
                 border_radius: None,
                 border_width: None,
                 border_color: None,

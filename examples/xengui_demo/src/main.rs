@@ -83,9 +83,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
                 .background(|theme: &Theme| theme.background)
-                //.selection_background(|theme: &Theme| theme.primary.with_alpha(80))
+                .selection_background(|theme: &Theme| theme.primary.with_alpha(80))
                 .selection_color(|theme: &Theme| theme.primary)
-                //.caret_color(|theme: &Theme| theme.primary)
+                .caret_color(|theme: &Theme| theme.primary)
                 .padding(Edges::all(15))
                 .child(
                     View::new()

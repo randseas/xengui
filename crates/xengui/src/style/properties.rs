@@ -65,6 +65,10 @@ pub struct Style {
     pub color: Option<Color>,
     /// Highlight color for selected text; inherited like `color`.
     pub selection_color: Option<Color>,
+    /// Background color painted behind selected text; inherited like `color`.
+    pub selection_background: Option<Color>,
+    /// Color of the text caret; inherited like `color`.
+    pub caret_color: Option<Color>,
     pub cursor: Option<Cursor>,
     pub background: Option<Background>,
     pub font: Option<SmolStr>,
@@ -135,6 +139,8 @@ impl Style {
         Style {
             color: patch.color.or_else(|| self.color),
             selection_color: patch.selection_color.or_else(|| self.selection_color),
+            selection_background: patch.selection_background.or_else(|| self.selection_background),
+            caret_color: patch.caret_color.or_else(|| self.caret_color),
             cursor: patch.cursor.or_else(|| self.cursor),
             background: patch.background.clone().or_else(|| self.background.clone()),
             font: patch.font.clone().or_else(|| self.font.clone()),
@@ -223,6 +229,8 @@ impl Style {
             // Inherited properties
             color: patch.color.or(self.color),
             selection_color: patch.selection_color.or(self.selection_color),
+            selection_background: patch.selection_background.or(self.selection_background),
+            caret_color: patch.caret_color.or(self.caret_color),
             font: patch.font.clone().or_else(|| self.font.clone()),
             font_size: patch.font_size.or(self.font_size),
             font_weight: patch.font_weight.or(self.font_weight),

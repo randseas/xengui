@@ -234,6 +234,14 @@ impl Label {
         }
         (start, end)
     }
+
+    fn byte_index_for(&self, char_idx: usize) -> usize {
+        self.content
+            .char_indices()
+            .nth(char_idx)
+            .map(|(b, _)| b)
+            .unwrap_or(self.content.len())
+    }
 }
 
 impl Default for Label {
@@ -389,7 +397,9 @@ impl Widget for Label {
         let mut text_style = style.clone();
         text_style.font_size.get_or_insert(DEFAULT_FONT_SIZE);
 
-        if self.selectable && let Some((start, end)) = self.text_selection() {
+        let selection = if self.selectable { self.text_selection() } else { None };
+
+        if let Some((start, end)) = selection {
             let offsets = self.char_offsets.borrow();
             if let (Some(&start_x), Some(&end_x)) = (offsets.get(start), offsets.get(end)) {
                 let (_, content_h) = self.content_size.get();
@@ -398,7 +408,7 @@ impl Widget for Label {
                     size: (end_x - start_x, content_h.max(1.0)),
                     background: Some(
                         Background::Color(
-                            style.selection_color.unwrap_or(Color::rgba(90, 140, 230, 100))
+                            style.selection_background.unwrap_or(Color::rgba(90, 140, 230, 100))
                         )
                     ),
                     border_radius: None,
@@ -409,13 +419,54 @@ impl Widget for Label {
             }
         }
 
-        ctx.draw_text(TextCommand {
-            text: self.content.clone(),
-            position: (text_x, text_y),
-            style: text_style,
-            max_width: self.measured_max_width.get(),
-            clip_rect: None,
-        });
+        let split = selection.zip(style.selection_color);
+
+        if let Some(((start, end), sel_fg)) = split {
+            let start_b = self.byte_index_for(start);
+            let end_b = self.byte_index_for(end);
+            let offsets = self.char_offsets.borrow();
+            let start_x = offsets.get(start).copied().unwrap_or(0.0);
+            let end_x = offsets.get(end).copied().unwrap_or(0.0);
+            drop(offsets);
+
+            if start_b > 0 {
+                ctx.draw_text(TextCommand {
+                    text: SmolStr::new(&self.content[..start_b]),
+                    position: (text_x, text_y),
+                    style: text_style.clone(),
+                    max_width: None,
+                    clip_rect: None,
+                });
+            }
+            if end_b > start_b {
+                let mut sel_style = text_style.clone();
+                sel_style.color = Some(sel_fg);
+                ctx.draw_text(TextCommand {
+                    text: SmolStr::new(&self.content[start_b..end_b]),
+                    position: (text_x + start_x, text_y),
+                    style: sel_style,
+                    max_width: None,
+                    clip_rect: None,
+                });
+            }
+            if end_b < self.content.len() {
+                ctx.draw_text(TextCommand {
+                    text: SmolStr::new(&self.content[end_b..]),
+                    position: (text_x + end_x, text_y),
+                    style: text_style,
+                    max_width: None,
+                    clip_rect: None,
+                });
+            }
+        } else {
+            ctx.draw_text(TextCommand {
+                text: self.content.clone(),
+                position: (text_x, text_y),
+                style: text_style,
+                max_width: self.measured_max_width.get(),
+                clip_rect: None,
+            });
+        }
     }
 
     fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {

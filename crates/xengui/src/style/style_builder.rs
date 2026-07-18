@@ -90,6 +90,22 @@ pub trait StyleBuilder: Sized {
         self
     }
 
+    fn selection_background<M>(mut self, color: impl IntoThemed<Color, M>) -> Self {
+        self.style_mut().selection_background = Some(color.resolve_themed());
+
+        self.mark_dirty();
+
+        self
+    }
+
+    fn caret_color<M>(mut self, color: impl IntoThemed<Color, M>) -> Self {
+        self.style_mut().caret_color = Some(color.resolve_themed());
+
+        self.mark_dirty();
+
+        self
+    }
+
     fn cursor(mut self, cursor: Cursor) -> Self {
         self.style_mut().cursor = Some(cursor);
 
