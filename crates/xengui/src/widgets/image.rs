@@ -367,7 +367,6 @@ impl Widget for Image {
 
         self.paint_box(ctx);
         self.paint_outline(ctx);
-        self.paint_focus(ctx);
 
         let Some(source) = self.source.clone() else {
             return;

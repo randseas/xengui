@@ -878,7 +878,6 @@ impl Widget for View {
 
         self.paint_box(ctx);
         self.paint_outline(ctx);
-        self.paint_focus(ctx);
     }
 
     fn paint_overlay(&self, ctx: &mut PaintContext) {

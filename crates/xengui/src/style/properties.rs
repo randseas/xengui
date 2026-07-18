@@ -94,6 +94,9 @@ pub struct Style {
     pub overflow_x: Option<Overflow>,
     pub overflow_y: Option<Overflow>,
 
+    /// Paint order relative to siblings; higher values paint later, on top. Mirrors CSS z-index.
+    pub z_index: Option<i32>,
+
     // Flexbox
     pub flex_direction: Option<FlexDirection>,
     pub flex_wrap: Option<FlexWrap>,
@@ -164,6 +167,7 @@ impl Style {
             position: patch.position.or_else(|| self.position),
             overflow_x: patch.overflow_x.or_else(|| self.overflow_x),
             overflow_y: patch.overflow_y.or_else(|| self.overflow_y),
+            z_index: patch.z_index.or(self.z_index),
 
             flex_direction: patch.flex_direction.or_else(|| self.flex_direction),
             flex_wrap: patch.flex_wrap.or_else(|| self.flex_wrap),

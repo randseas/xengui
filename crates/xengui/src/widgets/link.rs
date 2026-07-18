@@ -431,7 +431,6 @@ impl Widget for Link {
 
         self.paint_box(ctx);
         self.paint_outline(ctx);
-        self.paint_focus(ctx);
 
         let padding = style.padding.unwrap_or_default();
 

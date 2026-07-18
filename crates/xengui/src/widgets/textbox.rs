@@ -536,6 +536,10 @@ impl TextBox {
     }
 
     fn delete_word_before_cursor(&mut self, ctx: &mut EventCtx) {
+        if self.read_only {
+            return;
+        }
+
         if self.selection_range().is_some() {
             self.push_undo_snapshot();
             self.delete_selection();
@@ -584,6 +588,10 @@ impl TextBox {
     }
 
     fn delete_word_after_cursor(&mut self, ctx: &mut EventCtx) {
+        if self.read_only {
+            return;
+        }
+
         if self.selection_range().is_some() {
             self.push_undo_snapshot();
             self.delete_selection();
@@ -1038,7 +1046,6 @@ impl Widget for TextBox {
 
         self.paint_box(ctx);
         self.paint_outline(ctx);
-        self.paint_focus(ctx);
 
         let padding = style.padding.unwrap_or_default();
         let (_, content_h) = self.content_size.get();

@@ -2,13 +2,17 @@
 use crate::{
     AnimationManager,
     DrawCommand,
+    ImageCommand,
     ImagePipeline,
     LayoutContext,
     LayoutEngine,
     PaintContext,
+    RectCommand,
     RectPipeline,
     RenderCache,
+    TextCommand,
     TextPipeline,
+    TriangleCommand,
     TrianglePipeline,
     Widget,
 };
@@ -232,7 +236,7 @@ impl XenRenderer {
                 anim: &mut self.anim,
                 scale_factor: self.window.scale_factor() as f32,
             };
-            
+
             LayoutEngine::layout(
                 tree,
                 &mut layout_ctx,
@@ -241,7 +245,8 @@ impl XenRenderer {
                 self.config.height as f32
             );
 
-            let mut commands = Vec::new();
+            let mut commands: Vec<(i32, DrawCommand)> = Vec::new();
+            let mut focus_commands: Vec<RectCommand> = Vec::new();
             let mut live_keys: HashSet<String> = HashSet::new();
 
             for (i, node) in tree.iter().enumerate() {
@@ -251,6 +256,7 @@ impl XenRenderer {
                     &segment,
                     &mut self.render_cache,
                     &mut commands,
+                    &mut focus_commands,
                     &mut live_keys,
                     None
                 );
@@ -261,82 +267,116 @@ impl XenRenderer {
                 reset_dirty_recursive(node.as_mut());
             }
 
-            let mut rect_cmds = Vec::with_capacity(commands.len());
-            let mut triangle_cmds = Vec::new();
-            let mut image_cmds = Vec::new();
-            let mut text_cmds = Vec::new();
-            for command in commands.into_iter() {
-                match command {
-                    DrawCommand::Rect(cmd) => rect_cmds.push(cmd),
-                    DrawCommand::Triangle(cmd) => triangle_cmds.push(cmd),
-                    DrawCommand::Text(cmd) => text_cmds.push(cmd),
-                    DrawCommand::Image(cmd) => image_cmds.push(*cmd),
-                }
+            // Stable sort keeps original paint order for widgets sharing
+            // the same z-index; only different values get reordered.
+            commands.sort_by_key(|(z, _)| *z);
+
+            #[derive(PartialEq, Clone, Copy)]
+            enum RunKind {
+                Rect,
+                Triangle,
+                Image,
             }
 
-            self.rect_pipeline.draw_batch(
-                &self.device,
-                &self.queue,
-                &mut render_pass,
-                self.config.width,
-                self.config.height,
-                &rect_cmds
-            );
+            let mut current_kind: Option<RunKind> = None;
+            let mut rect_buf: Vec<RectCommand> = Vec::new();
+            let mut tri_buf: Vec<TriangleCommand> = Vec::new();
+            let mut img_buf: Vec<ImageCommand> = Vec::new();
+            let mut text_cmds: Vec<TextCommand> = Vec::new();
 
-            self.triangle_pipeline.draw_batch(
-                &self.device,
-                &self.queue,
-                &mut render_pass,
-                self.config.width,
-                self.config.height,
-                &triangle_cmds
-            );
+            macro_rules! flush_run {
+                () => {
+                    match current_kind {
+                        Some(RunKind::Rect) => {
+                            self.rect_pipeline.draw_batch(
+                                &self.device,
+                                &self.queue,
+                                &mut render_pass,
+                                self.config.width,
+                                self.config.height,
+                                &rect_buf
+                            );
+                        }
+                        Some(RunKind::Triangle) => {
+                            self.triangle_pipeline.draw_batch(
+                                &self.device,
+                                &self.queue,
+                                &mut render_pass,
+                                self.config.width,
+                                self.config.height,
+                                &tri_buf
+                            );
+                        }
+                        Some(RunKind::Image) => {
+                            self.image_pipeline.draw_batch(
+                                &self.device,
+                                &self.queue,
+                                &mut render_pass,
+                                self.config.width,
+                                self.config.height,
+                                &img_buf
+                            );
+                        }
+                        None => {}
+                    }
+                    rect_buf.clear();
+                    tri_buf.clear();
+                    img_buf.clear();
+                };
+            }
 
-            self.image_pipeline.draw_batch(
-                &self.device,
-                &self.queue,
-                &mut render_pass,
-                self.config.width,
-                self.config.height,
-                &image_cmds
-            );
+            // Draws each contiguous run of same-type commands in the order
+            // z-index (then paint order) puts them in, instead of always
+            // drawing every rect, then every triangle, then every image.
+            for (_, command) in commands {
+                match command {
+                    DrawCommand::Text(cmd) => {
+                        text_cmds.push(*cmd);
+                    }
+                    DrawCommand::Rect(cmd) => {
+                        if current_kind != Some(RunKind::Rect) {
+                            flush_run!();
+                            current_kind = Some(RunKind::Rect);
+                        }
+                        rect_buf.push(cmd);
+                    }
+                    DrawCommand::Triangle(cmd) => {
+                        if current_kind != Some(RunKind::Triangle) {
+                            flush_run!();
+                            current_kind = Some(RunKind::Triangle);
+                        }
+                        tri_buf.push(cmd);
+                    }
+                    DrawCommand::Image(cmd) => {
+                        if current_kind != Some(RunKind::Image) {
+                            flush_run!();
+                            current_kind = Some(RunKind::Image);
+                        }
+                        img_buf.push(*cmd);
+                    }
+                }
+            }
+            flush_run!();
 
             let resolved_theme = theme.unwrap_or(winit::window::Theme::Dark);
             for cmd in &text_cmds {
                 self.text_pipeline.draw(self.window.scale_factor() as f32, resolved_theme, cmd);
             }
 
-            // RectPipeline draws through a single shared GPU buffer, so all
-            // rects - including underline/strike/overline quads produced
-            // above - must go through one draw_batch call per frame.
-            rect_cmds.extend(self.text_pipeline.take_decorations());
-
-            self.rect_pipeline.draw_batch(
-                &self.device,
-                &self.queue,
-                &mut render_pass,
-                self.config.width,
-                self.config.height,
-                &rect_cmds
-            );
-
-            self.triangle_pipeline.draw_batch(
-                &self.device,
-                &self.queue,
-                &mut render_pass,
-                self.config.width,
-                self.config.height,
-                &triangle_cmds
-            );
-
-            self.image_pipeline.draw_batch(
-                &self.device,
-                &self.queue,
-                &mut render_pass,
-                self.config.width,
-                self.config.height,
-                &image_cmds
-            );
+            // Underline/strike/overline quads produced while queueing text
+            // above; drawn once, after every layer, instead of being
+            // folded back into an already-drawn rect batch.
+            let decorations = self.text_pipeline.take_decorations();
+            if !decorations.is_empty() {
+                self.rect_pipeline.draw_batch(
+                    &self.device,
+                    &self.queue,
+                    &mut render_pass,
+                    self.config.width,
+                    self.config.height,
+                    &decorations
+                );
+            }
 
             drop(render_pass);
 
@@ -376,6 +416,39 @@ impl XenRenderer {
                     }
                 }
             }
+
+            // Drawn in its own pass, after text, so the focus ring is
+            // always visible above absolutely everything else in the frame.
+            if !focus_commands.is_empty() {
+                let mut focus_pass = encoder.begin_render_pass(
+                    &(wgpu::RenderPassDescriptor {
+                        label: Some("Focus Ring Pass"),
+                        color_attachments: &[
+                            Some(wgpu::RenderPassColorAttachment {
+                                view: &view,
+                                resolve_target: None,
+                                ops: wgpu::Operations {
+                                    load: wgpu::LoadOp::Load,
+                                    store: wgpu::StoreOp::Store,
+                                },
+                                depth_slice: None,
+                            }),
+                        ],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                        multiview_mask: None,
+                    })
+                );
+                self.rect_pipeline.draw_batch(
+                    &self.device,
+                    &self.queue,
+                    &mut focus_pass,
+                    self.config.width,
+                    self.config.height,
+                    &focus_commands
+                );
+            }
         }
 
         // finish buffers
@@ -411,15 +484,13 @@ fn paint_recursive(
     widget: &dyn Widget,
     path: &str,
     cache: &mut RenderCache,
-    commands: &mut Vec<DrawCommand>,
+    commands: &mut Vec<(i32, DrawCommand)>,
+    focus_commands: &mut Vec<RectCommand>,
     live_keys: &mut HashSet<String>,
     clip_rect: Option<(f32, f32, f32, f32)>
 ) {
     let layout_box = *widget.layout_box();
 
-    // Off-screen subtree: nothing here can be visible, so skip painting
-    // and recursing into it entirely. This is what makes scrolling cheap
-    // regardless of how many rows exist outside the viewport.
     if let Some((cx, cy, cw, ch)) = clip_rect {
         let visible =
             layout_box.x < cx + cw &&
@@ -432,6 +503,8 @@ fn paint_recursive(
     }
 
     live_keys.insert(path.to_string());
+
+    let z_index = widget.computed_style().z_index.unwrap_or(0);
 
     let own_commands: Vec<DrawCommand> = match cache.try_reuse(path, layout_box, widget.is_dirty()) {
         Some(cached) => cached.to_vec(),
@@ -448,7 +521,7 @@ fn paint_recursive(
 
     for mut command in own_commands {
         apply_clip(&mut command, clip_rect);
-        commands.push(command);
+        commands.push((z_index, command));
     }
 
     let child_clip = match widget.clip_children() {
@@ -463,13 +536,15 @@ fn paint_recursive(
             &format!("{path}.{segment}"),
             cache,
             commands,
+            focus_commands,
             live_keys,
             child_clip
         );
     }
 
     // Painted after every descendant so overlays (scrollbar thumbs, etc.)
-    // stay on top; never cached since they depend on live interaction state.
+    // stay on top of this widget's own subtree; never cached since it
+    // depends on live interaction state.
     let mut overlay = Vec::new();
     {
         let mut paint_ctx = PaintContext::new(&mut overlay);
@@ -477,7 +552,22 @@ fn paint_recursive(
     }
     for mut command in overlay {
         apply_clip(&mut command, clip_rect);
-        commands.push(command);
+        commands.push((z_index, command));
+    }
+
+    // Collected separately from normal content so it can be drawn in its
+    // own pass, above absolutely everything, regardless of z-index or
+    // tree position; never cached since it depends on live focus state.
+    let mut focus_local = Vec::new();
+    {
+        let mut paint_ctx = PaintContext::new(&mut focus_local);
+        widget.paint_focus(&mut paint_ctx);
+    }
+    for mut command in focus_local {
+        apply_clip(&mut command, clip_rect);
+        if let DrawCommand::Rect(rect_cmd) = command {
+            focus_commands.push(rect_cmd);
+        }
     }
 }
 

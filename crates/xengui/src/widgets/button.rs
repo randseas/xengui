@@ -353,7 +353,6 @@ impl Widget for Button {
         }
 
         self.paint_outline(ctx);
-        self.paint_focus(ctx);
 
         let (content_w, content_h) = self.content_size.get();
         let padding = style.padding.unwrap_or_default();

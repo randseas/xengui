@@ -274,6 +274,15 @@ pub trait StyleBuilder: Sized {
         self
     }
 
+    /// Paint order relative to siblings; higher values paint later, on top.
+    fn z_index(mut self, z_index: i32) -> Self {
+        self.style_mut().z_index = Some(z_index);
+
+        self.mark_dirty();
+
+        self
+    }
+
     fn overflow_x(mut self, overflow: Overflow) -> Self {
         self.style_mut().overflow_x = Some(overflow);
 
