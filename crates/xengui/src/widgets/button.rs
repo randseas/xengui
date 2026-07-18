@@ -1,6 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    AnimationManager, Background, Constraints, EventCtx, EventStatus, InputEvent, Interaction, IntoThemed, LayoutBox, Length, MeasureContext, MeasureResult, PaintContext, RectCommand, Style, StyleBuilder, StylePatch, TextCommand, Widget, WidgetContent, WidgetId, properties::{ DEFAULT_CURSOR_ICON, DEFAULT_POINTER_CURSOR_ICON },
+    AnimationManager,
+    Background,
+    Constraints,
+    EventCtx,
+    EventStatus,
+    InputEvent,
+    Interaction,
+    IntoThemed,
+    LayoutBox,
+    Length,
+    MeasureContext,
+    MeasureResult,
+    PaintContext,
+    RectCommand,
+    Style,
+    StyleBuilder,
+    TextCommand,
+    Widget,
+    WidgetContent,
+    WidgetId,
+    properties::{ DEFAULT_CURSOR_ICON, DEFAULT_POINTER_CURSOR_ICON },
 };
 use smol_str::SmolStr;
 use std::cell::Cell;
@@ -98,63 +118,6 @@ impl Button {
     /// application.
     pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
         self.style.font = Some(font.into());
-        self.mark_dirty();
-        self
-    }
-
-    /// Full style overlay to be applied during hover state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    ///
-    /// ```ignore
-    /// Button::new()
-    ///     .background(Color::NEUTRAL_200)
-    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
-    ///     .hover_style(|s| s
-    ///         .background(Color::NEUTRAL_300)
-    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
-    ///     )
-    /// ```
-    pub fn hover_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.hover_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
-    /// Full style overlay to be applied during pressed state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    ///
-    /// ```ignore
-    /// Button::new()
-    ///     .background(Color::NEUTRAL_200)
-    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
-    ///     .pressed_style(|s| s
-    ///         .background(Color::NEUTRAL_300)
-    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
-    ///     )
-    /// ```
-    pub fn pressed_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.pressed_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
-    /// Full style overlay to be applied during disabled state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    ///
-    /// ```ignore
-    /// Button::new()
-    ///     .background(Color::NEUTRAL_200)
-    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
-    ///     .disabled_style(|s| s
-    ///         .background(Color::NEUTRAL_300)
-    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
-    ///     )
-    /// ```
-    pub fn disabled_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.disabled_style = Some(build(StylePatch::new()).build());
         self.mark_dirty();
         self
     }
@@ -262,6 +225,7 @@ impl WidgetContent for Button {
 }
 
 crate::impl_interaction_builders!(Button);
+crate::impl_themed_style_builders!(Button; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style);
 
 impl Widget for Button {
     fn as_any(&self) -> &dyn std::any::Any {

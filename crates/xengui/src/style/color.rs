@@ -191,7 +191,7 @@ impl Color {
     pub const WHITE: Self = Self::rgb(255, 255, 255);
 
     /* =Red=-------------------------------------------------- */
-    pub const RED_050: Self = Self::rgb(254, 242, 242);
+    pub const RED_50: Self = Self::rgb(254, 242, 242);
     pub const RED_100: Self = Self::rgb(255, 226, 226);
     pub const RED_200: Self = Self::rgb(255, 201, 201);
     pub const RED_300: Self = Self::rgb(255, 162, 162);
@@ -204,7 +204,7 @@ impl Color {
     pub const RED_950: Self = Self::rgb(70, 8, 9);
 
     /* =Orange=-------------------------------------------------- */
-    pub const ORANGE_050: Self = Self::rgb(255, 247, 237);
+    pub const ORANGE_50: Self = Self::rgb(255, 247, 237);
     pub const ORANGE_100: Self = Self::rgb(255, 237, 212);
     pub const ORANGE_200: Self = Self::rgb(255, 214, 167);
     pub const ORANGE_300: Self = Self::rgb(255, 184, 106);
@@ -217,7 +217,7 @@ impl Color {
     pub const ORANGE_950: Self = Self::rgb(68, 19, 6);
 
     /* =Amber=-------------------------------------------------- */
-    pub const AMBER_050: Self = Self::rgb(255, 251, 235);
+    pub const AMBER_50: Self = Self::rgb(255, 251, 235);
     pub const AMBER_100: Self = Self::rgb(254, 243, 198);
     pub const AMBER_200: Self = Self::rgb(254, 230, 133);
     pub const AMBER_300: Self = Self::rgb(255, 210, 48);
@@ -230,7 +230,7 @@ impl Color {
     pub const AMBER_950: Self = Self::rgb(70, 25, 1);
 
     /* =Yellow=-------------------------------------------------- */
-    pub const YELLOW_050: Self = Self::rgb(254, 252, 232);
+    pub const YELLOW_50: Self = Self::rgb(254, 252, 232);
     pub const YELLOW_100: Self = Self::rgb(254, 249, 194);
     pub const YELLOW_200: Self = Self::rgb(255, 240, 133);
     pub const YELLOW_300: Self = Self::rgb(255, 223, 32);
@@ -243,7 +243,7 @@ impl Color {
     pub const YELLOW_950: Self = Self::rgb(67, 32, 4);
 
     /* =Lime=-------------------------------------------------- */
-    pub const LIME_050: Self = Self::rgb(247, 254, 231);
+    pub const LIME_50: Self = Self::rgb(247, 254, 231);
     pub const LIME_100: Self = Self::rgb(236, 252, 202);
     pub const LIME_200: Self = Self::rgb(216, 249, 153);
     pub const LIME_300: Self = Self::rgb(187, 244, 81);
@@ -256,7 +256,7 @@ impl Color {
     pub const LIME_950: Self = Self::rgb(25, 46, 3);
 
     /* =Green=-------------------------------------------------- */
-    pub const GREEN_050: Self = Self::rgb(240, 253, 244);
+    pub const GREEN_50: Self = Self::rgb(240, 253, 244);
     pub const GREEN_100: Self = Self::rgb(220, 252, 231);
     pub const GREEN_200: Self = Self::rgb(185, 248, 207);
     pub const GREEN_300: Self = Self::rgb(123, 241, 168);
@@ -269,7 +269,7 @@ impl Color {
     pub const GREEN_950: Self = Self::rgb(3, 46, 21);
 
     /* =Emerald=-------------------------------------------------- */
-    pub const EMERALD_050: Self = Self::rgb(236, 253, 245);
+    pub const EMERALD_50: Self = Self::rgb(236, 253, 245);
     pub const EMERALD_100: Self = Self::rgb(208, 250, 229);
     pub const EMERALD_200: Self = Self::rgb(164, 244, 207);
     pub const EMERALD_300: Self = Self::rgb(94, 233, 181);
@@ -282,7 +282,7 @@ impl Color {
     pub const EMERALD_950: Self = Self::rgb(0, 44, 34);
 
     /* =Teal=-------------------------------------------------- */
-    pub const TEAL_050: Self = Self::rgb(240, 253, 250);
+    pub const TEAL_50: Self = Self::rgb(240, 253, 250);
     pub const TEAL_100: Self = Self::rgb(203, 251, 241);
     pub const TEAL_200: Self = Self::rgb(150, 247, 228);
     pub const TEAL_300: Self = Self::rgb(70, 236, 213);
@@ -295,7 +295,7 @@ impl Color {
     pub const TEAL_950: Self = Self::rgb(2, 47, 46);
 
     /* =Cyan=-------------------------------------------------- */
-    pub const CYAN_050: Self = Self::rgb(236, 254, 255);
+    pub const CYAN_50: Self = Self::rgb(236, 254, 255);
     pub const CYAN_100: Self = Self::rgb(206, 250, 254);
     pub const CYAN_200: Self = Self::rgb(162, 244, 253);
     pub const CYAN_300: Self = Self::rgb(83, 234, 253);
@@ -308,7 +308,7 @@ impl Color {
     pub const CYAN_950: Self = Self::rgb(5, 51, 69);
 
     /* =Sky=-------------------------------------------------- */
-    pub const SKY_050: Self = Self::rgb(240, 249, 255);
+    pub const SKY_50: Self = Self::rgb(240, 249, 255);
     pub const SKY_100: Self = Self::rgb(223, 242, 254);
     pub const SKY_200: Self = Self::rgb(184, 230, 254);
     pub const SKY_300: Self = Self::rgb(116, 212, 255);
@@ -321,7 +321,7 @@ impl Color {
     pub const SKY_950: Self = Self::rgb(5, 47, 74);
 
     /* =Blue=-------------------------------------------------- */
-    pub const BLUE_050: Self = Self::rgb(239, 246, 255);
+    pub const BLUE_50: Self = Self::rgb(239, 246, 255);
     pub const BLUE_100: Self = Self::rgb(219, 234, 254);
     pub const BLUE_200: Self = Self::rgb(190, 219, 255);
     pub const BLUE_300: Self = Self::rgb(142, 197, 255);
@@ -334,7 +334,7 @@ impl Color {
     pub const BLUE_950: Self = Self::rgb(22, 36, 86);
 
     /* =Indigo=-------------------------------------------------- */
-    pub const INDIGO_050: Self = Self::rgb(238, 242, 255);
+    pub const INDIGO_50: Self = Self::rgb(238, 242, 255);
     pub const INDIGO_100: Self = Self::rgb(224, 231, 255);
     pub const INDIGO_200: Self = Self::rgb(198, 210, 255);
     pub const INDIGO_300: Self = Self::rgb(163, 179, 255);
@@ -347,7 +347,7 @@ impl Color {
     pub const INDIGO_950: Self = Self::rgb(30, 26, 77);
 
     /* =Violet=-------------------------------------------------- */
-    pub const VIOLET_050: Self = Self::rgb(245, 243, 255);
+    pub const VIOLET_50: Self = Self::rgb(245, 243, 255);
     pub const VIOLET_100: Self = Self::rgb(237, 233, 254);
     pub const VIOLET_200: Self = Self::rgb(221, 214, 255);
     pub const VIOLET_300: Self = Self::rgb(196, 180, 255);
@@ -360,7 +360,7 @@ impl Color {
     pub const VIOLET_950: Self = Self::rgb(47, 13, 104);
 
     /* =Purple=-------------------------------------------------- */
-    pub const PURPLE_050: Self = Self::rgb(250, 245, 255);
+    pub const PURPLE_50: Self = Self::rgb(250, 245, 255);
     pub const PURPLE_100: Self = Self::rgb(243, 232, 255);
     pub const PURPLE_200: Self = Self::rgb(233, 212, 255);
     pub const PURPLE_300: Self = Self::rgb(218, 178, 255);
@@ -373,7 +373,7 @@ impl Color {
     pub const PURPLE_950: Self = Self::rgb(60, 3, 102);
 
     /* =Fuchsia=-------------------------------------------------- */
-    pub const FUCHSIA_050: Self = Self::rgb(253, 244, 255);
+    pub const FUCHSIA_50: Self = Self::rgb(253, 244, 255);
     pub const FUCHSIA_100: Self = Self::rgb(250, 232, 255);
     pub const FUCHSIA_200: Self = Self::rgb(246, 207, 255);
     pub const FUCHSIA_300: Self = Self::rgb(244, 168, 255);
@@ -386,7 +386,7 @@ impl Color {
     pub const FUCHSIA_950: Self = Self::rgb(75, 0, 79);
 
     /* =Pink=-------------------------------------------------- */
-    pub const PINK_050: Self = Self::rgb(253, 242, 248);
+    pub const PINK_50: Self = Self::rgb(253, 242, 248);
     pub const PINK_100: Self = Self::rgb(252, 231, 243);
     pub const PINK_200: Self = Self::rgb(252, 206, 232);
     pub const PINK_300: Self = Self::rgb(253, 165, 213);
@@ -399,7 +399,7 @@ impl Color {
     pub const PINK_950: Self = Self::rgb(81, 4, 36);
 
     /* =Rose=-------------------------------------------------- */
-    pub const ROSE_050: Self = Self::rgb(255, 241, 242);
+    pub const ROSE_50: Self = Self::rgb(255, 241, 242);
     pub const ROSE_100: Self = Self::rgb(255, 228, 230);
     pub const ROSE_200: Self = Self::rgb(255, 204, 211);
     pub const ROSE_300: Self = Self::rgb(255, 161, 173);
@@ -412,7 +412,7 @@ impl Color {
     pub const ROSE_950: Self = Self::rgb(77, 2, 24);
 
     /* =Slate=-------------------------------------------------- */
-    pub const SLATE_050: Self = Self::rgb(248, 250, 252);
+    pub const SLATE_50: Self = Self::rgb(248, 250, 252);
     pub const SLATE_100: Self = Self::rgb(241, 245, 249);
     pub const SLATE_200: Self = Self::rgb(226, 232, 240);
     pub const SLATE_300: Self = Self::rgb(202, 213, 226);
@@ -425,7 +425,7 @@ impl Color {
     pub const SLATE_950: Self = Self::rgb(2, 6, 24);
 
     /* =Gray=-------------------------------------------------- */
-    pub const GRAY_050: Self = Self::rgb(249, 250, 251);
+    pub const GRAY_50: Self = Self::rgb(249, 250, 251);
     pub const GRAY_100: Self = Self::rgb(243, 244, 246);
     pub const GRAY_200: Self = Self::rgb(229, 231, 235);
     pub const GRAY_300: Self = Self::rgb(209, 213, 220);
@@ -438,7 +438,7 @@ impl Color {
     pub const GRAY_950: Self = Self::rgb(3, 7, 18);
 
     /* =Zinc=-------------------------------------------------- */
-    pub const ZINC_050: Self = Self::rgb(250, 250, 250);
+    pub const ZINC_50: Self = Self::rgb(250, 250, 250);
     pub const ZINC_100: Self = Self::rgb(244, 244, 245);
     pub const ZINC_200: Self = Self::rgb(228, 228, 231);
     pub const ZINC_300: Self = Self::rgb(212, 212, 216);
@@ -451,7 +451,7 @@ impl Color {
     pub const ZINC_950: Self = Self::rgb(9, 9, 11);
 
     /* =Neutral=-------------------------------------------------- */
-    pub const NEUTRAL_050: Self = Self::rgb(250, 250, 250);
+    pub const NEUTRAL_50: Self = Self::rgb(250, 250, 250);
     pub const NEUTRAL_100: Self = Self::rgb(245, 245, 245);
     pub const NEUTRAL_200: Self = Self::rgb(229, 229, 229);
     pub const NEUTRAL_300: Self = Self::rgb(212, 212, 212);
@@ -464,7 +464,7 @@ impl Color {
     pub const NEUTRAL_950: Self = Self::rgb(10, 10, 10);
 
     /* =Stone=-------------------------------------------------- */
-    pub const STONE_050: Self = Self::rgb(250, 250, 249);
+    pub const STONE_50: Self = Self::rgb(250, 250, 249);
     pub const STONE_100: Self = Self::rgb(245, 245, 244);
     pub const STONE_200: Self = Self::rgb(231, 229, 228);
     pub const STONE_300: Self = Self::rgb(214, 211, 209);
@@ -477,7 +477,7 @@ impl Color {
     pub const STONE_950: Self = Self::rgb(12, 10, 9);
 
     /* =Taupe=------------------------- */
-    pub const TAUPE_050: Self = Self::rgb(251, 250, 249);
+    pub const TAUPE_50: Self = Self::rgb(251, 250, 249);
     pub const TAUPE_100: Self = Self::rgb(243, 241, 241);
     pub const TAUPE_200: Self = Self::rgb(232, 228, 227);
     pub const TAUPE_300: Self = Self::rgb(216, 210, 208);
@@ -490,7 +490,7 @@ impl Color {
     pub const TAUPE_950: Self = Self::rgb(12, 10, 9);
 
     /* =Mauve=-------------------------------------------------- */
-    pub const MAUVE_050: Self = Self::rgb(250, 250, 250);
+    pub const MAUVE_50: Self = Self::rgb(250, 250, 250);
     pub const MAUVE_100: Self = Self::rgb(243, 241, 243);
     pub const MAUVE_200: Self = Self::rgb(231, 228, 231);
     pub const MAUVE_300: Self = Self::rgb(215, 208, 215);
@@ -503,7 +503,7 @@ impl Color {
     pub const MAUVE_950: Self = Self::rgb(12, 9, 12);
 
     /* =Mist=-------------------------------------------------- */
-    pub const MIST_050: Self = Self::rgb(249, 251, 251);
+    pub const MIST_50: Self = Self::rgb(249, 251, 251);
     pub const MIST_100: Self = Self::rgb(241, 243, 243);
     pub const MIST_200: Self = Self::rgb(232, 232, 227);
     pub const MIST_300: Self = Self::rgb(216, 216, 208);
@@ -516,7 +516,7 @@ impl Color {
     pub const MIST_950: Self = Self::rgb(9, 11, 12);
 
     /* =Olive=-------------------------------------------------- */
-    pub const OLIVE_050: Self = Self::rgb(251, 251, 249);
+    pub const OLIVE_50: Self = Self::rgb(251, 251, 249);
     pub const OLIVE_100: Self = Self::rgb(244, 244, 240);
     pub const OLIVE_200: Self = Self::rgb(232, 232, 227);
     pub const OLIVE_300: Self = Self::rgb(216, 216, 208);

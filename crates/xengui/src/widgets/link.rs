@@ -18,7 +18,6 @@ use crate::{
     RectCommand,
     Style,
     StyleBuilder,
-    StylePatch,
     TextCommand,
     TextDecoration,
     Widget,
@@ -153,57 +152,6 @@ impl Link {
     /// current one.
     pub fn target_blank(mut self, value: bool) -> Self {
         self.target_blank = value;
-        self
-    }
-
-    /// Full style overlay to be applied during hover state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    ///
-    /// ```ignore
-    /// Link::new()
-    ///     .label("Read more")
-    ///     .hover_style(|s| s
-    ///         .text_decoration(TextDecoration::Underline)
-    ///     )
-    /// ```
-    pub fn hover_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.hover_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
-    /// Full style overlay to be applied during pressed state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    ///
-    /// ```ignore
-    /// Link::new()
-    ///     .label("Read more")
-    ///     .pressed_style(|s| s
-    ///         .color(Color::NEUTRAL_600)
-    ///     )
-    /// ```
-    pub fn pressed_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.pressed_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
-    /// Full style overlay to be applied during disabled state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    ///
-    /// ```ignore
-    /// Link::new()
-    ///     .label("Read more")
-    ///     .disabled_style(|s| s
-    ///         .color(Color::NEUTRAL_400)
-    ///     )
-    /// ```
-    pub fn disabled_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.disabled_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
         self
     }
 
@@ -356,6 +304,7 @@ impl WidgetContent for Link {
 }
 
 crate::impl_interaction_builders!(Link);
+crate::impl_themed_style_builders!(Link; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style);
 
 impl Widget for Link {
     fn as_any(&self) -> &dyn std::any::Any {

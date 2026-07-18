@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
                 .gap(20, 20)
-                .background(Color::NEUTRAL_050)
+                .background(Color::NEUTRAL_50)
                 .child(
                     Label::new()
                         .label("Independent color / transform transitions")
@@ -67,12 +67,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .transition_transform(
                             Transition::new(Duration::from_millis(150)).easing(Easing::EaseOut)
                         )
-                        .hover_style(|s|
+                        .hover_style(|s, _theme: &Theme|
                             s
                                 .background(Color::BLUE_600)
                                 .border(Border::new(1, Color::BLUE_600, Length::px(10.0)))
                         )
-                        .pressed_style(|s|
+                        .pressed_style(|s, _theme: &Theme|
                             s
                                 .background(Color::BLUE_800)
                                 .scale(0.9)
@@ -88,7 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .padding(Edges::only(16, 10, 16, 10))
                         .border(Border::new(1, Color::NEUTRAL_700, Length::px(8.0)))
                         .transition_all(Transition::new(Duration::from_millis(250)))
-                        .hover_style(|s|
+                        .hover_style(|s, _theme: &Theme|
                             s.border(Border::new(1, Color::NEUTRAL_700, Length::px(24.0)))
                         )
                 )

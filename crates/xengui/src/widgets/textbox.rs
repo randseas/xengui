@@ -23,7 +23,6 @@ use crate::{
     Size,
     Style,
     StyleBuilder,
-    StylePatch,
     TextCommand,
     Widget,
     WidgetContent,
@@ -214,24 +213,6 @@ impl TextBox {
 
     pub fn selection_color<M>(mut self, color: impl IntoThemed<Color, M>) -> Self {
         self.selection_color = Some(color.resolve_themed());
-        self.mark_dirty();
-        self
-    }
-
-    pub fn hover_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.hover_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
-    pub fn focus_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.focus_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
-    pub fn disabled_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.disabled_style = Some(build(StylePatch::new()).build());
         self.mark_dirty();
         self
     }
@@ -897,6 +878,7 @@ impl WidgetContent for TextBox {
 }
 
 crate::impl_interaction_builders!(TextBox);
+crate::impl_themed_style_builders!(TextBox; hover_style => hover_style, focus_style => focus_style, disabled_style => disabled_style);
 
 impl Widget for TextBox {
     fn as_any(&self) -> &dyn std::any::Any {

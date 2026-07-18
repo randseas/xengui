@@ -15,7 +15,6 @@ use crate::{
     RectCommand,
     Style,
     StyleBuilder,
-    StylePatch,
     TextCommand,
     Widget,
     properties::DEFAULT_FONT_SIZE,
@@ -142,63 +141,6 @@ impl Label {
         self
     }
 
-    /// Full style overlay to be applied during hover state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    ///
-    /// ```ignore
-    /// Label::new()
-    ///     .background(Color::NEUTRAL_200)
-    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
-    ///     .hover_style(|s| s
-    ///         .background(Color::NEUTRAL_300)
-    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
-    ///     )
-    /// ```
-    pub fn hover_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.hover_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
-    /// Full style overlay to be applied during pressed state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    ///
-    /// ```ignore
-    /// Label::new()
-    ///     .background(Color::NEUTRAL_200)
-    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
-    ///     .pressed_style(|s| s
-    ///         .background(Color::NEUTRAL_300)
-    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
-    ///     )
-    /// ```
-    pub fn pressed_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.pressed_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
-    /// Full style overlay to be applied during disabled state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    ///
-    /// ```ignore
-    /// Label::new()
-    ///     .background(Color::NEUTRAL_200)
-    ///     .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
-    ///     .disabled_style(|s| s
-    ///         .background(Color::NEUTRAL_300)
-    ///         .border(Border::new(1, Color::NEUTRAL_400, Length::px(6.0)))
-    ///     )
-    /// ```
-    pub fn disabled_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.disabled_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
     pub fn hover_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
         self.hover_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
@@ -310,6 +252,8 @@ impl StyleBuilder for Label {
         self.recompute_style();
     }
 }
+
+crate::impl_themed_style_builders!(Label; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style);
 
 impl Widget for Label {
     fn as_any(&self) -> &dyn std::any::Any {

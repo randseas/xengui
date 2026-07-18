@@ -34,22 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         themes: vec![
             Theme::light(),
-            Theme::dark()
-                .primary(Color::BLUE_400)
-                .accent(Color::VIOLET_400)
-
-                .background(Color::NEUTRAL_950)
-                .surface(Color::NEUTRAL_900)
-
-                .foreground(Color::NEUTRAL_100)
-                .foreground_muted(Color::NEUTRAL_400)
-
-                .border(Color::NEUTRAL_800)
-                .border_hover(Color::NEUTRAL_700)
-
-                .hover(Color::NEUTRAL_800)
-                .pressed(Color::NEUTRAL_700)
-                .disabled(Color::NEUTRAL_600),
+            Theme::dark(),
             Theme::new("pearl")
                 .mode(ThemeMode::Dark)
                 .primary(Color::BLUE_400)
@@ -68,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .pressed(Color::NEUTRAL_700)
                 .disabled(Color::NEUTRAL_600)
         ],
-        active_theme: 1,
+        // active_theme: 1,
 
         ..Default::default()
     };
@@ -134,11 +119,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .border(|theme: &Theme|
                                     Border::new(1, theme.border, Length::px(8.0))
                                 )
-                                .hover_style(|s|
-                                    s.border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
+                                .hover_style(|s, theme|
+                                    s.border(Border::new(1, theme.border_hover, Length::px(8.0)))
                                 )
-                                .focus_style(|s|
-                                    s.border(Border::new(2, Color::BLUE_500, Length::px(8.0)))
+                                .focus_style(|s, theme|
+                                    s.border(Border::new(2, theme.primary, Length::px(8.0)))
                                 )
                                 .on_change(move |value, _ctx| set_text.set(value.to_string()))
                                 .on_submit(move |value, _ctx| {
@@ -154,13 +139,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             Label::new()
                                 .label(format!("Hello {text}, age {counter}"))
                                 .font_size(16)
-                                .color(|theme: &Theme| (
-                                    if theme.is_dark() {
-                                        Color::NEUTRAL_100
-                                    } else {
-                                        Color::NEUTRAL_400
-                                    }
-                                ))
+                                .color(|theme: &Theme| theme.foreground)
                                 .margin(Edges::only(0, 6, 0, 0))
                         )
                         .child(
@@ -171,21 +150,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     Button::new()
                                         .label("Increment")
                                         .font_size(16)
-                                        .color(|theme: &Theme| (
-                                            if theme.is_dark() {
-                                                Color::NEUTRAL_100
-                                            } else {
-                                                Color::NEUTRAL_400
-                                            }
-                                        ))
-                                        .background(|theme: &Theme| (
-                                            if theme.is_dark() {
-                                                Color::NEUTRAL_700
-                                            } else {
-                                                Color::NEUTRAL_200
-                                            }
-                                        ))
-                                        .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
+                                        .color(|theme: &Theme| theme.foreground)
+                                        .background(|theme: &Theme| theme.surface)
+                                        .border(|theme: &Theme|
+                                            Border::new(1, theme.border, Length::px(8.0))
+                                        )
                                         .padding(Edges::only(9, 4, 9, 7))
                                         .margin(Edges::only(0, 10, 0, 0))
                                         .transition_all(
@@ -198,55 +167,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 *v += 1;
                                             })
                                         )
-                                        .hover_style(|s|
+                                        .hover_style(|s, theme|
                                             s
-                                                .background(Color::NEUTRAL_200)
+                                                .background(theme.hover)
                                                 .border(
-                                                    Border::new(
-                                                        1,
-                                                        Color::NEUTRAL_300,
-                                                        Length::px(8.0)
-                                                    )
+                                                    Border::new(1, theme.border, Length::px(8.0))
                                                 )
-                                                .color(Color::NEUTRAL_600)
+                                                .color(theme.foreground)
                                         )
-                                        .pressed_style(|s|
+                                        .pressed_style(|s, theme|
                                             s
-                                                .background(Color::NEUTRAL_200)
+                                                .background(theme.pressed)
                                                 .border(
-                                                    Border::new(
-                                                        1,
-                                                        Color::NEUTRAL_400,
-                                                        Length::px(8.0)
-                                                    )
+                                                    Border::new(1, theme.pressed, Length::px(8.0))
                                                 )
-                                                .color(Color::NEUTRAL_700)
-                                        )
-                                        .disabled_style(|s|
-                                            s
-                                                .background(Color::NEUTRAL_100)
-                                                .color(Color::NEUTRAL_400)
+                                                .color(theme.foreground)
                                         )
                                 )
                                 .child(
                                     Button::new()
                                         .label("Decrement")
                                         .font_size(16)
-                                        .color(|theme: &Theme| (
-                                            if theme.is_dark() {
-                                                Color::NEUTRAL_100
-                                            } else {
-                                                Color::NEUTRAL_400
-                                            }
-                                        ))
-                                        .background(|theme: &Theme| (
-                                            if theme.is_dark() {
-                                                Color::NEUTRAL_700
-                                            } else {
-                                                Color::NEUTRAL_200
-                                            }
-                                        ))
-                                        .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
+                                        .color(|theme: &Theme| theme.foreground)
+                                        .background(|theme: &Theme| theme.surface)
+                                        .border(|theme: &Theme|
+                                            Border::new(1, theme.border, Length::px(8.0))
+                                        )
                                         .padding(Edges::only(9, 4, 9, 7))
                                         .margin(Edges::only(0, 10, 0, 0))
                                         .transition_all(
@@ -259,34 +205,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 *v -= 1;
                                             })
                                         )
-                                        .hover_style(|s|
+                                        .hover_style(|s, theme|
                                             s
-                                                .background(Color::NEUTRAL_200)
+                                                .background(theme.hover)
                                                 .border(
-                                                    Border::new(
-                                                        1,
-                                                        Color::NEUTRAL_300,
-                                                        Length::px(8.0)
-                                                    )
+                                                    Border::new(1, theme.border, Length::px(8.0))
                                                 )
-                                                .color(Color::NEUTRAL_600)
+                                                .color(theme.foreground)
                                         )
-                                        .pressed_style(|s|
+                                        .pressed_style(|s, theme|
                                             s
-                                                .background(Color::NEUTRAL_200)
+                                                .background(theme.pressed)
                                                 .border(
-                                                    Border::new(
-                                                        1,
-                                                        Color::NEUTRAL_400,
-                                                        Length::px(8.0)
-                                                    )
+                                                    Border::new(1, theme.pressed, Length::px(8.0))
                                                 )
-                                                .color(Color::NEUTRAL_700)
-                                        )
-                                        .disabled_style(|s|
-                                            s
-                                                .background(Color::NEUTRAL_100)
-                                                .color(Color::NEUTRAL_400)
+                                                .color(theme.foreground)
                                         )
                                 )
                         )

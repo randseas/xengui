@@ -22,7 +22,6 @@ use crate::{
     ResolvedScrollbar,
     Style,
     StyleBuilder,
-    StylePatch,
     TriangleCommand,
     Widget,
     WidgetId,
@@ -155,33 +154,6 @@ impl View {
 
     pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
         self.style.font = Some(font.into());
-        self.mark_dirty();
-        self
-    }
-
-    /// Full style overlay to be applied during hover state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    pub fn hover_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.hover_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
-    /// Full style overlay to be applied during pressed state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    pub fn pressed_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.pressed_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
-    /// Full style overlay to be applied during disabled state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    pub fn disabled_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.disabled_style = Some(build(StylePatch::new()).build());
         self.mark_dirty();
         self
     }
@@ -807,6 +779,7 @@ impl StyleBuilder for View {
 }
 
 crate::impl_interaction_builders!(View);
+crate::impl_themed_style_builders!(View; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style);
 
 impl Widget for View {
     fn as_any(&self) -> &dyn std::any::Any {

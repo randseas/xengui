@@ -109,10 +109,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .padding(Edges::only(10, 7, 10, 8))
                                 .background(Color::WHITE)
                                 .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
-                                .hover_style(|s|
+                                .hover_style(|s, _theme: &Theme|
                                     s.border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
                                 )
-                                .focus_style(|s|
+                                .focus_style(|s, _theme: &Theme|
                                     s.border(Border::new(2, Color::BLUE_500, Length::px(8.0)))
                                 )
                                 .on_change(move |value, _ctx| set_text.set(value.to_string()))
@@ -130,19 +130,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         Easing::EaseInOut
                                     )
                                 )
-                                .hover_style(|s|
+                                .hover_style(|s, _theme: &Theme|
                                     s
                                         .background(Color::NEUTRAL_200)
                                         .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
                                         .color(Color::NEUTRAL_600)
                                 )
-                                .pressed_style(|s|
+                                .pressed_style(|s, _theme: &Theme|
                                     s
                                         .background(Color::NEUTRAL_200)
                                         .border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
                                         .color(Color::NEUTRAL_700)
                                 )
-                                .disabled_style(|s|
+                                .disabled_style(|s, _theme: &Theme|
                                     s.background(Color::NEUTRAL_100).color(Color::NEUTRAL_400)
                                 )
                         )
@@ -158,12 +158,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         Easing::EaseInOut
                                     )
                                 )
-                                .hover_style(|s|
+                                .hover_style(|s, _theme: &Theme|
                                     s
                                         .background(Color::BLUE_600)
                                         .border(Border::new(1, Color::BLUE_600, Length::px(8.0)))
                                 )
-                                .pressed_style(|s|
+                                .pressed_style(|s, _theme: &Theme|
                                     s
                                         .background(Color::BLUE_700)
                                         .scale(0.98)
@@ -188,14 +188,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         Easing::EaseInOut
                                     )
                                 )
-                                .hover_style(|s|
+                                .hover_style(|s, _theme: &Theme|
                                     s
                                         .background(Color::NEUTRAL_900)
                                         .border(
                                             Border::new(1, Color::NEUTRAL_800, Length::px(10.0))
                                         )
                                 )
-                                .pressed_style(|s|
+                                .pressed_style(|s, _theme: &Theme|
                                     s
                                         .background(Color::NEUTRAL_900)
                                         .scale(0.98)
@@ -213,7 +213,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .padding(Edges::only(12, 8, 12, 8))
                                 .border(Border::new(1, Color::BLUE_500, Length::px(8.0)))
                                 .transition_all(Transition::new(Duration::from_millis(200)))
-                                .hover_style(|s|
+                                .hover_style(|s, _theme: &Theme|
                                     s.border(Border::new(1, Color::BLUE_500, Length::px(20.0)))
                                 )
                         )
@@ -226,19 +226,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .background(Color::NEUTRAL_100)
                                 .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
                                 .padding(Edges::only(9, 5, 9, 6))
-                                .hover_style(|s|
+                                .hover_style(|s, _theme: &Theme|
                                     s
                                         .background(Color::NEUTRAL_200)
                                         .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
                                         .color(Color::NEUTRAL_600)
                                 )
-                                .pressed_style(|s|
+                                .pressed_style(|s, _theme: &Theme|
                                     s
                                         .background(Color::NEUTRAL_200)
                                         .border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
                                         .color(Color::NEUTRAL_700)
                                 )
-                                .disabled_style(|s|
+                                .disabled_style(|s, _theme: &Theme|
                                     s.background(Color::NEUTRAL_100).color(Color::NEUTRAL_400)
                                 )
                         )

@@ -101,3 +101,22 @@ macro_rules! view_props {
         } ; $($rest)*)
     };
 }
+
+#[macro_export]
+macro_rules! impl_themed_style_builders {
+    ($ty:ty; $($method:ident => $field:ident),+ $(,)?) => {
+        impl $ty {
+            $(
+                pub fn $method(
+                    mut self,
+                    build: impl FnOnce($crate::StylePatch, &$crate::Theme) -> $crate::StylePatch
+                ) -> Self {
+                    let theme = $crate::current_theme();
+                    self.$field = Some(build($crate::StylePatch::new(), &theme).build());
+                    self.mark_dirty();
+                    self
+                }
+            )+
+        }
+    };
+}

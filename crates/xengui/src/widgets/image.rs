@@ -17,7 +17,6 @@ use crate::{
     PaintContext,
     Style,
     StyleBuilder,
-    StylePatch,
     Widget,
     WidgetId,
 };
@@ -184,33 +183,6 @@ impl Image {
         self
     }
 
-    /// Full style overlay to be applied during hover state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    pub fn hover_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.hover_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
-    /// Full style overlay to be applied during pressed state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    pub fn pressed_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.pressed_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
-    /// Full style overlay to be applied during disabled state - includes every field of Style
-    /// such as background, border, color, font_size, padding, margin, etc.
-    /// Only the fields you provide will overwrite the base style.
-    pub fn disabled_style(mut self, build: impl FnOnce(StylePatch) -> StylePatch) -> Self {
-        self.disabled_style = Some(build(StylePatch::new()).build());
-        self.mark_dirty();
-        self
-    }
-
     pub fn hover_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
         self.hover_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
@@ -320,6 +292,7 @@ impl StyleBuilder for Image {
 }
 
 crate::impl_interaction_builders!(Image);
+crate::impl_themed_style_builders!(Image; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style);
 
 impl Widget for Image {
     fn as_any(&self) -> &dyn std::any::Any {

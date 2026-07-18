@@ -69,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .background(Color::NEUTRAL_100)
                                 .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
                                 .padding(Edges::only(10, 4, 10, 6))
-                                .hover_style(|s|
+                                .hover_style(|s, _theme: &Theme|
                                     s
                                         .background(Color::NEUTRAL_200)
                                         .border(Border::new(1, Color::NEUTRAL_300, Length::px(6.0)))
@@ -83,7 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .background(Color::NEUTRAL_100)
                                 .border(Border::new(1, Color::NEUTRAL_200, Length::px(6.0)))
                                 .padding(Edges::only(10, 4, 10, 6))
-                                .hover_style(|s|
+                                .hover_style(|s, _theme: &Theme|
                                     s
                                         .background(Color::NEUTRAL_200)
                                         .border(Border::new(1, Color::NEUTRAL_300, Length::px(6.0)))

@@ -29,17 +29,23 @@ pub struct Theme {
     pub pressed: Color,
     pub disabled: Color,
 
+    pub radius_xs: Length,
     pub radius_sm: Length,
     pub radius_md: Length,
     pub radius_lg: Length,
+    pub radius_xl: Length,
+    pub radius_2xl: Length,
+    pub radius_3xl: Length,
+    pub radius_4xl: Length,
 
-    pub padding_sm: Length,
-    pub padding_md: Length,
-    pub padding_lg: Length,
-
-    pub gap_sm: Length,
-    pub gap_md: Length,
-    pub gap_lg: Length,
+    pub space_xs: Length,
+    pub space_sm: Length,
+    pub space_md: Length,
+    pub space_lg: Length,
+    pub space_xl: Length,
+    pub space_2xl: Length,
+    pub space_3xl: Length,
+    pub space_4xl: Length,
 
     pub border_width: Length,
 }
@@ -50,30 +56,42 @@ impl Theme {
             name: name.into(),
             mode: ThemeMode::Light,
 
+            // Colors
             primary: Color::BLUE_500,
             accent: Color::VIOLET_500,
+
             background: Color::WHITE,
-            surface: Color::NEUTRAL_050,
+            surface: Color::NEUTRAL_50,
+
             foreground: Color::NEUTRAL_900,
-            foreground_muted: Color::NEUTRAL_700,
+            foreground_muted: Color::NEUTRAL_500,
+
             border: Color::NEUTRAL_200,
             border_hover: Color::NEUTRAL_300,
 
-            hover: Color::NEUTRAL_300,
-            pressed: Color::NEUTRAL_400,
+            hover: Color::NEUTRAL_100,
+            pressed: Color::NEUTRAL_200,
             disabled: Color::NEUTRAL_300.with_alpha(50),
 
-            radius_sm: Length::px(4.0),
-            radius_md: Length::px(8.0),
-            radius_lg: Length::px(16.0),
+            // Border radius
+            radius_xs: Length::px(2.0), // rounded-sm
+            radius_sm: Length::px(4.0), // rounded
+            radius_md: Length::px(6.0), // rounded-md
+            radius_lg: Length::px(8.0), // rounded-lg
+            radius_xl: Length::px(12.0), // rounded-xl
+            radius_2xl: Length::px(16.0), // rounded-2xl
+            radius_3xl: Length::px(24.0), // rounded-3xl
+            radius_4xl: Length::px(9999.0), // rounded-full
 
-            padding_sm: Length::px(6.0),
-            padding_md: Length::px(12.0),
-            padding_lg: Length::px(20.0),
-
-            gap_sm: Length::px(4.0),
-            gap_md: Length::px(8.0),
-            gap_lg: Length::px(16.0),
+            // Spacing
+            space_xs: Length::px(2.0),
+            space_sm: Length::px(4.0),
+            space_md: Length::px(8.0),
+            space_lg: Length::px(12.0),
+            space_xl: Length::px(16.0),
+            space_2xl: Length::px(24.0),
+            space_3xl: Length::px(32.0),
+            space_4xl: Length::px(48.0),
 
             border_width: Length::px(1.0),
         }
@@ -81,6 +99,22 @@ impl Theme {
 
     pub fn light() -> Self {
         Self::new("light")
+            .mode(ThemeMode::Light)
+            .primary(Color::BLUE_500)
+            .accent(Color::VIOLET_500)
+
+            .background(Color::WHITE)
+            .surface(Color::NEUTRAL_50)
+
+            .foreground(Color::NEUTRAL_900)
+            .foreground_muted(Color::NEUTRAL_500)
+
+            .border(Color::NEUTRAL_200)
+            .border_hover(Color::NEUTRAL_300)
+
+            .hover(Color::NEUTRAL_100)
+            .pressed(Color::NEUTRAL_200)
+            .disabled(Color::NEUTRAL_300.with_alpha(50))
     }
 
     pub fn dark() -> Self {
@@ -88,10 +122,19 @@ impl Theme {
             .mode(ThemeMode::Dark)
             .primary(Color::BLUE_400)
             .accent(Color::VIOLET_400)
+
             .background(Color::NEUTRAL_950)
             .surface(Color::NEUTRAL_900)
-            .foreground(Color::NEUTRAL_050)
+
+            .foreground(Color::NEUTRAL_50)
+            .foreground_muted(Color::NEUTRAL_400)
+
             .border(Color::NEUTRAL_800)
+            .border_hover(Color::NEUTRAL_700)
+
+            .hover(Color::NEUTRAL_800)
+            .pressed(Color::NEUTRAL_700)
+            .disabled(Color::NEUTRAL_700.with_alpha(50))
     }
 
     pub fn auto() -> Self {
@@ -160,6 +203,12 @@ impl Theme {
         self
     }
 
+    /* Radius: start */
+    pub fn radius_xs(mut self, radius: impl Into<Length>) -> Self {
+        self.radius_xs = radius.into();
+        self
+    }
+
     pub fn radius_sm(mut self, radius: impl Into<Length>) -> Self {
         self.radius_sm = radius.into();
         self
@@ -175,35 +224,68 @@ impl Theme {
         self
     }
 
-    pub fn padding_sm(mut self, padding: impl Into<Length>) -> Self {
-        self.padding_sm = padding.into();
+    pub fn radius_xl(mut self, radius: impl Into<Length>) -> Self {
+        self.radius_xl = radius.into();
         self
     }
 
-    pub fn padding_md(mut self, padding: impl Into<Length>) -> Self {
-        self.padding_md = padding.into();
+    pub fn radius_2xl(mut self, radius: impl Into<Length>) -> Self {
+        self.radius_2xl = radius.into();
         self
     }
 
-    pub fn padding_lg(mut self, padding: impl Into<Length>) -> Self {
-        self.padding_lg = padding.into();
+    pub fn radius_3xl(mut self, radius: impl Into<Length>) -> Self {
+        self.radius_3xl = radius.into();
         self
     }
 
-    pub fn gap_sm(mut self, gap: impl Into<Length>) -> Self {
-        self.gap_sm = gap.into();
+    pub fn radius_4xl(mut self, radius: impl Into<Length>) -> Self {
+        self.radius_4xl = radius.into();
+        self
+    }
+    /* Radius: end */
+
+    /* Padding: start */
+    pub fn space_xs(mut self, space: impl Into<Length>) -> Self {
+        self.space_xs = space.into();
         self
     }
 
-    pub fn gap_md(mut self, gap: impl Into<Length>) -> Self {
-        self.gap_md = gap.into();
+    pub fn space_sm(mut self, space: impl Into<Length>) -> Self {
+        self.space_sm = space.into();
         self
     }
 
-    pub fn gap_lg(mut self, gap: impl Into<Length>) -> Self {
-        self.gap_lg = gap.into();
+    pub fn space_md(mut self, space: impl Into<Length>) -> Self {
+        self.space_md = space.into();
         self
     }
+
+    pub fn space_lg(mut self, space: impl Into<Length>) -> Self {
+        self.space_lg = space.into();
+        self
+    }
+
+    pub fn space_xl(mut self, space: impl Into<Length>) -> Self {
+        self.space_xl = space.into();
+        self
+    }
+
+    pub fn space_2xl(mut self, space: impl Into<Length>) -> Self {
+        self.space_2xl = space.into();
+        self
+    }
+
+    pub fn space_3xl(mut self, space: impl Into<Length>) -> Self {
+        self.space_3xl = space.into();
+        self
+    }
+
+    pub fn space_4xl(mut self, space: impl Into<Length>) -> Self {
+        self.space_4xl = space.into();
+        self
+    }
+    /* Padding: end */
 
     pub fn border_width(mut self, width: impl Into<Length>) -> Self {
         self.border_width = width.into();
