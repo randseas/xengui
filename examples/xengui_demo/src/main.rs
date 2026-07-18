@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use std::time::Duration;
+
 use xengui::{ properties::StyleValue, * };
 use xen_clipboard::Clipboard;
 
@@ -14,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let _ = env_logger::Builder
             ::new()
-            .filter_module("xengui", log::LevelFilter::Trace)
+            .filter_module("xengui", log::LevelFilter::Info)
             .filter_level(log::LevelFilter::Warn)
             .format_timestamp(None)
             .try_init();
@@ -84,6 +86,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .focus_outline(StyleValue::Default)
                                 .max_width(Length::px(150.0))
                                 .padding(Edges::only(10, 7, 10, 8))
+                                .transition_all(
+                                    Transition::new(Duration::from_millis(200)).easing(
+                                        Easing::EaseInOut
+                                    )
+                                )
                                 .background(Color::WHITE)
                                 .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
                                 .hover_style(|s|
@@ -122,6 +129,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
                                         .padding(Edges::only(9, 4, 9, 7))
                                         .margin(Edges::only(0, 10, 0, 0))
+                                        .transition_all(
+                                            Transition::new(Duration::from_millis(200)).easing(
+                                                Easing::EaseInOut
+                                            )
+                                        )
                                         .on_click(move |_ctx|
                                             inc.update(|v| {
                                                 *v += 1;
@@ -166,6 +178,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         .border(Border::new(1, Color::NEUTRAL_200, Length::px(8.0)))
                                         .padding(Edges::only(9, 4, 9, 7))
                                         .margin(Edges::only(0, 10, 0, 0))
+                                        .transition_all(
+                                            Transition::new(Duration::from_millis(200)).easing(
+                                                Easing::EaseInOut
+                                            )
+                                        )
                                         .on_click(move |_ctx|
                                             dec.update(|v| {
                                                 *v -= 1;
