@@ -23,20 +23,10 @@
 
 ---
 
-XenGui (pronounced `/ˈzɛn.ɡuː.aɪ/` | `Zen-goo-eye`) is a retained-mode rendering GUI implementation in pure **Rust**, built on the `wgpu` graphics API and `winit` window management. It combines a hooks-based retained-mode model with a Flexbox/Grid layout engine (powered by `taffy`) and a batched wgpu rendering pipeline, running natively on Windows, macOS, and Linux, as well as in the browser via WebAssembly.
+XenGui (pronounced `/ˈzɛn.ɡuː.aɪ/`) is a retained-mode rendering GUI implementation in pure **Rust**, built on the `wgpu` graphics API and `winit` window management. It combines a hooks-based retained-mode model with a Flexbox/Grid layout engine (powered by `taffy`) and a batched wgpu rendering pipeline, running natively on Windows, macOS, and Linux, as well as in the browser via WebAssembly.
 
 > [!IMPORTANT]
 > XenGui is currently an early development release. APIs are still evolving and may change without notice between versions. Use with caution in production projects and expect breaking changes until a stable `1.0.0` release.
-
-## Features
-
-- **Retained-mode state** - React-style hooks (`use_state`, `component`) drive re-renders without a virtual DOM diffing framework bolted on top.
-- **Flexbox & Grid layout** - Layout system via [`taffy`](https://github.com/DioxusLabs/taffy), including flex direction, wrapping, alignment, gaps, and grid tracks.
-- **GPU-accelerated rendering** - Rects, text, and images are batched and drawn through dedicated `wgpu` pipelines.
-- **Declarative styling** - `Style`/`StyleBuilder` API covering colors (including OKLCH), borders, typography, spacing, and more.
-- **Built-in widgets** - `View`, `Label`, `Button`, and `Image`, each with hover/pressed/disabled style variants.
-- **Interaction system** - Unified handling of hover, click, focus, and keyboard events across widgets.
-- **Cross-platform** - Native targets (Windows, macOS, Linux) and WebAssembly from a single codebase.
 
 ## Example
 
@@ -64,6 +54,16 @@ View::new()
     );
 ```
 
+## Features
+
+- **Retained-mode state** - React-style hooks (`use_state`, `component`) drive re-renders without a virtual DOM diffing framework bolted on top.
+- **Flexbox & Grid layout** - Layout system via [`taffy`](https://github.com/DioxusLabs/taffy), including flex direction, wrapping, alignment, gaps, and grid tracks.
+- **GPU-accelerated rendering** - Rects, text, and images are batched and drawn through dedicated `wgpu` pipelines.
+- **Declarative styling** - `Style`/`StyleBuilder` API covering colors (including OKLCH), borders, typography, spacing, and more.
+- **Built-in widgets** - `View`, `Label`, `Button`, and `Image`, each with hover/pressed/disabled style variants.
+- **Interaction system** - Unified handling of hover, click, focus, and keyboard events across widgets.
+- **Cross-platform** - Native targets (Windows, macOS, Linux) and WebAssembly from a single codebase.
+
 ## Installation
 
 `Cargo.toml`
@@ -72,14 +72,6 @@ View::new()
 [dependencies]
 xengui = "0.2.4"
 ```
-
-## Sections
-
-- [Features](#features)
-- [Example](#example)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Demo](#demo)
 
 ## Quick Start
 
@@ -144,10 +136,6 @@ For WebAssembly targets, build and serve with [Trunk](https://github.com/trunk-r
 ```bash
 trunk serve
 ```
-
-## Demo
-
-Demo: [https://xengui.vercel.app](https://xengui.vercel.app)
 
 ## License
 
