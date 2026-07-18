@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/xengui", "crates/xen-clipboard", "examples/*"]
+members = ["crates/xengui", "crates/xen-clipboard", "crates/xen-animation", "examples/*"]
 
 [workspace.package]
 edition = "2024"
@@ -20,6 +20,7 @@ opt-level = 2
 [workspace.dependencies]
 xengui = { version = "0.2.4", path = "crates/xengui" }
 xen-clipboard = { version = "0.1.6", path = "crates/xen-clipboard" }
+xen-animation = { version = "0.1.0", path = "crates/xen-animation" }
 wgpu = { version = "30.0.0", features = ["webgl"] }
 glyphon = "0.12.0"
 winit = "0.30.0"

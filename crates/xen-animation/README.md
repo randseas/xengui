@@ -14,7 +14,7 @@ A high-performance, framework-agnostic animation library for Rust.
 ## Features
 
 - CSS-compatible cubic-bezier easing
-- Built-in easing presets (`linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`)
+- Built-in easing presets (`linear`, `ease-in`, `ease-out`, `ease-in-out`)
 - Custom cubic-bezier curves
 - Centralized `AnimationManager`
 - Generic interpolation traits

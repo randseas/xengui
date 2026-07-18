@@ -1,49 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 use super::{ AnimValue, Transition };
-use crate::WidgetId;
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::time::Duration;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
-pub enum AnimLayer {
-    #[default]
-    Root,
-    Background,
-    Content,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum AnimProperty {
-    BackgroundColor,
-    TextColor,
-    BorderColor,
-    Opacity,
-    Scale,
-    ContentScale,
-    ShadowColor,
-    BorderWidth,
-    BorderRadius,
-    Width,
-    Height,
-    PaddingLeft,
-    PaddingTop,
-    PaddingRight,
-    PaddingBottom,
-    MarginLeft,
-    MarginTop,
-    MarginRight,
-    MarginBottom,
-    GapX,
-    GapY,
-}
-
-/// Identifies one animatable value on one widget's layer.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct AnimKey {
-    pub widget: WidgetId,
-    pub layer: AnimLayer,
-    pub property: AnimProperty,
-}
 
 struct Anim {
     from: AnimValue,
@@ -68,27 +27,33 @@ impl Anim {
     }
 }
 
-/// Central, Qt-style animation driver. Widgets never own a timer; they
-/// only report their current target value and the manager owns the
-/// entire lifecycle (starting, easing, retargeting, finishing).
-#[derive(Default)]
-pub struct AnimationManager {
-    active: HashMap<AnimKey, Anim>,
+/// Central, Qt-style animation driver, generic over any hashable key type
+/// so it can be reused outside of any specific GUI framework. Callers never
+/// own a timer themselves; they only report their current target value and
+/// the manager owns the entire lifecycle (starting, easing, retargeting,
+/// finishing).
+pub struct AnimationManager<K: Eq + Hash + Copy> {
+    active: HashMap<K, Anim>,
     // Last settled value per key, kept around after an animation finishes
     // and is dropped from `active` - without this, the next retarget would
     // have no baseline to interpolate from and would snap instantly.
-    resting: HashMap<AnimKey, AnimValue>,
+    resting: HashMap<K, AnimValue>,
 }
 
-impl AnimationManager {
+impl<K: Eq + Hash + Copy> Default for AnimationManager<K> {
+    fn default() -> Self {
+        Self { active: HashMap::new(), resting: HashMap::new() }
+    }
+}
+
+impl<K: Eq + Hash + Copy> AnimationManager<K> {
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Called once per widget per frame during `cascade_style`, before
-    /// layout/paint. Starts or retargets a transition towards `target`;
-    /// passing `None` for `transition` snaps instantly and clears state.
-    pub fn set_target(&mut self, key: AnimKey, target: AnimValue, transition: Option<Transition>) {
+    /// Starts or retargets a transition towards `target`; passing `None`
+    /// for `transition` snaps instantly and clears state.
+    pub fn set_target(&mut self, key: K, target: AnimValue, transition: Option<Transition>) {
         let Some(transition) = transition else {
             self.active.remove(&key);
             self.resting.insert(key, target);
@@ -140,7 +105,7 @@ impl AnimationManager {
     /// Current (possibly mid-transition) value for `key`, or `None` once
     /// the transition has settled - callers should fall back to their
     /// own resolved target value in that case.
-    pub fn value(&self, key: AnimKey) -> Option<AnimValue> {
+    pub fn value(&self, key: K) -> Option<AnimValue> {
         self.active.get(&key).map(Anim::value_at)
     }
 
