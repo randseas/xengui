@@ -204,10 +204,13 @@ impl XenRenderer {
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&Default::default());
         {
-            let background_color = match theme {
-                Some(winit::window::Theme::Dark) => wgpu::Color::BLACK,
-                Some(winit::window::Theme::Light) => wgpu::Color::WHITE,
-                None => wgpu::Color::WHITE,
+            // uses the app's own active theme
+            let app_background = crate::current_theme().background;
+            let background_color = wgpu::Color {
+                r: app_background.r() as f64,
+                g: app_background.g() as f64,
+                b: app_background.b() as f64,
+                a: app_background.a() as f64,
             };
 
             let mut render_pass = encoder.begin_render_pass(

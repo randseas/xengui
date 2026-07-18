@@ -33,11 +33,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         position: xengui::WindowPosition::Center,
 
         themes: vec![
-            Theme::light(),
-            Theme::dark(),
             Theme::new("pearl")
                 .mode(ThemeMode::Dark)
-                .primary(Color::BLUE_400)
+                .primary(Color::VIOLET_500)
                 .accent(Color::VIOLET_400)
 
                 .background(Color::NEUTRAL_950)
@@ -53,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .pressed(Color::NEUTRAL_700)
                 .disabled(Color::NEUTRAL_600)
         ],
-        // active_theme: 1,
+        active_theme: 0,
 
         ..Default::default()
     };
@@ -85,6 +83,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
                 .background(|theme: &Theme| theme.background)
+                //.selection_background(|theme: &Theme| theme.primary.with_alpha(80))
+                .selection_color(|theme: &Theme| theme.primary)
+                //.caret_color(|theme: &Theme| theme.primary)
                 .padding(Edges::all(15))
                 .child(
                     View::new()
