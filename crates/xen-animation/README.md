@@ -1,15 +1,15 @@
 # xen-animation
 
 [<img alt="github" src="https://img.shields.io/badge/github-randseas/xengui-00aaaa?logo=github" height="20">](https://github.com/randseas/xengui/tree/main/crates/xen-animation)
-[![Latest version](https://img.shields.io/crates/v/xen_animation.svg)](https://crates.io/crates/xen_animation)
-[![Downloads](https://img.shields.io/crates/d/xen_animation.svg)](https://crates.io/crates/xen_animation)
+[![Latest version](https://img.shields.io/crates/v/xen-animation.svg)](https://crates.io/crates/xen-animation)
+[![Downloads](https://img.shields.io/crates/d/xen-animation.svg)](https://crates.io/crates/xen-animation)
 [![Rust](https://img.shields.io/badge/rust-1.92%2B-blue.svg)](https://www.rust-lang.org)
 [![Documentation](https://docs.rs/xen-animation/badge.svg)](https://docs.rs/xen-animation)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/randseas/xengui/blob/main/crates/xen-animation/LICENSE)
 
-A high-performance, framework-agnostic animation library for Rust.
+A high-performance, framework-agnostic animation and transition library for Rust.
 
-`xen-animation` provides a centralized animation system with CSS-compatible easing functions, transitions, interpolation, and frame-based animation management. It is designed to be reusable across GUI frameworks, game engines, and other applications.
+`xen-animation` provides a centralized animation system with CSS-compatible easing functions, transitions, interpolation, and frame-based animation management. It is designed to be reusable across GUI frameworks, game engines, real-time applications, and custom renderers.
 
 Callers never own a timer themselves - they only report their current target value every frame through [`AnimationManager::set_target`], and the manager owns the entire lifecycle: starting, easing, retargeting mid-flight, and settling once the transition finishes.
 
