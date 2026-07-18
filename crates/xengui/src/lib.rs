@@ -29,6 +29,7 @@ pub use animation::{
     AnimationManager,
     Easing,
     Transition,
+    TransitionOverrides,
     TransitionProperty,
     animate_computed_style,
 };

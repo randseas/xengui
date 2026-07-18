@@ -123,6 +123,7 @@ pub struct Style {
     pub content_scale: Option<f32>,
     pub transition: Option<crate::Transition>,
     pub transition_properties: Option<TransitionProperty>,
+    pub transition_overrides: crate::TransitionOverrides,
 }
 
 impl Style {
@@ -207,6 +208,7 @@ impl Style {
             content_scale: patch.content_scale.or(self.content_scale),
             transition: patch.transition.or(self.transition),
             transition_properties: patch.transition_properties.or(self.transition_properties),
+            transition_overrides: self.transition_overrides.overlay(&patch.transition_overrides),
         }
     }
 

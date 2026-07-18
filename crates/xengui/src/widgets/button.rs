@@ -8,6 +8,7 @@ use crate::{
     InputEvent,
     Interaction,
     LayoutBox,
+    Length,
     MeasureContext,
     MeasureResult,
     PaintContext,
@@ -425,10 +426,14 @@ impl Widget for Button {
             content_scale
         );
 
+        let mut text_style = style.clone();
+        let base_font_size = text_style.font_size.map(|f| f.value()).unwrap_or(20.0);
+        text_style.font_size = Some(Length::px(base_font_size * content_scale));
+
         ctx.draw_text(TextCommand {
             text: self.content.clone(),
             position: (content_box.x, content_box.y),
-            style: style.clone(),
+            style: text_style,
             max_width: Some(draw_max_width),
             clip_rect: None,
         });

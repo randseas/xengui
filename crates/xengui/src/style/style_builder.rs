@@ -569,51 +569,58 @@ pub trait StyleBuilder: Sized {
         self
     }
 
-   fn transition(mut self, transition: crate::Transition) -> Self {
+    fn transition(mut self, transition: crate::Transition) -> Self {
         self.style_mut().transition = Some(transition);
-        self.style_mut().transition_properties = Some(TransitionProperty::DEFAULT);
+        let props = self.style_mut().transition_properties.unwrap_or(TransitionProperty::NONE);
+        self.style_mut().transition_properties = Some(props.union(TransitionProperty::DEFAULT));
         self.mark_dirty();
         self
     }
 
     fn transition_all(mut self, transition: crate::Transition) -> Self {
         self.style_mut().transition = Some(transition);
-        self.style_mut().transition_properties = Some(TransitionProperty::ALL);
+        let props = self.style_mut().transition_properties.unwrap_or(TransitionProperty::NONE);
+        self.style_mut().transition_properties = Some(props.union(TransitionProperty::ALL));
         self.mark_dirty();
         self
     }
 
     fn transition_colors(mut self, transition: crate::Transition) -> Self {
-        self.style_mut().transition = Some(transition);
-        self.style_mut().transition_properties = Some(TransitionProperty::COLORS);
+        self.style_mut().transition_overrides.colors = Some(transition);
+        let props = self.style_mut().transition_properties.unwrap_or(TransitionProperty::NONE);
+        self.style_mut().transition_properties = Some(props.union(TransitionProperty::COLORS));
         self.mark_dirty();
         self
     }
 
     fn transition_opacity(mut self, transition: crate::Transition) -> Self {
-        self.style_mut().transition = Some(transition);
-        self.style_mut().transition_properties = Some(TransitionProperty::OPACITY);
+        self.style_mut().transition_overrides.opacity = Some(transition);
+        let props = self.style_mut().transition_properties.unwrap_or(TransitionProperty::NONE);
+        self.style_mut().transition_properties = Some(props.union(TransitionProperty::OPACITY));
         self.mark_dirty();
         self
     }
 
     // Reserved for the future box-shadow system; has no visible effect yet.
     fn transition_shadow(mut self, transition: crate::Transition) -> Self {
-        self.style_mut().transition = Some(transition);
-        self.style_mut().transition_properties = Some(TransitionProperty::SHADOW);
+        self.style_mut().transition_overrides.shadow = Some(transition);
+        let props = self.style_mut().transition_properties.unwrap_or(TransitionProperty::NONE);
+        self.style_mut().transition_properties = Some(props.union(TransitionProperty::SHADOW));
         self.mark_dirty();
         self
     }
 
     fn transition_transform(mut self, transition: crate::Transition) -> Self {
-        self.style_mut().transition = Some(transition);
-        self.style_mut().transition_properties = Some(TransitionProperty::TRANSFORM);
+        self.style_mut().transition_overrides.transform = Some(transition);
+        let props = self.style_mut().transition_properties.unwrap_or(TransitionProperty::NONE);
+        self.style_mut().transition_properties = Some(props.union(TransitionProperty::TRANSFORM));
         self.mark_dirty();
         self
     }
 
     fn transition_none(mut self) -> Self {
         self.style_mut().transition = None;
+        self.style_mut().transition_overrides = Default::default();
         self.style_mut().transition_properties = Some(TransitionProperty::NONE);
         self.mark_dirty();
         self

@@ -25,6 +25,10 @@ impl TransitionProperty {
         (self.0 & other.0) == other.0
     }
 
+    pub const fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
     pub const fn is_none(self) -> bool {
         self.0 == 0
     }

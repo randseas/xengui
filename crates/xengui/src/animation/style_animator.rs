@@ -65,7 +65,8 @@ pub fn animate_computed_style(
         return false;
     }
 
-    let transition = style.transition;
+    let default_transition = style.transition;
+    let overrides = style.transition_overrides;
     let mut animating = false;
 
     let key = |property: AnimProperty| AnimKey {
@@ -75,6 +76,8 @@ pub fn animate_computed_style(
     };
 
     if properties.contains(TransitionProperty::COLORS) {
+        let transition = overrides.colors.or(default_transition);
+
         if let Some(color) = style.color {
             style.color = Some(
                 animate_color(anim, key(AnimProperty::TextColor), transition, color, &mut animating)
@@ -106,26 +109,38 @@ pub fn animate_computed_style(
     }
 
     if properties.contains(TransitionProperty::TRANSFORM) {
-        if let Some(scale) = style.scale {
-            let k = key(AnimProperty::Scale);
-            anim.set_target(k, AnimValue([scale, 0.0, 0.0, 0.0]), transition);
-            if let Some(v) = anim.value(k) {
-                style.scale = Some(v.0[0]);
-                animating = true;
-            }
-        }
+        let transition = overrides.transform.or(default_transition);
 
-        if let Some(content_scale) = style.content_scale {
-            let k = key(AnimProperty::ContentScale);
-            anim.set_target(k, AnimValue([content_scale, 0.0, 0.0, 0.0]), transition);
-            if let Some(v) = anim.value(k) {
-                style.content_scale = Some(v.0[0]);
-                animating = true;
-            }
-        }
+        // Both targets are resolved from the static style values up front,
+        // not from each other's mid-animation output - otherwise content_scale
+        // would chase a constantly shifting target and never settle smoothly.
+        let scale_target = style.scale.unwrap_or(1.0);
+        let content_scale_target = style.content_scale.unwrap_or(scale_target);
+
+        // Always assign a resolved value, even when resting (anim.value
+        // returns None) - leaving the field unset here would make paint()
+        // fall back to the *other* channel's live value instead of this
+        // channel's own settled target.
+        let k = key(AnimProperty::Scale);
+        anim.set_target(k, AnimValue([scale_target, 0.0, 0.0, 0.0]), transition);
+        let resolved_scale = anim.value(k).map_or(scale_target, |v| {
+            animating = true;
+            v.0[0]
+        });
+        style.scale = Some(resolved_scale);
+
+        let k = key(AnimProperty::ContentScale);
+        anim.set_target(k, AnimValue([content_scale_target, 0.0, 0.0, 0.0]), transition);
+        let resolved_content_scale = anim.value(k).map_or(content_scale_target, |v| {
+            animating = true;
+            v.0[0]
+        });
+        style.content_scale = Some(resolved_content_scale);
     }
 
     if properties.contains(TransitionProperty::BOX) {
+        let transition = overrides.box_model.or(default_transition);
+
         if let Some(mut size) = style.size {
             if let Some(w) = size.width {
                 size.width = Some(
