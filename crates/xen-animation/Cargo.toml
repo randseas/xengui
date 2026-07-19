@@ -5,7 +5,7 @@ edition = { workspace = true }
 rust-version = { workspace = true }
 authors = ["randseas <waultbank@gmail.com>"]
 
-description = "a high-performance animation library for rust applications."
+description = "a high-performance animation library in rust"
 license = "Apache-2.0"
 
 repository = "https://github.com/randseas/xen-animation"
