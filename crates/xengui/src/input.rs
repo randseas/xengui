@@ -374,8 +374,8 @@ fn hit_test_recursive(widget: &dyn Widget, path: &str, point: (f32, f32)) -> Opt
     Some(path.to_string())
 }
 
-/// Tab / Shift+Tab sırasını oluşturmak için, ağaçtaki tüm aktif ve
-/// focusable widget'ların path'lerini derinlik-öncelikli sırayla toplar.
+/// Collects the paths of every active, focusable widget in the tree in
+/// depth-first order, used to build the Tab / Shift+Tab sequence.
 pub fn collect_focusable_paths(tree: &[Box<dyn Widget>]) -> Vec<String> {
     let mut paths = Vec::new();
     for (i, node) in tree.iter().enumerate() {

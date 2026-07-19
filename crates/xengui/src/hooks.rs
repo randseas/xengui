@@ -83,7 +83,7 @@ pub(crate) fn begin_render() {
         let mut s = s.borrow_mut();
         debug_assert!(
             s.is_empty(),
-            "xengui hooks: component stack boş değil - begin_render/end_render dengesiz çağrılmış olabilir"
+            "xengui hooks: component stack is not empty - begin_render/end_render may have been called unevenly"
         );
         s.clear();
     });
@@ -123,9 +123,9 @@ fn current_component_id() -> ComponentId {
             .cloned()
             .unwrap_or_else(|| {
                 panic!(
-                    "use_state: bir component() kapsamı dışında çağrıldı. \
-                 use_state yalnızca App::render kök fonksiyonu içinde veya \
-                 component(key, ...) kapsamı içinde kullanılabilir."
+                    "use_state: called outside a component() scope. \
+                 use_state can only be used within App::render's root function or \
+                 inside a component(key, ...) scope."
                 )
             })
     })
@@ -149,12 +149,12 @@ fn push_component(key: ComponentKey) -> ComponentId {
     let first_time_this_frame = LIVE_COMPONENTS.with(|s| s.borrow_mut().insert(id.clone()));
     if !first_time_this_frame {
         log::warn!(
-            "xengui: yinelenen bileşen anahtarı '{}' - aynı karede iki kez kullanıldı. \
-             Dinamik listelerde her öğeye benzersiz bir key verin (React'taki 'key' prop'u gibi).",
+            "xengui: duplicate component key '{}' - used twice in the same frame. \
+             In dynamic lists, give each item a unique key (like React's 'key' prop).",
             id.as_str()
         );
     }
-
+    
     COMPONENT_STACK.with(|s| s.borrow_mut().push(id.clone()));
     id
 }

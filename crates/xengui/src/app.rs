@@ -720,7 +720,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 if state == winit::event::ElementState::Pressed {
                     self.input.pressed_path = path.clone();
 
-                    // Odaklı widget'ın kendi alt ağacı dışına yapılan bir tıklama focus'u bırakır.
+                    // A click outside the focused widget's own subtree releases focus.
                     if let Some(focused) = self.input.focused_path.clone() {
                         let stays_focused = path
                             .as_deref()

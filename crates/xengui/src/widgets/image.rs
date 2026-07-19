@@ -1,6 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    AnimationManager, Background, Color, Constraints, EventCtx, EventStatus, ImageCommand, ImageData, InputEvent, Interaction, IntoThemed, LayoutBox, Length, MeasureContext, MeasureResult, PaintContext, Style, StyleBuilder, Widget, WidgetId,
+    AnimationManager,
+    Background,
+    Color,
+    Constraints,
+    EventCtx,
+    EventStatus,
+    ImageCommand,
+    ImageData,
+    InputEvent,
+    Interaction,
+    IntoThemed,
+    LayoutBox,
+    Length,
+    MeasureContext,
+    MeasureResult,
+    PaintContext,
+    Style,
+    StyleBuilder,
+    Widget,
+    WidgetId,
 };
 use smol_str::SmolStr;
 use std::hash::{ Hash, Hasher };
@@ -136,7 +155,7 @@ impl Image {
             Ok(source) => {
                 self.source = Some(source);
             }
-            Err(err) => log::error!("Image::bytes decode hatası: {err}"),
+            Err(err) => log::error!("Image::bytes decode error: {err}"),
         }
         self.mark_dirty();
         self
@@ -149,7 +168,7 @@ impl Image {
                 self.source = Some(source);
             }
             Err(err) =>
-                log::error!("Image::path('{}') decode hatası: {err}", path.as_ref().display()),
+                log::error!("Image::path('{}') decode error: {err}", path.as_ref().display()),
         }
         self.mark_dirty();
         self

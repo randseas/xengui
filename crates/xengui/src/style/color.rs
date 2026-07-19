@@ -117,7 +117,7 @@ impl Color {
             }
         };
 
-        // Değerleri 0.0 - 1.0 arasına sıkıştır ve kaydet
+        // Clamp values into 0.0 - 1.0 range and store
         Self::rgba_f32(
             f(r_linear).clamp(0.0, 1.0),
             f(g_linear).clamp(0.0, 1.0),
