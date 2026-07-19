@@ -2824,6 +2824,7 @@ dependencies = [
  "log",
  "xen-clipboard",
  "xengui",
+ "xengui-icons",
 ]
 
 [[package]]
@@ -3156,6 +3157,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "xen-svg"
+version = "0.1.0"
+
+[[package]]
 name = "xengui"
 version = "0.2.5"
 dependencies = [
@@ -3176,6 +3181,7 @@ dependencies = [
  "winit",
  "xen-animation",
  "xen-clipboard",
+ "xen-svg",
 ]
 
 [[package]]
@@ -3188,11 +3194,15 @@ dependencies = [
  "log",
  "xen-clipboard",
  "xengui",
+ "xengui-icons",
 ]
 
 [[package]]
 name = "xengui-icons"
 version = "0.1.0"
+dependencies = [
+ "xengui",
+]
 
 [[package]]
 name = "xkbcommon-dl"

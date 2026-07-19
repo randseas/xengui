@@ -255,6 +255,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .width(160)
                                 .height(105)
                         )
+                        .child(
+                            View::new()
+                                .color(Color::NEUTRAL_600) // icon bu rengi otomatik alır (currentColor)
+                                .child(xengui_icons::check().width(20).height(20))
+                                .child(
+                                    Svg::from_string(
+                                        r#"<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/></svg>"#
+                                    )
+                                        .width(16)
+                                        .height(16)
+                                )
+                        )
                 )
         )
     });

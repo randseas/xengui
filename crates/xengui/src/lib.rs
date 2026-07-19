@@ -3,6 +3,7 @@ pub mod app;
 pub mod layout;
 pub mod macros;
 pub mod paint;
+pub mod svg_compat;
 pub mod renderer;
 pub mod style;
 pub mod widgets;
@@ -69,9 +70,17 @@ pub use widgets::{
     ImageSource,
     Label,
     ObjectFit,
+    Svg,
+    SvgCircleBuilder,
+    SvgGroupBuilder,
+    SvgLineBuilder,
+    SvgPathBuilder,
+    SvgRectBuilder,
     View,
     TextBox,
 };
+pub use xen_svg::{ SvgColor, SvgDocument, SvgElement, Transform2D };
+pub use svg_compat::IntoSvgColor;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use widgets::image_source_from_path;
