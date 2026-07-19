@@ -61,7 +61,7 @@ fn main() {
 
 ```toml
 [dependencies]
-xen-animation = "0.1.2"
+xen-animation = "0.1.3"
 ```
 
 ## License
