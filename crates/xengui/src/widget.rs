@@ -105,6 +105,12 @@ pub trait Widget: Any {
     }
 
     fn paint_outline(&self, ctx: &mut PaintContext) {
+        // Skipped while the focus ring is visible - paint_focus draws the
+        // same outline field on top, in its own always-last render pass.
+        if self.interaction().is_some_and(|i| i.focused && i.focus_visible) {
+            return;
+        }
+
         let style = self.computed_style();
 
         let outline = match &style.outline {
@@ -144,7 +150,7 @@ pub trait Widget: Any {
         let style = self.computed_style();
         let layout = self.layout_box();
 
-        let focus_outline = match &style.focus_outline {
+        let outline = match &style.outline {
             StyleValue::None => {
                 return;
             }
@@ -158,16 +164,16 @@ pub trait Widget: Any {
                 },
         };
 
-        let offset = focus_outline.offset.value();
-        let radius = focus_outline.radius.or_else(|| { style.border.as_ref().map(|b| b.radius) });
+        let offset = outline.offset.value();
+        let radius = outline.radius.or_else(|| { style.border.as_ref().map(|b| b.radius) });
 
         ctx.draw_rect(RectCommand {
             position: (layout.x - offset, layout.y - offset),
             size: (layout.width + offset * 2.0, layout.height + offset * 2.0),
             background: None,
             border_radius: radius,
-            border_width: Some(focus_outline.width),
-            border_color: Some(focus_outline.color),
+            border_width: Some(outline.width),
+            border_color: Some(outline.color),
             clip_rect: None,
         });
     }

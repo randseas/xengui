@@ -106,6 +106,30 @@ pub trait StyleBuilder: Sized {
         self
     }
 
+    fn selection_border_width<M>(mut self, width: impl IntoThemed<Length, M>) -> Self {
+        self.style_mut().selection_border_width = Some(width.resolve_themed());
+
+        self.mark_dirty();
+
+        self
+    }
+
+    fn selection_border_color<M>(mut self, color: impl IntoThemed<Color, M>) -> Self {
+        self.style_mut().selection_border_color = Some(color.resolve_themed());
+
+        self.mark_dirty();
+
+        self
+    }
+
+    fn selection_border_radius<M>(mut self, radius: impl IntoThemed<Length, M>) -> Self {
+        self.style_mut().selection_border_radius = Some(radius.resolve_themed());
+
+        self.mark_dirty();
+
+        self
+    }
+
     fn cursor(mut self, cursor: Cursor) -> Self {
         self.style_mut().cursor = Some(cursor);
 
@@ -196,14 +220,6 @@ pub trait StyleBuilder: Sized {
 
     fn outline<M>(mut self, outline: impl IntoThemed<StyleValue<Outline>, M>) -> Self {
         self.style_mut().outline = outline.resolve_themed();
-
-        self.mark_dirty();
-
-        self
-    }
-
-    fn focus_outline<M>(mut self, focus_outline: impl IntoThemed<StyleValue<Outline>, M>) -> Self {
-        self.style_mut().focus_outline = focus_outline.resolve_themed();
 
         self.mark_dirty();
 

@@ -54,6 +54,7 @@ pub struct Label {
     hover_style: Option<Style>,
     pressed_style: Option<Style>,
     disabled_style: Option<Style>,
+    focus_style: Option<Style>,
 
     interaction: Interaction,
     selectable: bool,
@@ -91,6 +92,7 @@ impl Label {
             hover_style: None,
             pressed_style: None,
             disabled_style: None,
+            focus_style: None,
 
             interaction,
             selectable: false,
@@ -176,6 +178,8 @@ impl Label {
             self.disabled_style.as_ref()
         } else if self.interaction.pressed {
             self.pressed_style.as_ref().or(self.hover_style.as_ref())
+        } else if self.interaction.focused {
+            self.focus_style.as_ref().or(self.hover_style.as_ref())
         } else if self.interaction.hovered {
             self.hover_style.as_ref()
         } else {
@@ -253,7 +257,7 @@ impl StyleBuilder for Label {
     }
 }
 
-crate::impl_themed_style_builders!(Label; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style);
+crate::impl_themed_style_builders!(Label; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style, focus_style => focus_style);
 
 impl Widget for Label {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -404,28 +408,53 @@ impl Widget for Label {
                             style.selection_background.unwrap_or(Color::rgba(90, 140, 230, 100))
                         )
                     ),
-                    border_radius: None,
-                    border_width: None,
-                    border_color: None,
+                    border_radius: style.selection_border_radius,
+                    border_width: style.selection_border_width,
+                    border_color: style.selection_border_color,
                     clip_rect: None,
                 });
                 sel_bounds = Some((text_x + start_x, text_x + end_x));
             }
         }
 
-        ctx.draw_text(TextCommand {
-            text: self.content.clone(),
-            position: (text_x, text_y),
-            style: text_style.clone(),
-            max_width: self.measured_max_width.get(),
-            clip_rect: None,
-        });
+        let (content_w, content_h) = self.content_size.get();
 
-        // Same shaped text drawn a second time, colored for selection and
-        // scissored to the selection rect - avoids reshaping a substring,
-        // which would break kerning and jitter glyphs during a drag.
+        if let Some((sel_left, sel_right)) = sel_bounds {
+            let text_right = text_x + content_w;
+            if sel_left > text_x {
+                ctx.draw_text(TextCommand {
+                    text: self.content.clone(),
+                    position: (text_x, text_y),
+                    style: text_style.clone(),
+                    max_width: self.measured_max_width.get(),
+                    clip_rect: Some((text_x, text_y, sel_left - text_x, content_h.max(1.0))),
+                });
+            }
+            if sel_right < text_right {
+                ctx.draw_text(TextCommand {
+                    text: self.content.clone(),
+                    position: (text_x, text_y),
+                    style: text_style.clone(),
+                    max_width: self.measured_max_width.get(),
+                    clip_rect: Some((
+                        sel_right,
+                        text_y,
+                        text_right - sel_right,
+                        content_h.max(1.0),
+                    )),
+                });
+            }
+        } else {
+            ctx.draw_text(TextCommand {
+                text: self.content.clone(),
+                position: (text_x, text_y),
+                style: text_style.clone(),
+                max_width: self.measured_max_width.get(),
+                clip_rect: None,
+            });
+        }
+
         if let (Some((sel_left, sel_right)), Some(sel_fg)) = (sel_bounds, style.selection_color) {
-            let (_, content_h) = self.content_size.get();
             let mut sel_style = text_style;
             sel_style.color = Some(sel_fg);
             ctx.draw_text(TextCommand {
@@ -561,6 +590,7 @@ impl Widget for Label {
             self.hover_style == other.hover_style &&
             self.pressed_style == other.pressed_style &&
             self.disabled_style == other.disabled_style &&
+            self.focus_style == other.focus_style &&
             self.selectable == other.selectable
     }
 

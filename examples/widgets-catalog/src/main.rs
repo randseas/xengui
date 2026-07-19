@@ -98,7 +98,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .placeholder("textBox1...")
                                 .font_size(14)
                                 .outline(StyleValue::None)
-                                .focus_outline(StyleValue::Default)
                                 .min_width(Length::px(150.0))
                                 .max_width(Length::px(170.0))
                                 .transition_all(

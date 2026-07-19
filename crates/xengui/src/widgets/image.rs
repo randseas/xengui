@@ -97,6 +97,7 @@ pub struct Image {
     hover_style: Option<Style>,
     pressed_style: Option<Style>,
     disabled_style: Option<Style>,
+    focus_style: Option<Style>,
 
     interaction: Interaction,
 
@@ -120,6 +121,7 @@ impl Image {
             hover_style: None,
             pressed_style: None,
             disabled_style: None,
+            focus_style: None,
 
             interaction: Interaction::new(),
 
@@ -218,6 +220,8 @@ impl Image {
             self.disabled_style.as_ref()
         } else if self.interaction.pressed {
             self.pressed_style.as_ref().or(self.hover_style.as_ref())
+        } else if self.interaction.focused {
+            self.focus_style.as_ref().or(self.hover_style.as_ref())
         } else if self.interaction.hovered {
             self.hover_style.as_ref()
         } else {
@@ -292,7 +296,7 @@ impl StyleBuilder for Image {
 }
 
 crate::impl_interaction_builders!(Image);
-crate::impl_themed_style_builders!(Image; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style);
+crate::impl_themed_style_builders!(Image; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style, focus_style => focus_style);
 
 impl Widget for Image {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -417,7 +421,8 @@ impl Widget for Image {
             self.style == other.style &&
             self.hover_style == other.hover_style &&
             self.pressed_style == other.pressed_style &&
-            self.disabled_style == other.disabled_style
+            self.disabled_style == other.disabled_style &&
+            self.focus_style == other.focus_style
     }
 
     fn after_interaction_transfer(&mut self) {

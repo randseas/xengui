@@ -1105,9 +1105,9 @@ impl Widget for TextBox {
                         position: (sel_left, line_y),
                         size: (sel_right - sel_left, line_h),
                         background: Some(Background::Color(sel_bg)),
-                        border_radius: None,
-                        border_width: None,
-                        border_color: None,
+                        border_radius: style.selection_border_radius,
+                        border_width: style.selection_border_width,
+                        border_color: style.selection_border_color,
                         clip_rect: None,
                     });
                     sel_bounds = Some((sel_left, sel_right));
@@ -1127,13 +1127,48 @@ impl Widget for TextBox {
             text_style.color = Some(style.color.unwrap_or(Color::NEUTRAL_400).with_alpha_f32(0.6));
         }
 
-        ctx.draw_text(TextCommand {
-            text: display_text.clone(),
-            position: (text_x, text_y),
-            style: text_style.clone(),
-            max_width: None,
-            clip_rect: text_clip,
-        });
+        // Normal-colored text is skipped under the selection rect instead of
+        // being drawn full-width and overlaid - drawing both would blend two
+        // layers of glyphs on top of each other in the selected range.
+        if let Some((sel_left, sel_right)) = sel_bounds {
+            let content_right = content_left + content_width;
+            if sel_left > content_left {
+                ctx.draw_text(TextCommand {
+                    text: display_text.clone(),
+                    position: (text_x, text_y),
+                    style: text_style.clone(),
+                    max_width: None,
+                    clip_rect: Some((
+                        content_left,
+                        self.layout_box.y,
+                        sel_left - content_left,
+                        self.layout_box.height,
+                    )),
+                });
+            }
+            if sel_right < content_right {
+                ctx.draw_text(TextCommand {
+                    text: display_text.clone(),
+                    position: (text_x, text_y),
+                    style: text_style.clone(),
+                    max_width: None,
+                    clip_rect: Some((
+                        sel_right,
+                        self.layout_box.y,
+                        content_right - sel_right,
+                        self.layout_box.height,
+                    )),
+                });
+            }
+        } else {
+            ctx.draw_text(TextCommand {
+                text: display_text.clone(),
+                position: (text_x, text_y),
+                style: text_style.clone(),
+                max_width: None,
+                clip_rect: text_clip,
+            });
+        }
 
         // Draws the exact same shaped text a second time, colored for selection
         // and scissored to the selection rect - reshaping only the substring

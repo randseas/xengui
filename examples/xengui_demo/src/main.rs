@@ -107,9 +107,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
                 .background(|theme: &Theme| theme.background)
-                .selection_background(|theme: &Theme| theme.selection)
-                .selection_color(|theme: &Theme| theme.selection_color)
-                .caret_color(|theme: &Theme| theme.caret_color)
                 .child(
                     View::new()
                         .flex_direction(FlexDirection::Column)
@@ -119,6 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .justify_content(JustifyContent::Center)
                         .child(
                             Label::new()
+                                .selectable(true)
                                 .label("My XenGui Application")
                                 .margin(Edges::only(0, 0, 0, 8))
                                 .font_size(20)
@@ -126,13 +124,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         )
                         .child(
                             TextBox::new()
-                                .enabled(false)
                                 .value(text.clone())
                                 .color(|theme: &Theme| theme.foreground)
                                 .placeholder("Enter your name...")
                                 .font_size(16)
                                 .outline(StyleValue::None)
-                                .focus_outline(StyleValue::Default)
                                 .width(Length::px(150.0))
                                 .padding(Edges::only(10, 7, 10, 8))
                                 .transition_all(

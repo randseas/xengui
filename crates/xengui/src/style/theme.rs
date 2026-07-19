@@ -31,6 +31,9 @@ pub struct Theme {
 
     pub selection: Color,
     pub selection_color: Color,
+    pub selection_border_color: Color,
+    pub selection_border_width: Length,
+    pub selection_border_radius: Length,
     pub caret_color: Color,
 
     pub radius_xs: Length,
@@ -79,6 +82,9 @@ impl Theme {
 
             selection: Color::BLUE_500.with_alpha(80),
             selection_color: Color::BLUE_200,
+            selection_border_color: Color::TRANSPARENT,
+            selection_border_width: Length::px(0.0),
+            selection_border_radius: Length::px(4.0),
             caret_color: Color::WHITE,
 
             // Border radius
@@ -126,7 +132,10 @@ impl Theme {
 
             .selection(Color::BLUE_500.with_alpha(80))
             .selection_color(Color::BLUE_200)
-            .caret_color(Color::NEUTRAL_900)
+            .caret_color(Color::BLUE_500)
+            .selection_border_color(Color::TRANSPARENT)
+            .selection_border_width(Length::px(0.0))
+            .selection_border_radius(Length::px(4.0))
     }
 
     pub fn dark() -> Self {
@@ -150,7 +159,10 @@ impl Theme {
 
             .selection(Color::BLUE_500.with_alpha(80))
             .selection_color(Color::BLUE_200)
-            .caret_color(Color::NEUTRAL_50)
+            .caret_color(Color::VIOLET_400)
+            .selection_border_color(Color::TRANSPARENT)
+            .selection_border_width(Length::px(0.0))
+            .selection_border_radius(Length::px(4.0))
     }
 
     pub fn auto() -> Self {
@@ -231,6 +243,21 @@ impl Theme {
 
     pub fn caret_color(mut self, color: Color) -> Self {
         self.caret_color = color;
+        self
+    }
+
+    pub fn selection_border_width(mut self, width: Length) -> Self {
+        self.selection_border_width = width;
+        self
+    }
+
+    pub fn selection_border_color(mut self, color: Color) -> Self {
+        self.selection_border_color = color;
+        self
+    }
+
+    pub fn selection_border_radius(mut self, radius: Length) -> Self {
+        self.selection_border_radius = radius;
         self
     }
 

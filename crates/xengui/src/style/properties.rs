@@ -69,6 +69,13 @@ pub struct Style {
     pub selection_background: Option<Color>,
     /// Color of the text caret; inherited like `color`.
     pub caret_color: Option<Color>,
+    /// Border width for the selection highlight rect; inherited like `color`.
+    pub selection_border_width: Option<Length>,
+    /// Border color for the selection highlight rect; inherited like `color`.
+    pub selection_border_color: Option<Color>,
+    /// Border radius for the selection highlight rect; inherited like `color`.
+    pub selection_border_radius: Option<Length>,
+
     pub cursor: Option<Cursor>,
     pub background: Option<Background>,
     pub font: Option<SmolStr>,
@@ -141,6 +148,15 @@ impl Style {
             selection_color: patch.selection_color.or_else(|| self.selection_color),
             selection_background: patch.selection_background.or_else(|| self.selection_background),
             caret_color: patch.caret_color.or_else(|| self.caret_color),
+            selection_border_width: patch.selection_border_width.or_else(
+                || self.selection_border_width
+            ),
+            selection_border_color: patch.selection_border_color.or_else(
+                || self.selection_border_color
+            ),
+            selection_border_radius: patch.selection_border_radius.or_else(
+                || self.selection_border_radius
+            ),
             cursor: patch.cursor.or_else(|| self.cursor),
             background: patch.background.clone().or_else(|| self.background.clone()),
             font: patch.font.clone().or_else(|| self.font.clone()),
@@ -231,6 +247,9 @@ impl Style {
             selection_color: patch.selection_color.or(self.selection_color),
             selection_background: patch.selection_background.or(self.selection_background),
             caret_color: patch.caret_color.or(self.caret_color),
+            selection_border_width: patch.selection_border_width.or(self.selection_border_width),
+            selection_border_color: patch.selection_border_color.or(self.selection_border_color),
+            selection_border_radius: patch.selection_border_radius.or(self.selection_border_radius),
             font: patch.font.clone().or_else(|| self.font.clone()),
             font_size: patch.font_size.or(self.font_size),
             font_weight: patch.font_weight.or(self.font_weight),
@@ -242,7 +261,6 @@ impl Style {
 
             // outline inherits in CSS
             outline: patch.outline.overlay(&self.outline),
-            focus_outline: patch.focus_outline.overlay(&self.focus_outline),
 
             // scrollbar colors may reasonably inherit in XenGui
             scrollbar: match (&self.scrollbar, &patch.scrollbar) {
