@@ -36,6 +36,9 @@ use winit::{
     window::{ Window, WindowAttributes, WindowId },
 };
 
+const TOUCH_LONG_PRESS_DURATION: std::time::Duration = std::time::Duration::from_millis(350);
+const TOUCH_LONG_PRESS_MOVE_TOLERANCE: f32 = 4.0;
+
 pub enum WindowPosition {
     Center,
     Default,
@@ -145,6 +148,7 @@ pub struct App {
     next_animation: Option<Instant>,
     reconcile_work: Option<crate::reconciler::WorkLoop>,
     clipboard: xen_clipboard::Clipboard,
+    pending_long_press: Option<(Instant, (f32, f32), String)>,
 
     #[cfg(target_arch = "wasm32")]
     pub event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
@@ -167,6 +171,7 @@ impl App {
             next_animation: None,
             reconcile_work: None,
             clipboard: xen_clipboard::Clipboard::new(),
+            pending_long_press: None,
 
             #[cfg(target_arch = "wasm32")]
             event_proxy: None,
@@ -932,6 +937,15 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if let Some((deadline, point, path)) = self.pending_long_press.clone() {
+            if Instant::now() >= deadline {
+                self.pending_long_press = None;
+                self.trigger_long_press_select(&path, point);
+            } else {
+                event_loop.set_control_flow(ControlFlow::Poll);
+            }
+        }
+
         if self.reconcile_work.is_some() {
             let still_pending = self.pump_reconciliation();
             if still_pending {
@@ -1081,6 +1095,27 @@ impl App {
         }
     }
 
+    // Simulates a same-spot double tap so the target widget's own
+    // multi-click word-selection logic (already used for mouse) takes over.
+    fn trigger_long_press_select(&mut self, path: &str, point: (f32, f32)) {
+        use winit::event::{ ElementState, MouseButton };
+
+        for state in [ElementState::Pressed, ElementState::Released] {
+            let mut ctx = EventCtx::new();
+            dispatch_positional(
+                &mut self.root,
+                path,
+                &(InputEvent::MouseInput { state, button: MouseButton::Left, position: point }),
+                &mut ctx
+            );
+            self.apply_event_ctx(ctx);
+        }
+
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
     // Maps a touch point onto the existing mouse-event pipeline so widgets
     // don't need any touch-specific handling: Started acts like hover-in +
     // press, Moved updates position, Ended acts like release + hover-out,
@@ -1092,6 +1127,7 @@ impl App {
 
         match touch.phase {
             TouchPhase::Started => {
+                crate::clear_text_selection_recursive(&mut self.root);
                 self.input.cursor_pos = Some(point);
                 let path = hit_test_path(&self.root, point);
 
@@ -1142,6 +1178,13 @@ impl App {
                     );
                     self.apply_event_ctx(ctx);
                 }
+
+                self.input.text_drag_anchor = Some(point);
+                self.pending_long_press = path.map(|p| (
+                    Instant::now() + TOUCH_LONG_PRESS_DURATION,
+                    point,
+                    p,
+                ));
             }
 
             TouchPhase::Moved => {
@@ -1155,6 +1198,17 @@ impl App {
                         &mut ctx
                     );
                     self.apply_event_ctx(ctx);
+                }
+
+                if let Some(anchor) = self.input.text_drag_anchor {
+                    crate::update_global_text_selection(&mut self.root, anchor, point);
+                }
+
+                if let Some((_, start_point, _)) = self.pending_long_press {
+                    let moved = (point.0 - start_point.0).abs() + (point.1 - start_point.1).abs();
+                    if moved > TOUCH_LONG_PRESS_MOVE_TOLERANCE {
+                        self.pending_long_press = None;
+                    }
                 }
             }
 
@@ -1182,6 +1236,8 @@ impl App {
 
                 self.input.pressed_path = None;
                 self.input.cursor_pos = None;
+                self.input.text_drag_anchor = None;
+                self.pending_long_press = None;
             }
 
             TouchPhase::Cancelled => {
@@ -1192,6 +1248,8 @@ impl App {
                 }
                 self.input.pressed_path = None;
                 self.input.cursor_pos = None;
+                self.input.text_drag_anchor = None;
+                self.pending_long_press = None;
             }
         }
     }
