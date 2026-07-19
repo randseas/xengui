@@ -37,7 +37,7 @@ use winit::{
 };
 
 const TOUCH_LONG_PRESS_DURATION: std::time::Duration = std::time::Duration::from_millis(350);
-const TOUCH_LONG_PRESS_MOVE_TOLERANCE: f32 = 4.0;
+const TOUCH_LONG_PRESS_MOVE_TOLERANCE: f32 = 12.0;
 
 pub enum WindowPosition {
     Center,
@@ -681,6 +681,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
 
                 if let Some(anchor) = self.input.text_drag_anchor {
                     crate::update_global_text_selection(&mut self.root, anchor, point);
+                    // Label/Link selection is driven outside the widget event
+                    // system, so it needs an explicit redraw request here.
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }

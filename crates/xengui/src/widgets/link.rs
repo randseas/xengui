@@ -35,7 +35,7 @@ use winit::{ event::{ ElementState, MouseButton }, window::CursorIcon };
 use web_time::Instant;
 
 const MULTI_CLICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
-const MULTI_CLICK_DISTANCE: f32 = 4.0;
+const MULTI_CLICK_DISTANCE: f32 = 16.0;
 
 pub struct Link {
     key: Option<SmolStr>,

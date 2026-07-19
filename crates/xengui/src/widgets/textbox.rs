@@ -40,7 +40,7 @@ use xen_clipboard::Clipboard;
 // A second click within this time window counts as a double/triple click.
 const MULTI_CLICK_INTERVAL: Duration = Duration::from_millis(400);
 // A second click further than this from the first one starts a new click sequence.
-const MULTI_CLICK_DISTANCE: f32 = 4.0;
+const MULTI_CLICK_DISTANCE: f32 = 16.0;
 
 pub struct TextBox {
     key: Option<SmolStr>,
