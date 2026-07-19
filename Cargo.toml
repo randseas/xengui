@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/xengui", "crates/xen-clipboard", "crates/xen-animation", "examples/*"]
+members = ["crates/*", "examples/*"]
 
 [workspace.package]
 edition = "2024"

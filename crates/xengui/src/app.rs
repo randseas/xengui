@@ -856,16 +856,18 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     }
                 }
 
-                // Deselect selection when pressed esc
+                // Directional focus navigation, only when the focused widget
+                // itself didn't consume the arrow key (e.g. TextBox uses
+                // arrows for caret movement instead).
                 if
-                    keyboard_event.key == Key::Escape &&
+                    status == crate::EventStatus::Ignored &&
                     keyboard_event.state == KeyState::Pressed &&
                     !keyboard_event.repeat
                 {
-                    crate::clear_text_selection_recursive(&mut self.root);
-                    self.input.text_drag_anchor = None;
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
+                    match keyboard_event.key {
+                        Key::ArrowDown | Key::ArrowRight => self.advance_focus(false),
+                        Key::ArrowUp | Key::ArrowLeft => self.advance_focus(true),
+                        _ => {}
                     }
                 }
             }
@@ -911,6 +913,16 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     );
                     self.apply_event_ctx(ctx);
                 }
+
+                // Losing window focus never delivers a real MouseExited either,
+                // so the hovered widget would otherwise stay stuck in its
+                // hover-styled state until the next CursorMoved.
+                if let Some(path) = self.input.hovered_path.take() {
+                    let mut ctx = EventCtx::new();
+                    dispatch_to_path(&mut self.root, &path, &InputEvent::MouseExited, &mut ctx);
+                    self.apply_event_ctx(ctx);
+                }
+                self.input.cursor_pos = None;
             }
             _ => (),
         }

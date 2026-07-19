@@ -9,6 +9,7 @@ use crate::{
     TextCommand,
     TextDecoration,
     TextMeasurer,
+    properties::DEFAULT_FONT_SIZE,
 };
 use glyphon::{
     Attrs,
@@ -332,7 +333,7 @@ impl TextPipeline {
         let scale = Self::snap(
             command.style.font_size
                 .map(|s| s.to_physical(scale_factor))
-                .unwrap_or(20.0 * scale_factor)
+                .unwrap_or(DEFAULT_FONT_SIZE.to_physical(scale_factor))
         );
 
         let weight = command.style.font_weight.unwrap_or_default();

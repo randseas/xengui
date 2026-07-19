@@ -1,3 +1,4 @@
+use crate::properties::DEFAULT_FONT_SIZE;
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     AnimationManager,
@@ -233,7 +234,7 @@ impl TextBox {
         let patch = if !self.interaction.enabled {
             self.disabled_style.as_ref()
         } else if self.interaction.focused {
-            self.focus_style.as_ref().or(self.hover_style.as_ref())
+            self.focus_style.as_ref()
         } else if self.interaction.hovered {
             self.hover_style.as_ref()
         } else {
@@ -934,7 +935,7 @@ impl Widget for TextBox {
 
         let font_size = style.font_size
             .map(|s| s.to_physical(scale_factor))
-            .unwrap_or(20.0 * scale_factor);
+            .unwrap_or(DEFAULT_FONT_SIZE.to_physical(scale_factor));
 
         let letter_spacing = style.letter_spacing
             .map(|ls| ls.value().to_physical(scale_factor))
@@ -1076,7 +1077,7 @@ impl Widget for TextBox {
         let line_h = if content_h > 0.0 {
             content_h
         } else {
-            style.font_size.map(|s| s.value()).unwrap_or(20.0) * 1.25
+            style.font_size.map(|s| s.value()).unwrap_or(DEFAULT_FONT_SIZE.value()) * 1.25
         };
         let line_y = (self.layout_box.y + (self.layout_box.height - line_h).max(0.0) * 0.5).round();
 

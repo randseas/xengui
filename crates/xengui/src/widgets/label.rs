@@ -179,7 +179,7 @@ impl Label {
         } else if self.interaction.pressed {
             self.pressed_style.as_ref().or(self.hover_style.as_ref())
         } else if self.interaction.focused {
-            self.focus_style.as_ref().or(self.hover_style.as_ref())
+            self.focus_style.as_ref()
         } else if self.interaction.hovered {
             self.hover_style.as_ref()
         } else {

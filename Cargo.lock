@@ -3179,7 +3179,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "xengui_demo"
+name = "xengui-demo"
 version = "0.1.1"
 dependencies = [
  "console_error_panic_hook",
@@ -3189,6 +3189,10 @@ dependencies = [
  "xen-clipboard",
  "xengui",
 ]
+
+[[package]]
+name = "xengui-icons"
+version = "0.1.0"
 
 [[package]]
 name = "xkbcommon-dl"

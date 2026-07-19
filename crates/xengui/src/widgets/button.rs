@@ -20,7 +20,7 @@ use crate::{
     Widget,
     WidgetContent,
     WidgetId,
-    properties::{ DEFAULT_CURSOR_ICON, DEFAULT_POINTER_CURSOR_ICON },
+    properties::{ DEFAULT_CURSOR_ICON, DEFAULT_FONT_SIZE, DEFAULT_POINTER_CURSOR_ICON },
 };
 use smol_str::SmolStr;
 use std::cell::Cell;
@@ -177,7 +177,7 @@ impl Button {
         } else if self.interaction.pressed {
             self.pressed_style.as_ref().or(self.hover_style.as_ref())
         } else if self.interaction.focused {
-            self.focus_style.as_ref().or(self.hover_style.as_ref())
+            self.focus_style.as_ref()
         } else if self.interaction.hovered {
             self.hover_style.as_ref()
         } else {
@@ -294,7 +294,7 @@ impl Widget for Button {
 
         let font_size = style.font_size
             .map(|s| s.to_physical(scale_factor))
-            .unwrap_or(20.0 * scale_factor);
+            .unwrap_or(DEFAULT_FONT_SIZE.to_physical(scale_factor));
 
         let letter_spacing = style.letter_spacing
             .map(|ls| ls.value().to_physical(scale_factor))
@@ -380,7 +380,9 @@ impl Widget for Button {
         );
 
         let mut text_style = style.clone();
-        let base_font_size = text_style.font_size.map(|f| f.value()).unwrap_or(20.0);
+        let base_font_size = text_style.font_size
+            .map(|f| f.value())
+            .unwrap_or(DEFAULT_FONT_SIZE.value());
         text_style.font_size = Some(Length::px(base_font_size * content_scale));
 
         ctx.draw_text(TextCommand {
