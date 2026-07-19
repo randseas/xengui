@@ -862,7 +862,10 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 if
                     status == crate::EventStatus::Ignored &&
                     keyboard_event.state == KeyState::Pressed &&
-                    !keyboard_event.repeat
+                    !keyboard_event.repeat &&
+                    !self.input.modifiers.ctrl &&
+                    !self.input.modifiers.super_key &&
+                    !self.input.modifiers.alt
                 {
                     match keyboard_event.key {
                         Key::ArrowDown | Key::ArrowRight => self.advance_focus(false),
