@@ -33,7 +33,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         position: xengui::WindowPosition::Center,
 
         themes: vec![
-            Theme::new("pearl")
+            Theme::new("pearl_light")
+                .mode(ThemeMode::Light)
+                .primary(Color::VIOLET_500)
+                .accent(Color::VIOLET_400)
+
+                .background(Color::NEUTRAL_50)
+                .surface(Color::NEUTRAL_200)
+
+                .foreground(Color::NEUTRAL_800)
+                .foreground_muted(Color::NEUTRAL_400)
+
+                .border(Color::NEUTRAL_800)
+                .border_hover(Color::NEUTRAL_700)
+
+                .hover(Color::NEUTRAL_800)
+                .pressed(Color::NEUTRAL_700)
+                .disabled(Color::NEUTRAL_600)
+
+                .selection(Color::VIOLET_500.with_alpha(80))
+                .selection_color(Color::VIOLET_800)
+                .caret_color(Color::VIOLET_500),
+
+            Theme::new("pearl_dark")
                 .mode(ThemeMode::Dark)
                 .primary(Color::VIOLET_500)
                 .accent(Color::VIOLET_400)
@@ -55,8 +77,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .selection_color(Color::VIOLET_200)
                 .caret_color(Color::VIOLET_500)
         ],
-        active_theme: 0,
-
         ..Default::default()
     };
 
@@ -90,7 +110,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .selection_background(|theme: &Theme| theme.selection)
                 .selection_color(|theme: &Theme| theme.selection_color)
                 .caret_color(|theme: &Theme| theme.caret_color)
-                .padding(Edges::all(15))
                 .child(
                     View::new()
                         .flex_direction(FlexDirection::Column)
@@ -107,6 +126,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         )
                         .child(
                             TextBox::new()
+                                .enabled(false)
                                 .value(text.clone())
                                 .color(|theme: &Theme| theme.foreground)
                                 .placeholder("Enter your name...")
