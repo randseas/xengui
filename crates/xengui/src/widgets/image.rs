@@ -1,24 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    AnimationManager,
-    Background,
-    Color,
-    Constraints,
-    EventCtx,
-    EventStatus,
-    ImageCommand,
-    ImageData,
-    InputEvent,
-    Interaction,
-    IntoThemed,
-    LayoutBox,
-    MeasureContext,
-    MeasureResult,
-    PaintContext,
-    Style,
-    StyleBuilder,
-    Widget,
-    WidgetId,
+    AnimationManager, Background, Color, Constraints, EventCtx, EventStatus, ImageCommand, ImageData, InputEvent, Interaction, IntoThemed, LayoutBox, Length, MeasureContext, MeasureResult, PaintContext, Style, StyleBuilder, Widget, WidgetId,
 };
 use smol_str::SmolStr;
 use std::hash::{ Hash, Hasher };
@@ -378,12 +360,13 @@ impl Widget for Image {
 
         let (position, size) = self.fitted_rect();
         let border = self.computed_style.border.as_ref();
+        let sf = ctx.scale_factor;
 
         ctx.draw_image(ImageCommand {
             position,
             size,
             image: source,
-            border_radius: border.map(|b| b.radius),
+            border_radius: border.map(|b| Length::px(b.radius.to_physical(sf))),
             tint: self.tint,
             clip_rect: None,
         });

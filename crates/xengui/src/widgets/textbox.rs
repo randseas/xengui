@@ -1,4 +1,4 @@
-use crate::properties::{DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT_RATIO};
+use crate::properties::{ DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT_RATIO };
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     AnimationManager,
@@ -111,6 +111,7 @@ pub struct TextBox {
     // Horizontal pixel offset applied when the intrinsic text width exceeds
     // the visible content area, so the caret always stays on-screen.
     scroll_offset: Cell<f32>,
+    scale_factor: Cell<f32>,
 }
 
 impl TextBox {
@@ -169,6 +170,7 @@ impl TextBox {
             char_offsets: RefCell::new(Vec::new()),
             caret_visible: Cell::new(true),
             scroll_offset: Cell::new(0.0),
+            scale_factor: Cell::new(1.0),
         }
     }
 
@@ -767,7 +769,9 @@ impl TextBox {
     }
 
     fn handle_mouse_press(&mut self, position: (f32, f32)) {
-        let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
+        let padding_left = self.computed_style.padding
+            .unwrap_or_default()
+            .left.to_physical(self.scale_factor.get());
         let local_x = position.0 - self.layout_box.x - padding_left + self.scroll_offset.get();
         let click_index = self.index_for_offset(local_x);
 
@@ -827,7 +831,9 @@ impl TextBox {
     }
 
     fn handle_mouse_drag(&mut self, position: (f32, f32)) {
-        let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
+        let padding_left = self.computed_style.padding
+            .unwrap_or_default()
+            .left.to_physical(self.scale_factor.get());
         let local_x = position.0 - self.layout_box.x - padding_left + self.scroll_offset.get();
         let idx = self.index_for_offset(local_x);
 
@@ -931,6 +937,7 @@ impl Widget for TextBox {
 
     fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {
         let scale_factor = ctx.scale_factor;
+        self.scale_factor.set(scale_factor);
         let style = &self.computed_style;
 
         let font_size = style.font_size
@@ -1007,11 +1014,14 @@ impl Widget for TextBox {
         *self.char_offsets.borrow_mut() = offsets;
 
         let padding = &style.padding.unwrap_or_default();
-
-        let width = text_w + padding.left.value() + padding.right.value();
-
-        let height = result.height + padding.top.value() + padding.bottom.value();
-
+        let width =
+            text_w +
+            padding.left.to_physical(scale_factor) +
+            padding.right.to_physical(scale_factor);
+        let height =
+            result.height +
+            padding.top.to_physical(scale_factor) +
+            padding.bottom.to_physical(scale_factor);
         let (width, height) = constraints.constrain_size(width, height);
 
         MeasureResult::new(width, height)
@@ -1040,13 +1050,14 @@ impl Widget for TextBox {
         self.paint_outline(ctx);
 
         let padding = style.padding.unwrap_or_default();
+        let sf = ctx.scale_factor;
         let (_, content_h) = self.content_size.get();
 
-        let content_left = self.layout_box.x + padding.left.value();
+        let content_left = self.layout_box.x + padding.left.to_physical(sf);
         let content_width = (
             self.layout_box.width -
-            padding.left.value() -
-            padding.right.value()
+            padding.left.to_physical(sf) -
+            padding.right.to_physical(sf)
         ).max(0.0);
 
         // Scrolls only as far as needed to keep the caret inside the visible
@@ -1068,10 +1079,13 @@ impl Widget for TextBox {
         let text_x = content_left - scroll;
         let text_y =
             self.layout_box.y +
-            padding.top.value() +
-            (self.layout_box.height - padding.top.value() - padding.bottom.value() - content_h).max(
-                0.0
-            ) *
+            padding.top.to_physical(sf) +
+            (
+                self.layout_box.height -
+                padding.top.to_physical(sf) -
+                padding.bottom.to_physical(sf) -
+                content_h
+            ).max(0.0) *
                 0.5;
 
         let line_h = if content_h > 0.0 {
@@ -1359,6 +1373,7 @@ impl Widget for TextBox {
             self.cursor_offset.set(old.cursor_offset.get());
             self.char_offsets.replace(old.char_offsets.borrow().clone());
             self.scroll_offset.set(old.scroll_offset.get());
+            self.scale_factor.set(old.scale_factor.get());
             self.anim_id = old.anim_id;
         }
     }

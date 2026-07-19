@@ -72,6 +72,7 @@ pub struct Label {
     click_count: Cell<u8>,
     last_click_time: Cell<Option<Instant>>,
     last_click_pos: Cell<(f32, f32)>,
+    scale_factor: Cell<f32>,
 }
 
 impl Label {
@@ -110,6 +111,7 @@ impl Label {
             click_count: Cell::new(0),
             last_click_time: Cell::new(None),
             last_click_pos: Cell::new((0.0, 0.0)),
+            scale_factor: Cell::new(1.0),
         };
 
         label.recompute_style();
@@ -318,6 +320,7 @@ impl Widget for Label {
 
     fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {
         let scale_factor = ctx.scale_factor;
+        self.scale_factor.set(scale_factor);
         let style = &self.computed_style;
 
         let font_size = style.font_size
@@ -360,8 +363,14 @@ impl Widget for Label {
         }
 
         let padding = style.padding.unwrap_or_default();
-        let width = result.width + padding.left.value() + padding.right.value();
-        let height = result.height + padding.top.value() + padding.bottom.value();
+        let width =
+            result.width +
+            padding.left.to_physical(scale_factor) +
+            padding.right.to_physical(scale_factor);
+        let height =
+            result.height +
+            padding.top.to_physical(scale_factor) +
+            padding.bottom.to_physical(scale_factor);
         let (width, height) = constraints.constrain_size(width, height);
 
         MeasureResult {
@@ -386,9 +395,10 @@ impl Widget for Label {
         self.paint_outline(ctx);
 
         let padding = style.padding.unwrap_or_default();
+        let sf = ctx.scale_factor;
 
-        let text_x = self.layout_box.x + padding.left.value();
-        let text_y = self.layout_box.y + padding.top.value();
+        let text_x = self.layout_box.x + padding.left.to_physical(sf);
+        let text_y = self.layout_box.y + padding.top.to_physical(sf);
 
         let mut text_style = style.clone();
         text_style.font_size.get_or_insert(DEFAULT_FONT_SIZE);
@@ -472,7 +482,9 @@ impl Widget for Label {
             self.selectable &&
             let InputEvent::MouseInput { state, button: MouseButton::Left, position } = event
         {
-            let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
+            let padding_left = self.computed_style.padding
+                .unwrap_or_default()
+                .left.to_physical(self.scale_factor.get());
             let local_x = position.0 - self.layout_box.x - padding_left;
             let idx = self.index_for_offset(local_x);
 
@@ -566,7 +578,9 @@ impl Widget for Label {
     }
 
     fn text_index_at(&self, point: (f32, f32)) -> usize {
-        let padding_left = self.computed_style.padding.unwrap_or_default().left.value();
+        let padding_left = self.computed_style.padding
+            .unwrap_or_default()
+            .left.to_physical(self.scale_factor.get());
         let local_x = point.0 - self.layout_box.x - padding_left;
         self.index_for_offset(local_x)
     }
@@ -616,6 +630,7 @@ impl Widget for Label {
             self.click_count.set(old.click_count.get());
             self.last_click_time.set(old.last_click_time.get());
             self.last_click_pos.set(old.last_click_pos.get());
+            self.scale_factor.set(old.scale_factor.get());
             self.anim_id = old.anim_id;
         }
     }

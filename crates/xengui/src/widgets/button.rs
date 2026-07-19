@@ -319,8 +319,14 @@ impl Widget for Button {
 
         let padding = style.padding.unwrap_or_default();
 
-        let width = result.width + padding.left.value() + padding.right.value();
-        let height = result.height + padding.top.value() + padding.bottom.value();
+        let width =
+            result.width +
+            padding.left.to_physical(scale_factor) +
+            padding.right.to_physical(scale_factor);
+        let height =
+            result.height +
+            padding.top.to_physical(scale_factor) +
+            padding.bottom.to_physical(scale_factor);
         let (width, height) = constraints.constrain_size(width, height);
 
         MeasureResult::new(width, height)
@@ -336,6 +342,7 @@ impl Widget for Button {
         );
 
         let style = &self.computed_style;
+        let sf = ctx.scale_factor;
 
         // Background is painted through its own scaled rect instead of
         // paint_box(), so a scale transition applies independently of
@@ -349,9 +356,9 @@ impl Widget for Button {
                 position: (background_box.x, background_box.y),
                 size: (background_box.width, background_box.height),
                 background: style.background.clone(),
-                border_radius: border.map(|b| b.radius),
+                border_radius: border.map(|b| Length::px(b.radius.to_physical(sf))),
                 border_color: border.map(|b| b.color),
-                border_width: border.map(|b| b.width),
+                border_width: border.map(|b| Length::px(b.width.to_physical(sf))),
                 clip_rect: None,
             });
         }
@@ -360,18 +367,20 @@ impl Widget for Button {
 
         let (content_w, content_h) = self.content_size.get();
         let padding = style.padding.unwrap_or_default();
-        let available_w = self.layout_box.width - padding.left.value() - padding.right.value();
+        let (pad_l, pad_r, pad_t, pad_b) = (
+            padding.left.to_physical(sf),
+            padding.right.to_physical(sf),
+            padding.top.to_physical(sf),
+            padding.bottom.to_physical(sf),
+        );
+        let available_w = self.layout_box.width - pad_l - pad_r;
         let draw_max_width = available_w.max(content_w);
 
-        let text_x =
-            self.layout_box.x + padding.left.value() + (available_w - content_w).max(0.0) * 0.5;
+        let text_x = self.layout_box.x + pad_l + (available_w - content_w).max(0.0) * 0.5;
         let text_y =
             self.layout_box.y +
-            padding.top.value() +
-            (self.layout_box.height - padding.top.value() - padding.bottom.value() - content_h).max(
-                0.0
-            ) *
-                0.5;
+            pad_t +
+            (self.layout_box.height - pad_t - pad_b - content_h).max(0.0) * 0.5;
 
         let content_scale = style.content_scale.unwrap_or(scale);
         let content_box = crate::scaled_layout_box(

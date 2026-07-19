@@ -176,7 +176,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         .border(|theme: &Theme|
                                             Border::new(1, theme.border, Length::px(8.0))
                                         )
-                                        .padding(Edges::only(9, 4, 9, 7))
+                                        .padding(Edges::only(8, 5, 8, 5))
                                         .margin(Edges::only(0, 10, 0, 0))
                                         .transition_all(
                                             Transition::new(Duration::from_millis(200)).easing(
@@ -214,7 +214,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         .border(|theme: &Theme|
                                             Border::new(1, theme.border, Length::px(8.0))
                                         )
-                                        .padding(Edges::only(9, 4, 9, 7))
+                                        .padding(Edges::only(8, 5, 8, 5))
                                         .margin(Edges::only(0, 10, 0, 0))
                                         .transition_all(
                                             Transition::new(Duration::from_millis(200)).easing(

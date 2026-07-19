@@ -252,6 +252,7 @@ impl XenRenderer {
             let mut focus_commands: Vec<RectCommand> = Vec::new();
             let mut live_keys: HashSet<String> = HashSet::new();
 
+            let scale_factor = self.window.scale_factor() as f32;
             for (i, node) in tree.iter().enumerate() {
                 let segment = crate::path_segment(node.as_ref(), i);
                 paint_recursive(
@@ -261,7 +262,8 @@ impl XenRenderer {
                     &mut commands,
                     &mut focus_commands,
                     &mut live_keys,
-                    None
+                    None,
+                    scale_factor
                 );
             }
             self.render_cache.retain_keys(&live_keys);
@@ -483,6 +485,7 @@ impl XenRenderer {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn paint_recursive(
     widget: &dyn Widget,
     path: &str,
@@ -490,7 +493,8 @@ fn paint_recursive(
     commands: &mut Vec<(i32, DrawCommand)>,
     focus_commands: &mut Vec<RectCommand>,
     live_keys: &mut HashSet<String>,
-    clip_rect: Option<(f32, f32, f32, f32)>
+    clip_rect: Option<(f32, f32, f32, f32)>,
+    scale_factor: f32
 ) {
     let layout_box = *widget.layout_box();
 
@@ -514,7 +518,7 @@ fn paint_recursive(
         None => {
             let mut local = Vec::new();
             {
-                let mut paint_ctx = PaintContext::new(&mut local);
+                let mut paint_ctx = PaintContext::new(&mut local, scale_factor);
                 widget.paint(&mut paint_ctx);
             }
             cache.store(path, layout_box, local.clone());
@@ -541,7 +545,8 @@ fn paint_recursive(
             commands,
             focus_commands,
             live_keys,
-            child_clip
+            child_clip,
+            scale_factor
         );
     }
 
@@ -550,7 +555,7 @@ fn paint_recursive(
     // depends on live interaction state.
     let mut overlay = Vec::new();
     {
-        let mut paint_ctx = PaintContext::new(&mut overlay);
+        let mut paint_ctx = PaintContext::new(&mut overlay, scale_factor);
         widget.paint_overlay(&mut paint_ctx);
     }
     for mut command in overlay {
@@ -563,7 +568,7 @@ fn paint_recursive(
     // tree position; never cached since it depends on live focus state.
     let mut focus_local = Vec::new();
     {
-        let mut paint_ctx = PaintContext::new(&mut focus_local);
+        let mut paint_ctx = PaintContext::new(&mut focus_local, scale_factor);
         widget.paint_focus(&mut paint_ctx);
     }
     for mut command in focus_local {

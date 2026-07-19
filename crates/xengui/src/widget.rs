@@ -92,14 +92,15 @@ pub trait Widget: Any {
         }
 
         let border = style.border.as_ref();
+        let sf = ctx.scale_factor;
 
         ctx.draw_rect(RectCommand {
             position: (self.layout_box().x, self.layout_box().y),
             size: (self.layout_box().width, self.layout_box().height),
             background: style.background.clone(),
-            border_radius: border.map(|b| b.radius),
+            border_radius: border.map(|b| Length::px(b.radius.to_physical(sf))),
             border_color: border.map(|b| b.color),
-            border_width: border.map(|b| b.width),
+            border_width: border.map(|b| Length::px(b.width.to_physical(sf))),
             clip_rect: None,
         });
     }
@@ -123,9 +124,12 @@ pub trait Widget: Any {
             }
         };
 
+        let sf = ctx.scale_factor;
         let layout = self.layout_box();
-        let offset = outline.offset.value();
-        let radius = outline.radius.or_else(|| { style.border.as_ref().map(|b| b.radius) });
+        let offset = outline.offset.to_physical(sf);
+        let radius = outline.radius
+            .or_else(|| { style.border.as_ref().map(|b| b.radius) })
+            .map(|r| Length::px(r.to_physical(sf)));
 
         ctx.draw_rect(RectCommand {
             position: (layout.x - offset, layout.y - offset),
@@ -133,7 +137,7 @@ pub trait Widget: Any {
             background: None,
             border_radius: radius,
             border_color: Some(outline.color),
-            border_width: Some(outline.width),
+            border_width: Some(Length::px(outline.width.to_physical(sf))),
             clip_rect: None,
         });
     }
@@ -164,15 +168,18 @@ pub trait Widget: Any {
                 },
         };
 
-        let offset = outline.offset.value();
-        let radius = outline.radius.or_else(|| { style.border.as_ref().map(|b| b.radius) });
+        let sf = ctx.scale_factor;
+        let offset = outline.offset.to_physical(sf);
+        let radius = outline.radius
+            .or_else(|| { style.border.as_ref().map(|b| b.radius) })
+            .map(|r| Length::px(r.to_physical(sf)));
 
         ctx.draw_rect(RectCommand {
             position: (layout.x - offset, layout.y - offset),
             size: (layout.width + offset * 2.0, layout.height + offset * 2.0),
             background: None,
             border_radius: radius,
-            border_width: Some(outline.width),
+            border_width: Some(Length::px(outline.width.to_physical(sf))),
             border_color: Some(outline.color),
             clip_rect: None,
         });
