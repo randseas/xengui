@@ -1,5 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-use super::{ PathCommand, SvgAttributes, SvgColor, SvgDocument, SvgElement, parse_transform };
+use super::{
+    PathCommand,
+    SvgAttributes,
+    SvgColor,
+    SvgDocument,
+    SvgElement,
+    Transform2D,
+    parse_transform,
+};
 use crate::Color;
 use std::collections::HashMap;
 
@@ -20,8 +28,10 @@ pub fn parse_svg(input: &str) -> Result<SvgDocument, String> {
         .and_then(|v| parse_view_box(v))
         .unwrap_or((0.0, 0.0, 24.0, 24.0));
 
+    let root_attrs = build_attrs(&tags[root].attrs, &SvgAttributes::default());
+
     let mut cursor = root + 1;
-    let elements = parse_children(&tags, &mut cursor, "svg");
+    let elements = parse_children(&tags, &mut cursor, "svg", &root_attrs);
 
     Ok(SvgDocument { view_box, elements })
 }
@@ -154,28 +164,27 @@ fn parse_attrs(input: &str) -> HashMap<String, String> {
             while matches!(chars.peek(), Some((_, c)) if c.is_whitespace()) {
                 chars.next();
             }
-            if let Some(&(_, quote)) = chars.peek()
-                && (quote == '"' || quote == '\'') {
-                    chars.next();
-                    let value_start = chars
-                        .peek()
-                        .map(|&(idx, _)| idx)
-                        .unwrap_or(input.len());
-                    let mut value_end = value_start;
-                    while let Some(&(idx, c)) = chars.peek() {
-                        if c == quote {
-                            value_end = idx;
-                            chars.next();
-                            break;
-                        }
-                        value_end = idx + c.len_utf8();
+            if let Some(&(_, quote)) = chars.peek() && (quote == '"' || quote == '\'') {
+                chars.next();
+                let value_start = chars
+                    .peek()
+                    .map(|&(idx, _)| idx)
+                    .unwrap_or(input.len());
+                let mut value_end = value_start;
+                while let Some(&(idx, c)) = chars.peek() {
+                    if c == quote {
+                        value_end = idx;
                         chars.next();
+                        break;
                     }
-                    if !key.is_empty() {
-                        attrs.insert(key, input[value_start..value_end].to_string());
-                    }
-                    continue;
+                    value_end = idx + c.len_utf8();
+                    chars.next();
                 }
+                if !key.is_empty() {
+                    attrs.insert(key, input[value_start..value_end].to_string());
+                }
+                continue;
+            }
         }
 
         if !key.is_empty() {
@@ -189,7 +198,12 @@ fn parse_attrs(input: &str) -> HashMap<String, String> {
 // Consumes tags from `cursor` until the closing tag for `parent_name`,
 // recursing into `<g>` groups and turning every recognized element into
 // an `SvgElement`. Unknown/text elements are skipped but stay balanced.
-fn parse_children(tags: &[Tag], cursor: &mut usize, parent_name: &str) -> Vec<SvgElement> {
+fn parse_children(
+    tags: &[Tag],
+    cursor: &mut usize,
+    parent_name: &str,
+    parent_attrs: &SvgAttributes
+) -> Vec<SvgElement> {
     let mut elements = Vec::new();
 
     while *cursor < tags.len() {
@@ -203,7 +217,7 @@ fn parse_children(tags: &[Tag], cursor: &mut usize, parent_name: &str) -> Vec<Sv
                 return elements;
             }
             TagKind::SelfClose => {
-                if let Some(element) = build_element(tag) {
+                if let Some(element) = build_element(tag, parent_attrs) {
                     elements.push(element);
                 }
                 *cursor += 1;
@@ -211,15 +225,20 @@ fn parse_children(tags: &[Tag], cursor: &mut usize, parent_name: &str) -> Vec<Sv
             TagKind::Open => {
                 let name = tag.name.clone();
                 let attrs_source = tag.attrs.clone();
-                *cursor += 1;
 
                 if name == "g" {
-                    let children = parse_children(tags, cursor, "g");
+                    let group_attrs = build_attrs(&attrs_source, parent_attrs);
+                    *cursor += 1;
+                    let children = parse_children(tags, cursor, "g", &group_attrs);
                     elements.push(SvgElement::Group {
                         children,
-                        attrs: build_attrs(&attrs_source),
+                        attrs: group_attrs,
                     });
                 } else {
+                    if let Some(element) = build_element(tag, parent_attrs) {
+                        elements.push(element);
+                    }
+                    *cursor += 1;
                     skip_until_close(tags, cursor, &name);
                 }
             }
@@ -245,8 +264,8 @@ fn skip_until_close(tags: &[Tag], cursor: &mut usize, name: &str) {
     }
 }
 
-fn build_element(tag: &Tag) -> Option<SvgElement> {
-    let attrs = build_attrs(&tag.attrs);
+fn build_element(tag: &Tag, parent_attrs: &SvgAttributes) -> Option<SvgElement> {
+    let attrs = build_attrs(&tag.attrs, parent_attrs);
     let get = |key: &str|
         tag.attrs
             .get(key)
@@ -280,8 +299,16 @@ fn build_element(tag: &Tag) -> Option<SvgElement> {
     }
 }
 
-fn build_attrs(source: &HashMap<String, String>) -> SvgAttributes {
-    let mut attrs = SvgAttributes::default();
+// Fill/stroke/stroke-width inherit from the nearest ancestor that set them,
+// matching SVG's own inheritance rules for these properties.
+fn build_attrs(source: &HashMap<String, String>, parent: &SvgAttributes) -> SvgAttributes {
+    let mut attrs = SvgAttributes {
+        fill: parent.fill,
+        stroke: parent.stroke,
+        stroke_width: parent.stroke_width,
+        opacity: 1.0,
+        transform: Transform2D::IDENTITY,
+    };
 
     if let Some(v) = source.get("fill") {
         attrs.fill = parse_paint(v);

@@ -62,13 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .flex_direction(FlexDirection::Column)
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
-                .background(|theme: &Theme| (
-                    if theme.is_dark() {
-                        Color::NEUTRAL_950
-                    } else {
-                        Color::WHITE
-                    }
-                ))
+                .background(|theme: &Theme| theme.background)
                 .padding(Edges::all(15))
                 .child(
                     Label::new()

@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "xengui-demo (debug)",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/debug/xengui-demo.exe",
+      "cwd": "${workspaceFolder}",
+      "symbolSearchPath": "${workspaceFolder}/target/debug"
+    }
+  ]
+}

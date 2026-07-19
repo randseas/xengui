@@ -242,49 +242,47 @@ impl Style {
     /// Fills in `patch`'s unset inheritable CSS properties using `self`
     /// as the parent style. Non-inheritable properties always come from `patch`.
     pub fn inherit_style(&self, patch: &Style) -> Style {
-        Style {
-            // Inherited properties
-            color: patch.color.or(self.color),
-            selection_color: patch.selection_color.or(self.selection_color),
-            selection_background: patch.selection_background.or(self.selection_background),
-            caret_color: patch.caret_color.or(self.caret_color),
-            selection_border_width: patch.selection_border_width.or(self.selection_border_width),
-            selection_border_color: patch.selection_border_color.or(self.selection_border_color),
-            selection_border_radius: patch.selection_border_radius.or(self.selection_border_radius),
-            font: patch.font.clone().or_else(|| self.font.clone()),
-            font_size: patch.font_size.or(self.font_size),
-            font_weight: patch.font_weight.or(self.font_weight),
-            font_style: patch.font_style.or(self.font_style),
-            text_align: patch.text_align.or(self.text_align),
-            text_decoration: patch.text_decoration.or(self.text_decoration),
-            letter_spacing: patch.letter_spacing.or(self.letter_spacing),
-            line_height: patch.line_height.or(self.line_height),
+        let mut out = patch.clone();
 
-            // outline inherits in CSS
-            outline: patch.outline.overlay(&self.outline),
+        out.color = patch.color.or(self.color);
+        out.selection_color = patch.selection_color.or(self.selection_color);
+        out.selection_background = patch.selection_background.or(self.selection_background);
+        out.caret_color = patch.caret_color.or(self.caret_color);
+        out.selection_border_width = patch.selection_border_width.or(self.selection_border_width);
+        out.selection_border_color = patch.selection_border_color.or(self.selection_border_color);
+        out.selection_border_radius = patch.selection_border_radius.or(
+            self.selection_border_radius
+        );
+        out.font = patch.font.clone().or_else(|| self.font.clone());
+        out.font_size = patch.font_size.or(self.font_size);
+        out.font_weight = patch.font_weight.or(self.font_weight);
+        out.font_style = patch.font_style.or(self.font_style);
+        out.text_align = patch.text_align.or(self.text_align);
+        out.text_decoration = patch.text_decoration.or(self.text_decoration);
+        out.letter_spacing = patch.letter_spacing.or(self.letter_spacing);
+        out.line_height = patch.line_height.or(self.line_height);
 
-            // scrollbar colors may reasonably inherit in XenGui
-            scrollbar: match (&self.scrollbar, &patch.scrollbar) {
-                (Some(base), Some(p)) => Some(base.overlay(p)),
-                (None, Some(p)) => Some(*p),
-                (Some(base), None) => Some(*base),
-                (None, None) => None,
-            },
-            scrollbar_hover: match (&self.scrollbar_hover, &patch.scrollbar_hover) {
-                (Some(base), Some(p)) => Some(base.overlay(p)),
-                (None, Some(p)) => Some(*p),
-                (Some(base), None) => Some(*base),
-                (None, None) => None,
-            },
-            scrollbar_pressed: match (&self.scrollbar_pressed, &patch.scrollbar_pressed) {
-                (Some(base), Some(p)) => Some(base.overlay(p)),
-                (None, Some(p)) => Some(*p),
-                (Some(base), None) => Some(*base),
-                (None, None) => None,
-            },
+        out.outline = patch.outline.overlay(&self.outline);
 
-            // Everything else is NOT inherited.
-            ..patch.clone()
-        }
+        out.scrollbar = match (&self.scrollbar, &patch.scrollbar) {
+            (Some(base), Some(p)) => Some(base.overlay(p)),
+            (None, Some(p)) => Some(*p),
+            (Some(base), None) => Some(*base),
+            (None, None) => None,
+        };
+        out.scrollbar_hover = match (&self.scrollbar_hover, &patch.scrollbar_hover) {
+            (Some(base), Some(p)) => Some(base.overlay(p)),
+            (None, Some(p)) => Some(*p),
+            (Some(base), None) => Some(*base),
+            (None, None) => None,
+        };
+        out.scrollbar_pressed = match (&self.scrollbar_pressed, &patch.scrollbar_pressed) {
+            (Some(base), Some(p)) => Some(base.overlay(p)),
+            (None, Some(p)) => Some(*p),
+            (Some(base), None) => Some(*base),
+            (None, None) => None,
+        };
+
+        out
     }
 }
