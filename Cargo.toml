@@ -26,6 +26,7 @@ xen-clipboard = { version = "0.1.6", path = "crates/xen-clipboard" }
 xen-animation = { version = "0.1.3", path = "crates/xen-animation" }
 xengui-icons = { version = "0.1.0", path = "crates/xengui-icons" }
 xen-svg = { version = "0.1.0", path = "crates/xen-svg" }
+lyon = "1.0.19"
 wgpu = { version = "30.0.0", features = ["webgl"] }
 glyphon = "0.12.0"
 winit = "0.30.0"

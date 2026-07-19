@@ -34,6 +34,10 @@ pub struct XenRenderer {
     pub render_cache: RenderCache,
     pub anim: AnimationManager,
     last_tick: Instant,
+    // Forces a full layout pass on the next render_frame without marking
+    // individual widgets dirty, so unaffected widgets keep reusing their
+    // cached measurement and paint commands.
+    force_layout: bool,
 }
 
 impl XenRenderer {
@@ -162,6 +166,7 @@ impl XenRenderer {
             render_cache: RenderCache::new(),
             anim: AnimationManager::new(),
             last_tick: Instant::now(),
+            force_layout: false,
         })
     }
 
@@ -235,7 +240,9 @@ impl XenRenderer {
             );
 
             let needs_full_layout =
-                tree_is_dirty(tree) || self.anim.active_keys().any(|k| k.property.affects_layout());
+                std::mem::take(&mut self.force_layout) ||
+                tree_is_dirty(tree) ||
+                self.anim.active_keys().any(|k| k.property.affects_layout());
 
             let mut layout_ctx = LayoutContext {
                 text: &mut self.text_pipeline,
@@ -484,9 +491,7 @@ impl XenRenderer {
             self.config.width = size.width.max(1);
             self.config.height = size.height.max(1);
             self.surface.configure(&self.device, &self.config);
-            for node in tree.iter_mut() {
-                set_dirty_recursive(node.as_mut());
-            }
+            self.force_layout = true;
             self.render_frame(tree, theme);
         }
     }
@@ -619,15 +624,6 @@ fn reset_dirty_recursive(widget: &mut dyn Widget) {
     if let Some(children) = widget.children_mut() {
         for child in children.iter_mut() {
             reset_dirty_recursive(child.as_mut());
-        }
-    }
-}
-
-fn set_dirty_recursive(widget: &mut dyn Widget) {
-    widget.set_dirty(true);
-    if let Some(children) = widget.children_mut() {
-        for child in children.iter_mut() {
-            set_dirty_recursive(child.as_mut());
         }
     }
 }

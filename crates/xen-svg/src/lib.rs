@@ -13,7 +13,7 @@ mod transform;
 
 pub use color::{ Color, SvgColor };
 pub use document::SvgDocument;
-pub use element::{ PathCommand, SvgAttributes, SvgElement };
+pub use element::{ FillRule, LineCap, LineJoin, PathCommand, SvgAttributes, SvgElement };
 pub use parser::parse_svg;
 pub use tessellate::{ tessellate_document, SvgTriangle };
 pub use transform::{ parse_transform, Transform2D };

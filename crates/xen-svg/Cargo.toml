@@ -12,3 +12,5 @@ keywords = ["svg", "vector", "icons", "parser"]
 categories = ["graphics", "rendering"]
 
 [dependencies]
+lyon = { workspace = true }
+log = { workspace = true }
