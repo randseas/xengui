@@ -29,11 +29,8 @@ use std::sync::Arc;
 pub enum ObjectFit {
     #[default]
     Fill,
-
     Contain,
-
     Cover,
-
     None,
 }
 

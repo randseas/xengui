@@ -19,6 +19,8 @@ use crate::{
     hit_test_path,
     hooks::set_redraw_handle,
     path_is_within,
+    TOUCH_LONG_PRESS_DURATION,
+    TOUCH_LONG_PRESS_MOVE_TOLERANCE_DP,
 };
 use std::sync::Arc;
 use web_time::Instant;
@@ -35,9 +37,6 @@ use winit::{
     monitor::{ MonitorHandle, VideoModeHandle },
     window::{ Window, WindowAttributes, WindowId },
 };
-
-const TOUCH_LONG_PRESS_DURATION: std::time::Duration = std::time::Duration::from_millis(350);
-const TOUCH_LONG_PRESS_MOVE_TOLERANCE: f32 = 12.0;
 
 pub enum WindowPosition {
     Center,
@@ -1207,8 +1206,11 @@ impl App {
                 }
 
                 if let Some((_, start_point, _)) = self.pending_long_press {
+                    let scale_factor = self.window
+                        .as_ref()
+                        .map_or(1.0, |w| w.scale_factor() as f32);
                     let moved = (point.0 - start_point.0).abs() + (point.1 - start_point.1).abs();
-                    if moved > TOUCH_LONG_PRESS_MOVE_TOLERANCE {
+                    if moved > TOUCH_LONG_PRESS_MOVE_TOLERANCE_DP * scale_factor {
                         self.pending_long_press = None;
                     }
                 }

@@ -27,20 +27,16 @@ use crate::{
     Widget,
     WidgetContent,
     WidgetId,
+    MULTI_CLICK_INTERVAL,
+    MULTI_CLICK_DISTANCE_DP,
 };
 use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
 use std::sync::{ Arc, Mutex };
-use std::time::Duration;
 use web_time::Instant;
 use winit::event::{ ElementState, MouseButton };
 use winit::window::CursorIcon;
 use xen_clipboard::Clipboard;
-
-// A second click within this time window counts as a double/triple click.
-const MULTI_CLICK_INTERVAL: Duration = Duration::from_millis(400);
-// A second click further than this from the first one starts a new click sequence.
-const MULTI_CLICK_DISTANCE: f32 = 16.0;
 
 pub struct TextBox {
     key: Option<SmolStr>,
@@ -777,9 +773,10 @@ impl TextBox {
 
         let now = Instant::now();
         let (last_x, last_y) = self.last_click_pos.get();
+        let click_distance = MULTI_CLICK_DISTANCE_DP * self.scale_factor.get();
         let same_spot =
-            (position.0 - last_x).abs() < MULTI_CLICK_DISTANCE &&
-            (position.1 - last_y).abs() < MULTI_CLICK_DISTANCE;
+            (position.0 - last_x).abs() < click_distance &&
+            (position.1 - last_y).abs() < click_distance;
         let is_repeat =
             same_spot &&
             self.last_click_time

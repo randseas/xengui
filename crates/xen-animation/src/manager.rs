@@ -122,6 +122,14 @@ impl<K: Eq + Hash + Copy> AnimationManager<K> {
         self.active.get(&key).map(Anim::value_at)
     }
 
+    /// Iterates the keys of every animation currently mid-transition,
+    /// letting callers check *what* is animating instead of only *whether*
+    /// anything is - e.g. to skip layout work for animations that only
+    /// affect paint (colors, opacity) and not the box model.
+    pub fn active_keys(&self) -> impl Iterator<Item = &K> {
+        self.active.keys()
+    }
+
     /// Whether any animation is currently in flight across all keys. Useful
     /// to decide whether the render loop needs to keep polling for frames.
     pub fn is_animating(&self) -> bool {

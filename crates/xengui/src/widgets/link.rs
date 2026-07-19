@@ -28,14 +28,13 @@ use crate::{
         DEFAULT_LINK_COLOR,
         DEFAULT_POINTER_CURSOR_ICON,
     },
+    MULTI_CLICK_INTERVAL,
+    MULTI_CLICK_DISTANCE_DP,
 };
 use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
 use winit::{ event::{ ElementState, MouseButton }, window::CursorIcon };
 use web_time::Instant;
-
-const MULTI_CLICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
-const MULTI_CLICK_DISTANCE: f32 = 16.0;
 
 pub struct Link {
     key: Option<SmolStr>,
@@ -568,9 +567,10 @@ impl Widget for Link {
 
                 let now = Instant::now();
                 let (last_x, last_y) = self.last_click_pos.get();
+                let click_distance = MULTI_CLICK_DISTANCE_DP * self.scale_factor.get();
                 let same_spot =
-                    (position.0 - last_x).abs() < MULTI_CLICK_DISTANCE &&
-                    (position.1 - last_y).abs() < MULTI_CLICK_DISTANCE;
+                    (position.0 - last_x).abs() < click_distance &&
+                    (position.1 - last_y).abs() < click_distance;
                 let is_repeat =
                     same_spot &&
                     self.last_click_time

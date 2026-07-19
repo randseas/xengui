@@ -234,19 +234,26 @@ impl XenRenderer {
                 })
             );
 
+            let needs_full_layout =
+                tree_is_dirty(tree) || self.anim.active_keys().any(|k| k.property.affects_layout());
+
             let mut layout_ctx = LayoutContext {
                 text: &mut self.text_pipeline,
                 anim: &mut self.anim,
                 scale_factor: self.window.scale_factor() as f32,
             };
 
-            LayoutEngine::layout(
-                tree,
-                &mut layout_ctx,
-                &mut self.render_cache,
-                self.config.width as f32,
-                self.config.height as f32
-            );
+            if needs_full_layout {
+                LayoutEngine::layout(
+                    tree,
+                    &mut layout_ctx,
+                    &mut self.render_cache,
+                    self.config.width as f32,
+                    self.config.height as f32
+                );
+            } else {
+                LayoutEngine::cascade(tree, &mut layout_ctx);
+            }
 
             let mut commands: Vec<(i32, DrawCommand)> = Vec::new();
             let mut focus_commands: Vec<RectCommand> = Vec::new();
@@ -623,4 +630,16 @@ fn set_dirty_recursive(widget: &mut dyn Widget) {
             set_dirty_recursive(child.as_mut());
         }
     }
+}
+
+fn tree_is_dirty(tree: &[Box<dyn Widget>]) -> bool {
+    tree.iter().any(|w| widget_dirty_recursive(w.as_ref()))
+}
+
+fn widget_dirty_recursive(widget: &dyn Widget) -> bool {
+    widget.is_dirty() ||
+        widget
+            .children()
+            .iter()
+            .any(|c| widget_dirty_recursive(c.as_ref()))
 }

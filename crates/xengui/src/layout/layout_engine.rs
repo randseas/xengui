@@ -14,6 +14,16 @@ use taffy::prelude::*;
 pub struct LayoutEngine;
 
 impl LayoutEngine {
+    /// Cascades computed style (including active property animations)
+    /// down the tree without touching the layout tree itself - cheap
+    /// enough to run every frame so paint-only transitions stay live
+    /// even on frames where the box model doesn't need recomputing.
+    pub fn cascade(tree: &mut [Box<dyn Widget>], ctx: &mut LayoutContext) {
+        for widget in tree.iter_mut() {
+            widget.cascade_style(&Style::default(), ctx.anim);
+        }
+    }
+
     pub fn layout(
         tree: &mut [Box<dyn Widget>],
         ctx: &mut LayoutContext,
@@ -21,15 +31,8 @@ impl LayoutEngine {
         viewport_width: f32,
         viewport_height: f32
     ) {
-        // Roots have no parent, so they cascade from an empty style - each
-        // widget below keeps whatever it set explicitly and inherits the
-        // rest from its own parent in the tree.
-        for widget in tree.iter_mut() {
-            widget.cascade_style(&Style::default(), ctx.anim);
-        }
-
+        Self::cascade(tree, ctx);
         let mut taffy: TaffyTree<()> = TaffyTree::new();
-
         let mut path = WidgetPath::new();
 
         let child_ids: Vec<NodeId> = tree
