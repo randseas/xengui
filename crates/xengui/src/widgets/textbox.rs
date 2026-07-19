@@ -1,4 +1,4 @@
-use crate::properties::DEFAULT_FONT_SIZE;
+use crate::properties::{DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT_RATIO};
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     AnimationManager,
@@ -1077,7 +1077,8 @@ impl Widget for TextBox {
         let line_h = if content_h > 0.0 {
             content_h
         } else {
-            style.font_size.map(|s| s.value()).unwrap_or(DEFAULT_FONT_SIZE.value()) * 1.25
+            style.font_size.map(|s| s.value()).unwrap_or(DEFAULT_FONT_SIZE.value()) *
+                DEFAULT_LINE_HEIGHT_RATIO
         };
         let line_y = (self.layout_box.y + (self.layout_box.height - line_h).max(0.0) * 0.5).round();
 

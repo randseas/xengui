@@ -707,7 +707,11 @@ fn convert_style(style: FontStyle) -> GlyphonStyle {
 }
 
 fn resolve_line_height(scale: f32, line_height: f32) -> f32 {
-    if line_height > 0.0 { line_height } else { scale * 1.2 }
+    if line_height > 0.0 {
+        line_height
+    } else {
+        scale * crate::properties::DEFAULT_LINE_HEIGHT_RATIO
+    }
 }
 
 fn map_text_align(align: TextAlign) -> glyphon::cosmic_text::Align {
