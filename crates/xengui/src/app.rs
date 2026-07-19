@@ -1109,6 +1109,9 @@ impl App {
                 &(InputEvent::MouseInput { state, button: MouseButton::Left, position: point }),
                 &mut ctx
             );
+            if ctx.take_suppress_text_drag() {
+                self.input.text_drag_anchor = None;
+            }
             self.apply_event_ctx(ctx);
         }
 
@@ -1164,6 +1167,8 @@ impl App {
                 }
                 self.input.hovered_path = path.clone();
 
+                let mut suppress_drag = false;
+
                 if let Some(path) = &path {
                     self.input.pressed_path = Some(path.clone());
                     let mut ctx = EventCtx::new();
@@ -1177,10 +1182,14 @@ impl App {
                         }),
                         &mut ctx
                     );
+                    suppress_drag = ctx.take_suppress_text_drag();
                     self.apply_event_ctx(ctx);
                 }
 
-                self.input.text_drag_anchor = Some(point);
+                // A double/triple tap already resolved its own word/line
+                // selection - letting a drag anchor survive here would let
+                // the next Moved event immediately overwrite it.
+                self.input.text_drag_anchor = if suppress_drag { None } else { Some(point) };
                 self.pending_long_press = path.map(|p| (
                     Instant::now() + TOUCH_LONG_PRESS_DURATION,
                     point,
