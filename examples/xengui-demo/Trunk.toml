@@ -1,3 +1,7 @@
 [build]
 target = "index.html"
 dist = "dist"
+
+[[copy-dir]]
+source = "public"
+destination = "."
