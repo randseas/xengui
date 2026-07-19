@@ -70,7 +70,7 @@ View::new()
 
 ```toml
 [dependencies]
-xengui = "0.2.4"
+xengui = "0.2.5"
 ```
 
 ## Quick Start
