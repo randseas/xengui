@@ -19,4 +19,4 @@ if ! command -v trunk &> /dev/null; then
     chmod +x "$CARGO_HOME/bin/trunk"
 fi
 
-trunk build --config examples/xengui_demo/Trunk.toml --release
+trunk build --config examples/xengui-demo/Trunk.toml --release
