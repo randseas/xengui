@@ -591,6 +591,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                             "position:fixed;opacity:0;border:none;outline:none;font-size:16px;z-index:2147483647;pointer-events:none;"
                         );
                         let _ = body.append_child(&input);
+                        let _ = input.set_attribute("id", "xengui-native-input");
+                        let _ = input.set_attribute("name", "xengui-native-input");
 
                         if let Some(proxy) = &self.event_proxy {
                             let proxy_clone = proxy.clone();
@@ -688,13 +690,26 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         self.is_visible = true;
                     }
                 }
+                // Re-syncs the native input's on-page position after a resize;
+                // otherwise it stays at its old coordinates and blocks clicks
+                // meant for the canvas underneath.
+                #[cfg(target_arch = "wasm32")]
+                if let Some(path) = self.input.focused_path.clone() {
+                    self.sync_native_input(&path);
+                }
             }
             WindowEvent::ScaleFactorChanged { .. } => {
                 for node in &mut self.root {
                     node.set_dirty(true);
                 }
+
                 if let Some(window) = &self.window {
                     window.request_redraw();
+                }
+
+                #[cfg(target_arch = "wasm32")]
+                if let Some(path) = self.input.focused_path.clone() {
+                    self.sync_native_input(&path);
                 }
             }
             WindowEvent::ThemeChanged(new_theme) => {
