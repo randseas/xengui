@@ -593,7 +593,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         // opens the keyboard for elements it considers actually interactive.
                         let _ = input.set_attribute(
                             "style",
-                            "position:fixed;opacity:0;border:none;outline:none;font-size:16px;z-index:2147483647;pointer-events:none;caret-color:transparent;"
+                            "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:none;outline:none;font-size:16px;z-index:-1;pointer-events:none;caret-color:transparent;"
                         );
                         let _ = body.append_child(&input);
                         let _ = input.set_attribute("id", "xengui-native-input");
@@ -708,14 +708,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 for node in &mut self.root {
                     node.set_dirty(true);
                 }
-
                 if let Some(window) = &self.window {
                     window.request_redraw();
-                }
-
-                #[cfg(target_arch = "wasm32")]
-                if let Some(path) = self.input.focused_path.clone() {
-                    self.sync_native_input(&path, false);
                 }
             }
             WindowEvent::ThemeChanged(new_theme) => {
@@ -1150,8 +1144,6 @@ impl App {
 
     #[cfg(target_arch = "wasm32")]
     fn sync_native_input(&mut self, path: &str, focus: bool) {
-        use winit::platform::web::WindowExtWebSys;
-
         let Some(input) = &self.native_input else {
             return;
         };
@@ -1164,24 +1156,11 @@ impl App {
             return;
         }
 
-        let scale_factor = self.window.as_ref().map_or(1.0, |w| w.scale_factor()) as f32;
+        widget.sync_native_input(input);
 
-        // The canvas may not sit at (0,0) on the page (margins, layout
-        // shifts, etc), so the input's on-page position needs that offset too.
-        let canvas_offset = self.window
-            .as_ref()
-            .and_then(|w| w.canvas())
-            .map(|canvas| {
-                let rect = canvas.get_bounding_client_rect();
-                (rect.left() as f32, rect.top() as f32)
-            })
-            .unwrap_or((0.0, 0.0));
-
-        widget.sync_native_input(input, scale_factor, canvas_offset);
-
-        // Only steal real DOM focus once, on an actual focus change - doing
-        // this every frame repeatedly pulls focus away from the canvas,
-        // breaking its own cursor icon and mouse-driven text selection.
+        // The input is never visually positioned over the canvas anymore,
+        // so this only opens the mobile keyboard - it doesn't interfere
+        // with the canvas's own cursor icon or mouse-driven selection.
         if focus {
             let _ = input.focus();
         }

@@ -332,16 +332,12 @@ pub trait Widget: Any {
     /// widget's own state.
     fn set_native_text_value(&mut self, _value: &str, _ctx: &mut EventCtx) {}
 
-    /// Positions, sizes, and syncs this widget's native DOM input (web only).
-    /// Widgets exposing `native_text_input()` should override this to place
-    /// their own `<input>` at their current `layout_box()`.
+    /// Syncs this widget's native DOM input (web only). Widgets exposing
+    /// `native_text_input()` should override this to keep the hidden
+    /// `<input>`'s value/placeholder/read-only state in sync, so mobile
+    /// keyboards get correct context.
     #[cfg(target_arch = "wasm32")]
-    fn sync_native_input(
-        &self,
-        _input: &web_sys::HtmlInputElement,
-        _scale_factor: f32,
-        _canvas_offset: (f32, f32)
-    ) {}
+    fn sync_native_input(&self, _input: &web_sys::HtmlInputElement) {}
 }
 
 /// Shrinks or grows `rect` around its own center by `scale`, so an
