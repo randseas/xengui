@@ -254,7 +254,6 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 let proxy_clone = proxy.clone();
                 let user_fonts = std::mem::take(&mut self.config.fonts);
                 let size = window_clone.inner_size();
-                log::info!("renderer init size: {}x{}", size.width, size.height);
 
                 wasm_bindgen_futures::spawn_local(async move {
                     log::info!("renderer init: adapter/device request starting");
@@ -516,7 +515,6 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 }
             }
             WindowEvent::Resized(new_size) => {
-                log::info!("Resized event: {}x{}", new_size.width, new_size.height);
                 if let Some(renderer) = &mut self.renderer {
                     let theme = crate::window::system_theme(self.config.theme);
                     let scale_factor = self.window

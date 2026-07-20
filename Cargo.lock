@@ -3290,6 +3290,7 @@ dependencies = [
  "pollster",
  "raw-window-handle",
  "wasm-bindgen-futures",
+ "web-time",
  "wgpu",
  "xengui",
 ]

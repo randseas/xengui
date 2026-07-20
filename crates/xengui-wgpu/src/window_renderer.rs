@@ -83,11 +83,13 @@ impl WgpuWindowRenderer {
             display: None,
         });
 
+        let t_surface = web_time::Instant::now();
         let surface = instance
             .create_surface(window)
             .map_err(|e| format!("Cannot create surface: {}", e))?;
+        log::info!("phase: surface {:?}", t_surface.elapsed());
 
-        log::info!("wgpu: requesting adapter");
+        let t_adapter = web_time::Instant::now();
         let adapter = instance
             .request_adapter(
                 &(wgpu::RequestAdapterOptions {
@@ -98,10 +100,9 @@ impl WgpuWindowRenderer {
                 })
             ).await
             .map_err(|e| format!("Cannot find a compatible adapter: {}", e))?;
+        log::info!("phase: adapter {:?}", t_adapter.elapsed());
 
-        log::info!("wgpu: adapter received, limits={:?}", adapter.limits());
-
-        log::info!("wgpu: requesting device");
+        let t_device = web_time::Instant::now();
         let (device, queue) = adapter
             .request_device(
                 &(wgpu::DeviceDescriptor {
@@ -110,9 +111,12 @@ impl WgpuWindowRenderer {
                 })
             ).await
             .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
-        log::info!("wgpu: device received");
+        log::info!("phase: device {:?}", t_device.elapsed());
 
-        Self::init_common(surface, &adapter, device, queue, width, height, user_fonts)
+        let t_pipelines = web_time::Instant::now();
+        let result = Self::init_common(surface, &adapter, device, queue, width, height, user_fonts);
+        log::info!("phase: pipelines+fonts {:?}", t_pipelines.elapsed());
+        result
     }
 
     fn init_common(
