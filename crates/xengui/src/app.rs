@@ -588,7 +588,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         // opens the keyboard for elements it considers actually interactive.
                         let _ = input.set_attribute(
                             "style",
-                            "position:fixed;opacity:0;border:none;outline:none;font-size:16px;z-index:2147483647;pointer-events:none;"
+                            "position:fixed;opacity:0;border:none;outline:none;font-size:16px;z-index:2147483647;pointer-events:none;caret-color:transparent;"
                         );
                         let _ = body.append_child(&input);
                         let _ = input.set_attribute("id", "xengui-native-input");
@@ -681,6 +681,14 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         self.is_visible = true;
                     }
                 }
+
+                // Re-syncs every frame instead of only on focus/resize, so
+                // scrolling, drag-reflow, or any other layout drift never
+                // leaves the native input stuck at a stale position.
+                #[cfg(target_arch = "wasm32")]
+                if let Some(path) = self.input.focused_path.clone() {
+                    self.sync_native_input(&path);
+                }
             }
             WindowEvent::Resized(new_size) => {
                 if let Some(renderer) = &mut self.renderer {
@@ -689,13 +697,6 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         window.set_visible(true);
                         self.is_visible = true;
                     }
-                }
-                // Re-syncs the native input's on-page position after a resize;
-                // otherwise it stays at its old coordinates and blocks clicks
-                // meant for the canvas underneath.
-                #[cfg(target_arch = "wasm32")]
-                if let Some(path) = self.input.focused_path.clone() {
-                    self.sync_native_input(&path);
                 }
             }
             WindowEvent::ScaleFactorChanged { .. } => {
@@ -1144,8 +1145,6 @@ impl App {
 
     #[cfg(target_arch = "wasm32")]
     fn sync_native_input(&mut self, path: &str) {
-        use winit::platform::web::WindowExtWebSys;
-
         let Some(input) = &self.native_input else {
             return;
         };
@@ -1153,30 +1152,16 @@ impl App {
             self.hide_native_input();
             return;
         };
-        let Some(snapshot) = widget.native_text_input() else {
+        if widget.native_text_input().is_none() {
             self.hide_native_input();
             return;
-        };
+        }
 
-        input.set_value(&snapshot.value);
-        let _ = input.set_attribute("placeholder", &snapshot.placeholder);
-        input.set_read_only(snapshot.read_only);
-
-        // layout_box() is in physical (device) pixels - CSS positioning needs
-        // logical pixels, so divide by scale_factor before placing the input.
         let scale_factor = self.window.as_ref().map_or(1.0, |w| w.scale_factor()) as f32;
 
-        let b = widget.layout_box();
-        let (logical_x, logical_y, logical_w, logical_h) = (
-            b.x / scale_factor,
-            b.y / scale_factor,
-            b.width / scale_factor,
-            b.height / scale_factor,
-        );
-
-        // The canvas itself may not sit at (0,0) on the page (margins, layout
+        // The canvas may not sit at (0,0) on the page (margins, layout
         // shifts, etc), so the input's on-page position needs that offset too.
-        let (canvas_left, canvas_top) = self.window
+        let canvas_offset = self.window
             .as_ref()
             .and_then(|w| w.canvas())
             .map(|canvas| {
@@ -1185,18 +1170,7 @@ impl App {
             })
             .unwrap_or((0.0, 0.0));
 
-        let final_x = canvas_left + logical_x;
-        let final_y = canvas_top + logical_y;
-
-        let _ = input.set_attribute(
-            "style",
-            &format!(
-                "position:fixed;left:{final_x}px;top:{final_y}px;\
-             width:{logical_w}px;height:{logical_h}px;\
-             opacity:0;border:none;outline:none;background:transparent;\
-             font-size:16px;z-index:2147483647;pointer-events:auto;"
-            )
-        );
+        widget.sync_native_input(input, scale_factor, canvas_offset);
         let _ = input.focus();
     }
 
@@ -1204,7 +1178,10 @@ impl App {
     fn hide_native_input(&self) {
         if let Some(input) = &self.native_input {
             let _ = input.blur();
-            let _ = input.set_attribute("style", "position:fixed;opacity:0;pointer-events:none;");
+            let _ = input.set_attribute(
+                "style",
+                "position:fixed;opacity:0;pointer-events:none;caret-color:transparent;"
+            );
         }
     }
 

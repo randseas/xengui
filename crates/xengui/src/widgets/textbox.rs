@@ -1411,4 +1411,38 @@ impl Widget for TextBox {
         self.dirty = true;
         self.notify_change(ctx);
     }
+
+    #[cfg(target_arch = "wasm32")]
+    fn sync_native_input(
+        &self,
+        input: &web_sys::HtmlInputElement,
+        scale_factor: f32,
+        canvas_offset: (f32, f32)
+    ) {
+        input.set_value(&self.content);
+        let _ = input.set_attribute("placeholder", &self.placeholder);
+        input.set_read_only(self.read_only);
+
+        // layout_box() is in physical pixels; CSS needs logical pixels.
+        let b = self.layout_box;
+        let (logical_x, logical_y, logical_w, logical_h) = (
+            b.x / scale_factor,
+            b.y / scale_factor,
+            b.width / scale_factor,
+            b.height / scale_factor,
+        );
+
+        let final_x = canvas_offset.0 + logical_x;
+        let final_y = canvas_offset.1 + logical_y;
+
+        let _ = input.set_attribute(
+            "style",
+            &format!(
+                "position:fixed;left:{final_x}px;top:{final_y}px;\
+                 width:{logical_w}px;height:{logical_h}px;\
+                 opacity:0;border:none;outline:none;background:transparent;\
+                 font-size:16px;z-index:2147483647;pointer-events:auto;"
+            )
+        );
+    }
 }
