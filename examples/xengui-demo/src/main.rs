@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         install_panic_hook();
         let _ = console_log::init_with_level(log::Level::Info);
         // TEST: overlay
-        show_debug_overlay("xengui: overlay initialized");
+        // show_debug_overlay("xengui: overlay initialized");
     }
 
     #[cfg(not(target_arch = "wasm32"))]
