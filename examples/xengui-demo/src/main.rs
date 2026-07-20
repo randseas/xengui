@@ -22,9 +22,9 @@ fn show_debug_overlay(message: &str) {
     };
     let _ = overlay.set_attribute(
         "style",
-        "position:fixed;inset:0;margin:0;background:rgba(26,0,0,0.75);color:#ff8080;\
+        "position:fixed;inset:0;margin:0;background:rgba(0,0,0,0);color:#ff8080;\
          font:12px/1.5 monospace;padding:16px;white-space:pre-wrap;\
-         z-index:2147483647;overflow:auto;"
+         z-index:2147483647;overflow:auto;pointer-events:none;"
     );
     overlay.set_text_content(Some(message));
     let _ = body.append_child(&overlay);
@@ -48,7 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         install_panic_hook();
         let _ = console_log::init_with_level(log::Level::Info);
         // TEST: overlay
-        // show_debug_overlay("xengui: overlay initialized");
+        show_debug_overlay("xengui: overlay initialized");
     }
 
     #[cfg(not(target_arch = "wasm32"))]

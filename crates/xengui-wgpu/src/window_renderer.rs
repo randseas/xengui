@@ -50,8 +50,17 @@ impl WgpuWindowRenderer {
             ::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
             .expect("Cannot find a compatible adapter");
 
+        log::info!("adapter limits: {:?}", adapter.limits());
+
         let (device, queue) = pollster
-            ::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+            ::block_on(
+                adapter.request_device(
+                    &(wgpu::DeviceDescriptor {
+                        required_limits: adapter.limits(),
+                        ..Default::default()
+                    })
+                )
+            )
             .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
 
         Self::init_common(surface, &adapter, device, queue, width, height, user_fonts)
@@ -89,8 +98,15 @@ impl WgpuWindowRenderer {
             ).await
             .map_err(|e| format!("Cannot find a compatible adapter: {}", e))?;
 
+        log::info!("adapter limits: {:?}", adapter.limits());
+
         let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor::default()).await
+            .request_device(
+                &(wgpu::DeviceDescriptor {
+                    required_limits: adapter.limits(),
+                    ..Default::default()
+                })
+            ).await
             .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
 
         Self::init_common(surface, &adapter, device, queue, width, height, user_fonts)
