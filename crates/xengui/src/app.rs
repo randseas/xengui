@@ -1145,6 +1145,8 @@ impl App {
 
     #[cfg(target_arch = "wasm32")]
     fn sync_native_input(&mut self, path: &str) {
+        use winit::platform::web::WindowExtWebSys;
+        
         let Some(input) = &self.native_input else {
             return;
         };
