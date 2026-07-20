@@ -596,7 +596,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                             "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:none;outline:none;font-size:16px;z-index:-1;pointer-events:none;caret-color:transparent;"
                         );
                         let _ = body.append_child(&input);
-                        
+
                         let _ = input.set_attribute("id", "xengui-native-input");
                         let _ = input.set_attribute("name", "xengui-native-input");
                         let _ = input.set_attribute("type", "text");
@@ -1137,6 +1137,9 @@ impl App {
                 self.sync_native_input(&new_focus, true);
                 self.input.focused_path = Some(new_focus);
                 self.next_blink = None;
+            } else {
+                #[cfg(target_arch = "wasm32")]
+                self.sync_native_input(&new_focus, true);
             }
         } else if ctx.clear_focus && let Some(old) = self.input.focused_path.take() {
             let mut sub_ctx = EventCtx::new();
