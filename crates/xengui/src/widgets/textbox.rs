@@ -1421,6 +1421,7 @@ impl Widget for TextBox {
     ) {
         input.set_value(&self.content);
         let _ = input.set_attribute("placeholder", &self.placeholder);
+        let _ = input.set_attribute("type", "text");
         input.set_read_only(self.read_only);
 
         // layout_box() is in physical pixels; CSS needs logical pixels.
