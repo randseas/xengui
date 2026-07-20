@@ -1,15 +1,15 @@
-# xengui-icons
+# xengui-lucide
 
-[<img alt="github" src="https://img.shields.io/badge/github-randseas/xengui-00aaaa?logo=github" height="20">](https://github.com/randseas/xengui/tree/main/crates/xengui-icons)
-[![Latest version](https://img.shields.io/crates/v/xengui-icons.svg)](https://crates.io/crates/xengui-icons)
-[![Downloads](https://img.shields.io/crates/d/xengui-icons.svg)](https://crates.io/crates/xengui-icons)
+[<img alt="github" src="https://img.shields.io/badge/github-randseas/xengui-00aaaa?logo=github" height="20">](https://github.com/randseas/xengui/tree/main/crates/xengui-lucide)
+[![Latest version](https://img.shields.io/crates/v/xengui-lucide.svg)](https://crates.io/crates/xengui-lucide)
+[![Downloads](https://img.shields.io/crates/d/xengui-lucide.svg)](https://crates.io/crates/xengui-lucide)
 [![Rust](https://img.shields.io/badge/rust-1.92%2B-blue.svg)](https://www.rust-lang.org)
-[![Documentation](https://docs.rs/xengui-icons/badge.svg)](https://docs.rs/xengui-icons)
-[![Apache-2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/randseas/xengui/blob/main/crates/xengui-icons/LICENSE)
+[![Documentation](https://docs.rs/xengui-lucide/badge.svg)](https://docs.rs/xengui-lucide)
+[![Apache-2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/randseas/xengui/blob/main/crates/xengui-lucide/LICENSE)
 
-A lightweight collection of SVG icons for the XenGui ecosystem.
+A lightweight collection icons of Lucide for the XenGui ecosystem.
 
-`xengui-icons` provides a curated set of vector icons that integrate seamlessly with XenGui's `Icon` and `Svg` widgets. Icons are embedded at compile time, require no external assets, and can be styled dynamically using your application's theme.
+`xengui-lucide` provides a curated set of vector icons that integrate seamlessly with XenGui's `Icon` and `Svg` widgets. Icons are embedded at compile time, require no external assets, and can be styled dynamically using your application's theme.
 
 The crate is framework-friendly and simply exposes SVG data, making it usable anywhere an SVG string is accepted.
 
@@ -54,7 +54,7 @@ Svg::new()
 
 ```toml
 [dependencies]
-xengui-icons = "0.1.0"
+xengui-lucide = "0.1.0"
 ```
 
 ## License

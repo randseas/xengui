@@ -77,7 +77,7 @@ thread_local! {
     static REDRAW_HANDLE: RefCell<Option<Arc<Window>>> = const { RefCell::new(None) };
 }
 
-pub(crate) fn begin_render() {
+pub fn begin_render() {
     LIVE_COMPONENTS.with(|s| s.borrow_mut().clear());
     COMPONENT_STACK.with(|s| {
         let mut s = s.borrow_mut();
@@ -89,7 +89,7 @@ pub(crate) fn begin_render() {
     });
 }
 
-pub(crate) fn end_render() {
+pub fn end_render() {
     LIVE_COMPONENTS.with(|live| {
         let live = live.borrow();
         HOOK_STORE.with(|store| {
@@ -98,11 +98,11 @@ pub(crate) fn end_render() {
     });
 }
 
-pub(crate) fn take_dirty() -> bool {
+pub fn take_dirty() -> bool {
     DIRTY.with(|d| d.replace(false))
 }
 
-pub(crate) fn set_redraw_handle(window: Arc<Window>) {
+pub fn set_redraw_handle(window: Arc<Window>) {
     REDRAW_HANDLE.with(|h| {
         *h.borrow_mut() = Some(window);
     });
@@ -154,7 +154,7 @@ fn push_component(key: ComponentKey) -> ComponentId {
             id.as_str()
         );
     }
-    
+
     COMPONENT_STACK.with(|s| s.borrow_mut().push(id.clone()));
     id
 }

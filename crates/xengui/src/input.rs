@@ -151,8 +151,8 @@ pub struct EventCtx {
     cursor_icon: Option<CursorIcon>,
     focus_requested: bool,
     focus_released: bool,
-    pub(crate) focus_target: Option<String>,
-    pub(crate) clear_focus: bool,
+    pub focus_target: Option<String>,
+    pub clear_focus: bool,
     suppress_text_drag: bool,
 }
 
@@ -170,7 +170,7 @@ impl EventCtx {
         self.suppress_text_drag = true;
     }
 
-    pub(crate) fn take_suppress_text_drag(&mut self) -> bool {
+    pub fn take_suppress_text_drag(&mut self) -> bool {
         std::mem::take(&mut self.suppress_text_drag)
     }
 

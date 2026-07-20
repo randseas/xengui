@@ -66,7 +66,7 @@ impl Frame {
 }
 
 /// Result of a single [`WorkLoop::perform_work`] call.
-pub(crate) enum WorkLoopStatus {
+pub enum WorkLoopStatus {
     /// The time budget ran out before the tree was fully reconciled; call
     /// `perform_work` again with a fresh deadline to keep going.
     Yielded,
@@ -84,7 +84,7 @@ const YIELD_CHECK_INTERVAL: u32 = 8;
 /// Create with [`WorkLoop::new`], then call [`WorkLoop::perform_work`]
 /// repeatedly (once per time slice) until it reports
 /// [`WorkLoopStatus::Complete`].
-pub(crate) struct WorkLoop {
+pub struct WorkLoop {
     stack: Vec<Frame>,
     units_since_check: u32,
 }
@@ -93,7 +93,7 @@ impl WorkLoop {
     /// Begins reconciling `new_root` against `old_root`. `old_root` must
     /// stay alive and structurally unchanged (see module docs) for as
     /// long as the returned `WorkLoop` is alive.
-    pub(crate) fn new(new_root: Vec<Box<dyn Widget>>, old_root: &[Box<dyn Widget>]) -> Self {
+    pub fn new(new_root: Vec<Box<dyn Widget>>, old_root: &[Box<dyn Widget>]) -> Self {
         Self {
             stack: vec![Frame::new(new_root, old_root)],
             units_since_check: 0,
@@ -102,7 +102,7 @@ impl WorkLoop {
 
     /// Runs until either the whole tree has been reconciled or `deadline`
     /// is reached, whichever comes first.
-    pub(crate) fn perform_work(&mut self, deadline: Instant) -> WorkLoopStatus {
+    pub fn perform_work(&mut self, deadline: Instant) -> WorkLoopStatus {
         loop {
             let frame_done = {
                 let frame = self.stack.last().expect("root frame always present");

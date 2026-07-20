@@ -364,7 +364,7 @@ impl Theme {
 
     // Only the color set flips with the system theme; spacing/radius
     // tokens the user configured on this theme are preserved as-is.
-    pub(crate) fn resolved_for_system(&self, system_is_dark: bool) -> Self {
+    pub fn resolved_for_system(&self, system_is_dark: bool) -> Self {
         if !self.is_auto() {
             return self.clone();
         }
@@ -389,7 +389,7 @@ impl Default for Theme {
 
 // Which theme should become active on the next render pass; requested via
 // `set_active_theme`/`set_active_theme_by_name` from anywhere in user code.
-pub(crate) enum ThemeSwitch {
+pub enum ThemeSwitch {
     Index(usize),
     Name(String),
 }
@@ -399,13 +399,13 @@ thread_local! {
     static THEME_SWITCH: RefCell<Option<ThemeSwitch>> = const { RefCell::new(None) };
 }
 
-pub(crate) fn set_current_theme(theme: Theme) {
+pub fn set_current_theme(theme: Theme) {
     CURRENT_THEME.with(|cell| {
         *cell.borrow_mut() = theme;
     });
 }
 
-pub(crate) fn take_theme_switch() -> Option<ThemeSwitch> {
+pub fn take_theme_switch() -> Option<ThemeSwitch> {
     THEME_SWITCH.with(|cell| cell.borrow_mut().take())
 }
 

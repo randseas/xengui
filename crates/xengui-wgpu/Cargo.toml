@@ -1,0 +1,15 @@
+[package]
+name = "xengui-wgpu"
+version = "0.1.0"
+edition = { workspace = true }
+rust-version = { workspace = true }
+authors = ["randseas <waultbank@gmail.com>"]
+description = "wgpu integration for xengui"
+license = "Apache-2.0"
+
+[dependencies]
+xengui = { workspace = true }
+wgpu = { workspace = true }
+glyphon = { workspace = true }
+
+log = { workspace = true }

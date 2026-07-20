@@ -2882,7 +2882,7 @@ dependencies = [
  "log",
  "xen-clipboard",
  "xengui",
- "xengui-icons",
+ "xengui-lucide",
 ]
 
 [[package]]
@@ -3223,12 +3223,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "xenframe"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "log",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
+ "winit",
+ "xen-clipboard",
+ "xengui",
+]
+
+[[package]]
 name = "xengui"
 version = "0.2.5"
 dependencies = [
  "bytemuck",
  "console_error_panic_hook",
- "glyphon",
  "image",
  "log",
  "pollster",
@@ -3239,7 +3253,6 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "web-time",
- "wgpu",
  "winit",
  "xen-animation",
  "xen-clipboard",
@@ -3257,13 +3270,23 @@ dependencies = [
  "web-sys",
  "xen-clipboard",
  "xengui",
- "xengui-icons",
+ "xengui-lucide",
 ]
 
 [[package]]
-name = "xengui-icons"
+name = "xengui-lucide"
 version = "0.1.0"
 dependencies = [
+ "xengui",
+]
+
+[[package]]
+name = "xengui-wgpu"
+version = "0.1.0"
+dependencies = [
+ "glyphon",
+ "log",
+ "wgpu",
  "xengui",
 ]
 

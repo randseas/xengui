@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-pub mod app;
 pub mod layout;
 pub mod macros;
 pub mod paint;
@@ -14,9 +13,8 @@ pub mod hooks;
 pub mod widget;
 pub mod animation;
 pub mod constants;
-mod reconciler;
+pub mod reconciler;
 
-pub use app::WindowPosition;
 pub use layout::*;
 pub use macros::WidgetContent;
 pub use paint::*;
@@ -41,7 +39,14 @@ pub use text::*;
 pub use hooks::{ component, use_state, ComponentId, ComponentKey, SetState };
 
 pub use app::{ App, AppConfig, AppThemeMode };
-pub use input::{ InputEvent, Key, KeyState };
+pub use input::{
+    InputEvent,
+    Key,
+    KeyState,
+    find_widget_mut,
+    any_wants_animation,
+    dispatch_animation_tick,
+};
 pub use constants::*;
 pub use style::{
     current_theme,

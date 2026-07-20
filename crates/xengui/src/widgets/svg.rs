@@ -254,7 +254,7 @@ impl_svg_attrs_builder!(SvgGroupBuilder);
 ///
 /// Colors may use [`SvgColor::CURRENT`] instead of a fixed [`crate::Color`]
 /// to follow the widget's inherited `color` at render time, the same way
-/// CSS's `currentColor` works - this is what lets `xengui-icons` ship icons
+/// CSS's `currentColor` works - this is what lets `xengui-lucide` ship icons
 /// that automatically match surrounding text color.
 pub struct Svg {
     key: Option<SmolStr>,
