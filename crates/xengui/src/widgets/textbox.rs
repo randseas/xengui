@@ -69,6 +69,8 @@ pub struct TextBox {
     dragging: bool,
     drag_word_selection: bool,
     drag_word_anchor: usize,
+    drag_start_pos: Cell<(f32, f32)>,
+    drag_threshold_passed: Cell<bool>,
     // Tracks the real OS-level left-button-held state, independent of
     // hover/Interaction - MouseExited/MouseEntered never touch this.
     mouse_button_held: Cell<bool>,
@@ -147,6 +149,8 @@ impl TextBox {
             dragging: false,
             drag_word_selection: false,
             drag_word_anchor: 0,
+            drag_start_pos: Cell::new((0.0, 0.0)),
+            drag_threshold_passed: Cell::new(false),
             mouse_button_held: Cell::new(false),
 
             click_count: Cell::new(0),
@@ -790,6 +794,8 @@ impl TextBox {
         self.last_click_pos.set(position);
         self.focus_via_pointer.set(true);
         self.caret_visible.set(true);
+        self.drag_start_pos.set(position);
+        self.drag_threshold_passed.set(false);
 
         let shift_held = self.current_modifiers.get().shift;
 
@@ -829,6 +835,15 @@ impl TextBox {
     }
 
     fn handle_mouse_drag(&mut self, position: (f32, f32)) {
+        if !self.drag_word_selection && !self.drag_threshold_passed.get() {
+            let (start_x, start_y) = self.drag_start_pos.get();
+            let threshold = MULTI_CLICK_DISTANCE_DP * self.scale_factor.get();
+            if (position.0 - start_x).abs() < threshold && (position.1 - start_y).abs() < threshold {
+                return;
+            }
+            self.drag_threshold_passed.set(true);
+        }
+
         let padding_left = self.computed_style.padding
             .unwrap_or_default()
             .left.to_physical(self.scale_factor.get());

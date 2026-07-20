@@ -409,14 +409,22 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             // enqueue a `WindowEvent::Resized` (when the size changed).
             fn sync_canvas_to_viewport(window: &Window) {
                 if let Some(web_window) = web_sys::window() {
-                    let inner_w = web_window
-                        .inner_width()
-                        .ok()
-                        .and_then(|val| val.as_f64());
-                    let inner_h = web_window
-                        .inner_height()
-                        .ok()
-                        .and_then(|val| val.as_f64());
+                    // visualViewport shrinks when the on-screen keyboard opens;
+                    // window.innerHeight doesn't reliably do that on mobile browsers
+                    let (inner_w, inner_h) = if let Some(vv) = web_window.visual_viewport() {
+                        (Some(vv.width()), Some(vv.height()))
+                    } else {
+                        (
+                            web_window
+                                .inner_width()
+                                .ok()
+                                .and_then(|val| val.as_f64()),
+                            web_window
+                                .inner_height()
+                                .ok()
+                                .and_then(|val| val.as_f64()),
+                        )
+                    };
 
                     if let (Some(w_val), Some(h_val)) = (inner_w, inner_h) {
                         let phys_size = winit::dpi::LogicalSize
@@ -440,6 +448,22 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         closure.as_ref().unchecked_ref()
                     );
                     closure.forget();
+
+                    // visualViewport fires its own resize event on keyboard open/close,
+                    // which the window's resize event doesn't always trigger
+                    if let Some(vv) = web_window.visual_viewport() {
+                        let window_for_vv = window.clone();
+                        let vv_closure = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(
+                            move || {
+                                sync_canvas_to_viewport(&window_for_vv);
+                            }
+                        );
+                        let _ = vv.add_event_listener_with_callback(
+                            "resize",
+                            vv_closure.as_ref().unchecked_ref()
+                        );
+                        vv_closure.forget();
+                    }
                 }
             }
         }
