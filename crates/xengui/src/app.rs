@@ -518,15 +518,20 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         dyn FnMut(web_sys::KeyboardEvent)
                     >::new(move |event: web_sys::KeyboardEvent| {
                         if event.key() == "Escape" {
+                            event.prevent_default();
                             let _ = proxy_clone2.send_event(XenEvent::CancelSelection);
                             return;
+                        }
+
+                        if event.key() == "Control" {
+                            event.prevent_default();
                         }
 
                         // winit's web backend deliberately skips preventDefault for
                         // modifier combos (to avoid blocking browser shortcuts like
                         // Ctrl+R), so the browser's own select-all/cut/copy/paste
                         // fires alongside ours and interferes with focus/selection.
-                        // Stop the browser default only for the combos TextBox
+                        // Stop the browser default only for the combos widgets
                         // already implements itself.
                         let cmd = event.ctrl_key() || event.meta_key();
                         if cmd {
@@ -1146,7 +1151,7 @@ impl App {
     #[cfg(target_arch = "wasm32")]
     fn sync_native_input(&mut self, path: &str) {
         use winit::platform::web::WindowExtWebSys;
-        
+
         let Some(input) = &self.native_input else {
             return;
         };

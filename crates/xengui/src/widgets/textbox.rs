@@ -1441,7 +1441,7 @@ impl Widget for TextBox {
                 "position:fixed;left:{final_x}px;top:{final_y}px;\
                  width:{logical_w}px;height:{logical_h}px;\
                  opacity:0;border:none;outline:none;background:transparent;\
-                 font-size:16px;z-index:2147483647;pointer-events:auto;"
+                 font-size:16px;z-index:2147483647;pointer-events:none;"
             )
         );
     }
