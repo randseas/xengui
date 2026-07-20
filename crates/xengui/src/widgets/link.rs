@@ -4,6 +4,8 @@ use crate::{
     Background,
     Color,
     Constraints,
+    Cursor,
+    ElementState,
     EventCtx,
     EventStatus,
     InputEvent,
@@ -14,6 +16,7 @@ use crate::{
     LayoutBox,
     MeasureContext,
     MeasureResult,
+    MouseButton,
     PaintContext,
     RectCommand,
     Style,
@@ -33,7 +36,6 @@ use crate::{
 };
 use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
-use winit::{ event::{ ElementState, MouseButton }, window::CursorIcon };
 use web_time::Instant;
 
 pub struct Link {
@@ -208,19 +210,17 @@ impl Link {
             None => base,
         };
 
-        self.interaction.hover_cursor = self.computed_style.cursor
-            .map(crate::Cursor::to_winit)
-            .or(
-                Some(
-                    if self.selectable {
-                        CursorIcon::Text
-                    } else if self.href.is_some() {
-                        DEFAULT_POINTER_CURSOR_ICON
-                    } else {
-                        DEFAULT_CURSOR_ICON
-                    }
-                )
-            );
+        self.interaction.hover_cursor = self.computed_style.cursor.or(
+            Some(
+                if self.selectable {
+                    Cursor::Text
+                } else if self.href.is_some() {
+                    DEFAULT_POINTER_CURSOR_ICON
+                } else {
+                    DEFAULT_CURSOR_ICON
+                }
+            )
+        );
     }
 
     fn open_href(&self, _force_new_tab: bool) {

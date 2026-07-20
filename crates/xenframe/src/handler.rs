@@ -6,17 +6,18 @@ use winit::{
     window::{ WindowAttributes, WindowId },
 };
 use xengui::{
+    ElementState,
     EventCtx,
     EventStatus,
     InputEvent,
     Key,
     KeyState,
     ModifiersState,
+    MouseButton,
     Theme,
     XenRenderer,
     any_wants_animation,
     clear_text_selection_recursive,
-    convert_keyboard_event,
     dispatch_animation_tick,
     dispatch_positional,
     dispatch_to_path,
@@ -27,7 +28,13 @@ use xengui::{
     select_all_text_recursive,
     update_global_text_selection,
 };
-use crate::{ App, event::XenEvent, window::Fullscreen };
+use crate::{
+    App,
+    event::XenEvent,
+    keyboard::{ convert_ime_event, convert_keyboard_event },
+    mouse::{ convert_element_state, convert_mouse_button, convert_scroll_delta },
+    window::Fullscreen,
+};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
@@ -241,7 +248,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         #[cfg(target_arch = "wasm32")]
         {
             use crate::overlay::show_fatal_overlay;
-            
+
             if let Some(proxy) = &self.event_proxy {
                 let window_clone = window.clone();
                 let proxy_clone = proxy.clone();
@@ -627,8 +634,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         &mut self.root,
                         path,
                         &(InputEvent::MouseInput {
-                            state,
-                            button,
+                            state: convert_element_state(state),
+                            button: convert_mouse_button(button),
                             position: point,
                         }),
                         &mut ctx
@@ -658,7 +665,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         &mut self.root,
                         path,
                         &(InputEvent::MouseWheel {
-                            delta,
+                            delta: convert_scroll_delta(delta),
                             position: point,
                             modifiers: self.input.modifiers,
                         }),
@@ -772,7 +779,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     dispatch_positional(
                         &mut self.root,
                         &path,
-                        &InputEvent::Ime(ime_event),
+                        &InputEvent::Ime(convert_ime_event(ime_event)),
                         &mut ctx
                     );
                     self.apply_event_ctx(ctx);
@@ -790,8 +797,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         &mut self.root,
                         &path,
                         &(InputEvent::MouseInput {
-                            state: winit::event::ElementState::Released,
-                            button: winit::event::MouseButton::Left,
+                            state: ElementState::Released,
+                            button: MouseButton::Left,
                             position: point,
                         }),
                         &mut ctx

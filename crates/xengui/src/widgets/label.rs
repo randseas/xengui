@@ -1,9 +1,10 @@
-use crate::IntoThemed;
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     Background,
     Color,
     Constraints,
+    Cursor,
+    ElementState,
     EventCtx,
     EventStatus,
     InputEvent,
@@ -11,6 +12,7 @@ use crate::{
     LayoutBox,
     MeasureContext,
     MeasureResult,
+    MouseButton,
     PaintContext,
     RectCommand,
     Style,
@@ -21,13 +23,12 @@ use crate::{
     properties::DEFAULT_CURSOR_ICON,
     AnimationManager,
     WidgetId,
+    IntoThemed,
     MULTI_CLICK_INTERVAL,
     MULTI_CLICK_DISTANCE_DP,
 };
 use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
-use winit::event::{ ElementState, MouseButton };
-use winit::window::CursorIcon;
 use web_time::Instant;
 
 #[macro_export]
@@ -195,9 +196,8 @@ impl Label {
         };
 
         // Only shows the I-beam when text selection is actually enabled.
-        self.interaction.hover_cursor = self.computed_style.cursor
-            .map(crate::Cursor::to_winit)
-            .or(Some(if self.selectable { CursorIcon::Text } else { CursorIcon::Default }));
+       self.interaction.hover_cursor = self.computed_style.cursor
+            .or(Some(if self.selectable { Cursor::Text } else { Cursor::Default }));
     }
 
     fn index_for_offset(&self, local_x: f32) -> usize {

@@ -233,7 +233,7 @@ impl Image {
             None => base,
         };
 
-        self.interaction.hover_cursor = self.computed_style.cursor.map(crate::Cursor::to_winit);
+        self.interaction.hover_cursor = self.computed_style.cursor;
     }
 
     fn intrinsic_size(&self) -> (f32, f32) {

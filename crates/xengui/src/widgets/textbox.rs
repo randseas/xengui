@@ -1,12 +1,12 @@
-use crate::properties::{ DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT_RATIO };
-use crate::widget::NativeTextInputSnapshot;
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     AnimationManager,
     Background,
     Color,
     Constraints,
+    Cursor,
     Edges,
+    ElementState,
     EventCtx,
     EventStatus,
     InputEvent,
@@ -19,6 +19,7 @@ use crate::{
     MeasureContext,
     MeasureResult,
     ModifiersState,
+    MouseButton,
     PaintContext,
     RectCommand,
     Size,
@@ -28,15 +29,15 @@ use crate::{
     Widget,
     WidgetContent,
     WidgetId,
+    widget::NativeTextInputSnapshot,
     MULTI_CLICK_INTERVAL,
     MULTI_CLICK_DISTANCE_DP,
+    properties::{ DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT_RATIO },
 };
 use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
 use std::sync::{ Arc, Mutex };
 use web_time::Instant;
-use winit::event::{ ElementState, MouseButton };
-use winit::window::CursorIcon;
 use xen_clipboard::Clipboard;
 
 pub struct TextBox {
@@ -117,7 +118,7 @@ impl TextBox {
     pub fn new() -> Self {
         let mut interaction = Interaction::new();
         interaction.focusable = true;
-        interaction.hover_cursor = Some(CursorIcon::Text);
+        interaction.hover_cursor = Some(Cursor::Text);
 
         let style = Style {
             padding: Some(Edges::symmetric(8.0, 6.0)),
@@ -251,9 +252,7 @@ impl TextBox {
             None => base,
         };
 
-        self.interaction.hover_cursor = self.computed_style.cursor
-            .map(crate::Cursor::to_winit)
-            .or(Some(CursorIcon::Text));
+        self.interaction.hover_cursor = self.computed_style.cursor.or(Some(Cursor::Text));
     }
 
     fn byte_index_for(&self, char_idx: usize) -> usize {

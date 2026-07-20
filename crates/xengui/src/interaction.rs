@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{ EventCtx, EventStatus, InputEvent, Key, KeyState, KeyboardEvent };
-use winit::{ event::{ ElementState, MouseButton }, window::CursorIcon };
+use crate::{
+    Cursor,
+    ElementState,
+    EventCtx,
+    EventStatus,
+    InputEvent,
+    Key,
+    KeyState,
+    KeyboardEvent,
+    MouseButton,
+};
 
 type Callback = Box<dyn FnMut(&mut EventCtx)>;
 type HoverCallback = Box<dyn FnMut(bool, &mut EventCtx)>;
@@ -11,7 +20,7 @@ pub struct Interaction {
     pub enabled: bool,
 
     pub focusable: bool,
-    pub hover_cursor: Option<CursorIcon>,
+    pub hover_cursor: Option<Cursor>,
 
     pub hovered: bool,
     pub pressed: bool,
@@ -103,7 +112,7 @@ impl Interaction {
                 self.hovered = false;
                 self.pressed = false;
                 if self.hover_cursor.is_some() && !was_pressed {
-                    ctx.set_cursor_icon(CursorIcon::Default);
+                    ctx.set_cursor_icon(Cursor::Default);
                 }
                 if let Some(cb) = self.on_mouse_leave.as_mut() {
                     cb(ctx);
@@ -249,8 +258,8 @@ macro_rules! impl_interaction_builders {
             pub fn on_mouse_input(
                 mut self,
                 f: impl FnMut(
-                    ::winit::event::ElementState,
-                    ::winit::event::MouseButton,
+                    $crate::ElementState,
+                    $crate::MouseButton,
                     &mut $crate::EventCtx,
                 ) + 'static,
             ) -> Self {

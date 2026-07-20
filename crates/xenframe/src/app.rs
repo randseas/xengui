@@ -4,9 +4,11 @@ use web_time::Instant;
 use winit::event_loop::{ ControlFlow, EventLoop };
 use winit::window::Window;
 use xengui::{
+    ElementState,
     EventCtx,
     InputEvent,
     InputState,
+    MouseButton,
     TOUCH_LONG_PRESS_DURATION,
     TOUCH_LONG_PRESS_MOVE_TOLERANCE_DP,
     Widget,
@@ -26,6 +28,7 @@ use xengui::{
 
 use crate::AppThemeMode;
 use crate::config::AppConfig;
+use crate::cursor::to_winit_cursor;
 use crate::event::XenEvent;
 
 pub struct App {
@@ -204,7 +207,7 @@ impl App {
         }
 
         if let Some(icon) = ctx.take_cursor_icon() && let Some(window) = &self.window {
-            window.set_cursor(icon);
+            window.set_cursor(to_winit_cursor(icon));
         }
 
         if ctx.redraw_requested() && let Some(window) = &self.window {
@@ -309,8 +312,6 @@ impl App {
     // Simulates a same-spot double tap so the target widget's own
     // multi-click word-selection logic (already used for mouse) takes over.
     pub(crate) fn trigger_long_press_select(&mut self, path: &str, point: (f32, f32)) {
-        use winit::event::{ ElementState, MouseButton };
-
         for state in [ElementState::Pressed, ElementState::Released] {
             let mut ctx = EventCtx::new();
             dispatch_positional(
@@ -335,7 +336,7 @@ impl App {
     // press, Moved updates position, Ended acts like release + hover-out,
     // Cancelled just clears state without firing a click.
     pub(crate) fn handle_touch(&mut self, touch: winit::event::Touch) {
-        use winit::event::{ ElementState, MouseButton, TouchPhase };
+        use winit::event::TouchPhase;
 
         let point = (touch.location.x as f32, touch.location.y as f32);
 

@@ -4,6 +4,7 @@ use crate::{
     Background,
     Constraints,
     DEFAULT_SCROLLBAR_HOVER_THICKNESS,
+    ElementState,
     EventCtx,
     EventStatus,
     InputEvent,
@@ -16,6 +17,8 @@ use crate::{
     MeasureContext,
     MeasureResult,
     ModifiersState,
+    MouseButton,
+    MouseScrollDelta,
     Overflow,
     PaintContext,
     RectCommand,
@@ -28,7 +31,6 @@ use crate::{
 };
 use smol_str::SmolStr;
 use std::cell::Cell;
-use winit::event::{ ElementState, MouseButton, MouseScrollDelta };
 
 // Fixed catch-up rate for the exponential-decay scroll animation, tuned so
 // a wheel step settles in roughly a quarter of a second.
@@ -240,7 +242,7 @@ impl View {
             None => base,
         };
 
-        self.interaction.hover_cursor = self.computed_style.cursor.map(crate::Cursor::to_winit);
+        self.interaction.hover_cursor = self.computed_style.cursor;
     }
 
     fn resolved_scrollbar(&self) -> ResolvedScrollbar {
@@ -540,7 +542,7 @@ impl View {
 
         let (raw_dx, raw_dy) = match delta {
             MouseScrollDelta::LineDelta(x, y) => (x * scroll_step, y * scroll_step),
-            MouseScrollDelta::PixelDelta(pos) => (pos.x as f32, pos.y as f32),
+            MouseScrollDelta::PixelDelta(x, y) => (x as f32, y as f32),
         };
 
         let (raw_dx, raw_dy) = if modifiers.shift { (raw_dy, raw_dx) } else { (raw_dx, raw_dy) };

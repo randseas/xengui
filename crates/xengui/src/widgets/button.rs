@@ -191,17 +191,15 @@ impl Button {
             None => base,
         };
 
-        self.interaction.hover_cursor = self.computed_style.cursor
-            .map(crate::Cursor::to_winit)
-            .or(
-                Some(
-                    if self.interaction.enabled {
-                        DEFAULT_POINTER_CURSOR_ICON
-                    } else {
-                        DEFAULT_CURSOR_ICON
-                    }
-                )
-            );
+        self.interaction.hover_cursor = self.computed_style.cursor.or(
+            Some(
+                if self.interaction.enabled {
+                    DEFAULT_POINTER_CURSOR_ICON
+                } else {
+                    DEFAULT_CURSOR_ICON
+                }
+            )
+        );
     }
 }
 
