@@ -111,14 +111,18 @@ impl XenRenderer {
         user_fonts: Vec<(String, Vec<u8>)>
     ) -> Result<Self, String> {
         let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps.formats
+        let Some(surface_format) = surface_caps.formats
             .iter()
             .copied()
             .find(|f| {
                 f == &wgpu::TextureFormat::Bgra8Unorm || f == &wgpu::TextureFormat::Rgba8Unorm
             })
-            .unwrap_or(surface_caps.formats[0]);
-
+            .or_else(|| surface_caps.formats.first().copied()) else {
+            return Err(
+                "Surface reports no supported texture formats (GPU/browser incompatibility).".to_string()
+            );
+        };
+        
         let text_pipeline = TextPipeline::new(&device, &queue, surface_format, user_fonts)?;
         let rect_pipeline = RectPipeline::new(&device, surface_format);
         let triangle_pipeline = TrianglePipeline::new(&device, surface_format);

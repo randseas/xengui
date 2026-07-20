@@ -5,11 +5,47 @@ use std::time::Duration;
 use xengui::{ properties::StyleValue, * };
 use xen_clipboard::Clipboard;
 
+// write debug messages directly into the screen
+#[cfg(target_arch = "wasm32")]
+fn show_debug_overlay(message: &str) {
+    let Some(document) = web_sys::window().and_then(|w| w.document()) else {
+        return;
+    };
+    let Some(body) = document.body() else {
+        return;
+    };
+    let Ok(overlay) = document.create_element("pre") else {
+        return;
+    };
+    let _ = overlay.set_attribute(
+        "style",
+        "position:fixed;inset:0;margin:0;background:rgba(26,0,0,0.75);color:#ff8080;\
+         font:12px/1.5 monospace;padding:16px;white-space:pre-wrap;\
+         z-index:2147483647;overflow:auto;"
+    );
+    overlay.set_text_content(Some(message));
+    let _ = body.append_child(&overlay);
+}
+
+// write debug messages directly into the screen
+#[cfg(target_arch = "wasm32")]
+fn install_panic_hook() {
+    std::panic::set_hook(
+        Box::new(|info| {
+            console_error_panic_hook::hook(info);
+            show_debug_overlay(&format!("xengui panicked:\n\n{info}"));
+        })
+    );
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_arch = "wasm32")]
     {
-        console_error_panic_hook::set_once();
+        // console_error_panic_hook::set_once();
+        install_panic_hook();
         let _ = console_log::init_with_level(log::Level::Info);
+        // TEST: overlay
+        show_debug_overlay("xengui: overlay initialized");
     }
 
     #[cfg(not(target_arch = "wasm32"))]

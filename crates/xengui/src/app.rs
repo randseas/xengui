@@ -153,6 +153,27 @@ pub struct App {
     pub event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
 }
 
+#[cfg(target_arch = "wasm32")]
+fn show_fatal_overlay(message: &str) {
+    let Some(document) = web_sys::window().and_then(|w| w.document()) else {
+        return;
+    };
+    let Some(body) = document.body() else {
+        return;
+    };
+    let Ok(overlay) = document.create_element("pre") else {
+        return;
+    };
+    let _ = overlay.set_attribute(
+        "style",
+        "position:fixed;inset:0;margin:0;background:#1a0000;color:#ff8080;\
+         font:12px/1.5 monospace;padding:16px;white-space:pre-wrap;\
+         z-index:2147483647;overflow:auto;"
+    );
+    overlay.set_text_content(Some(message));
+    let _ = body.append_child(&overlay);
+}
+
 impl App {
     pub fn new(config: AppConfig) -> Self {
         log::info!(target: "xengui", "app initialized");
@@ -435,12 +456,10 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             match XenRenderer::new(window, user_fonts) {
                 Ok(renderer) => {
                     self.renderer = Some(renderer);
-
                     log::info!("application resumed, gpu context ready");
                 }
                 Err(e) => {
                     log::info!("cannot start gpu pipeline: {}", e);
-
                     std::process::exit(1);
                 }
             }
@@ -461,7 +480,9 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                             );
                         }
                         Err(e) => {
-                            log::error!("wasm32(web) XenRenderer init failed: {e}");
+                            let message = format!("xengui: renderer init failed\n\n{e}");
+                            log::error!("{message}");
+                            show_fatal_overlay(&message);
                         }
                     }
                 });

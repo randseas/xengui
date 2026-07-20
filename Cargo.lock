@@ -3254,6 +3254,7 @@ dependencies = [
  "console_log",
  "env_logger",
  "log",
+ "web-sys",
  "xen-clipboard",
  "xengui",
  "xengui-icons",
