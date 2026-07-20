@@ -3289,6 +3289,7 @@ dependencies = [
  "log",
  "pollster",
  "raw-window-handle",
+ "smol_str 0.3.6",
  "wasm-bindgen-futures",
  "web-time",
  "wgpu",

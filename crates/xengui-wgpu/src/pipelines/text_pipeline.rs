@@ -33,9 +33,22 @@ use glyphon::{
     Weight as GlyphonWeight,
 };
 use std::collections::HashMap;
+use std::rc::Rc;
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct ShapeKey {
+    text: smol_str::SmolStr,
+    font: Option<smol_str::SmolStr>,
+    weight: FontWeight,
+    style: FontStyle,
+    scale_bits: u32,
+    line_height_bits: u32,
+    max_width_bits: Option<u32>,
+    align: u8,
+}
 
 struct PendingText {
-    buffer: GlyphonBuffer,
+    buffer: Rc<GlyphonBuffer>,
     position: (f32, f32),
     color: GlyphonColor,
     bounds: TextBounds,
@@ -51,6 +64,7 @@ pub struct TextPipeline {
     default_family_name: Option<String>,
     pending: Vec<PendingText>,
     pending_decorations: Vec<RectCommand>,
+    shape_cache: HashMap<ShapeKey, Rc<GlyphonBuffer>>,
 }
 
 impl TextPipeline {
@@ -121,6 +135,7 @@ impl TextPipeline {
             default_family_name,
             pending: Vec::new(),
             pending_decorations: Vec::new(),
+            shape_cache: HashMap::new(),
         })
     }
 
@@ -158,30 +173,62 @@ impl TextPipeline {
         max_width: Option<f32>,
         clip_rect: Option<(f32, f32, f32, f32)>
     ) {
-        let attrs = Self::resolve_attrs(
-            &self.user_font_map,
-            &self.default_family_name,
-            font,
-            weight,
-            style
-        );
-
         let final_line_height = resolve_line_height(scale, line_height);
-        let metrics = Metrics::new(scale, final_line_height);
-        let mut buffer = GlyphonBuffer::new(&mut self.font_system, metrics);
-        buffer.set_size(Some(max_width.unwrap_or(f32::MAX)), Some(f32::MAX));
-        buffer.set_text(text, &attrs, Shaping::Advanced, None);
 
-        // Alignment needs a real right edge to align against - with an
-        // unbounded buffer width it would just push glyphs far off-screen.
-        if max_width.is_some() && align != TextAlign::Start {
-            let mapped = map_text_align(align);
-            for line in buffer.lines.iter_mut() {
-                line.set_align(Some(mapped));
+        let align_code: u8 = match align {
+            TextAlign::Start => 0,
+            TextAlign::Center => 1,
+            TextAlign::End => 2,
+            TextAlign::Justify => 3,
+        };
+
+        let key = ShapeKey {
+            text: smol_str::SmolStr::new(text),
+            font: font.map(smol_str::SmolStr::new),
+            weight,
+            style,
+            scale_bits: scale.to_bits(),
+            line_height_bits: final_line_height.to_bits(),
+            max_width_bits: max_width.map(f32::to_bits),
+            align: align_code,
+        };
+
+        // Reshaping (glyph lookup, font fallback, line breaking) is the
+        // most expensive part of a text-heavy frame; an unchanged run
+        // reuses the buffer already shaped on a previous frame.
+        let buffer = if let Some(cached) = self.shape_cache.get(&key) {
+            cached.clone()
+        } else {
+            let attrs = Self::resolve_attrs(
+                &self.user_font_map,
+                &self.default_family_name,
+                font,
+                weight,
+                style
+            );
+
+            let metrics = Metrics::new(scale, final_line_height);
+            let mut buffer = GlyphonBuffer::new(&mut self.font_system, metrics);
+            buffer.set_size(Some(max_width.unwrap_or(f32::MAX)), Some(f32::MAX));
+            buffer.set_text(text, &attrs, Shaping::Advanced, None);
+
+            if max_width.is_some() && align != TextAlign::Start {
+                let mapped = map_text_align(align);
+                for line in buffer.lines.iter_mut() {
+                    line.set_align(Some(mapped));
+                }
             }
-        }
 
-        buffer.shape_until_scroll(&mut self.font_system, false);
+            buffer.shape_until_scroll(&mut self.font_system, false);
+
+            if self.shape_cache.len() > 4096 {
+                self.shape_cache.clear();
+            }
+
+            let buffer = Rc::new(buffer);
+            self.shape_cache.insert(key, buffer.clone());
+            buffer
+        };
 
         if decoration.underline() || decoration.strike() || decoration.overline() {
             self.queue_decorations(
@@ -194,9 +241,6 @@ impl TextPipeline {
             );
         }
 
-        // Only clip horizontally (needed for single-line scroll in TextBox);
-        // vertical bounds stay open so descenders are never cut off by
-        // line-height being a flat approximation of real font metrics.
         let bounds = match clip_rect {
             Some((x, _y, w, _h)) =>
                 TextBounds {
@@ -519,7 +563,7 @@ impl TextPipeline {
         let text_areas: Vec<TextArea> = self.pending
             .iter()
             .map(|p| TextArea {
-                buffer: &p.buffer,
+                buffer: p.buffer.as_ref(),
                 left: p.position.0,
                 top: p.position.1,
                 scale: 1.0,
