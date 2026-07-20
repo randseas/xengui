@@ -1446,7 +1446,7 @@ impl Widget for TextBox {
                  margin:0;padding:0;box-sizing:border-box;\
                  border-radius:{radius}px;\
                  opacity:0;border:none;outline:none;background:transparent;\
-                 cursor:text;font-size:16px;z-index:2147483647;pointer-events:none;caret-color:transparent;"
+                 cursor:text !important;font-size:16px;z-index:2147483647;pointer-events:none;caret-color:transparent;"
             )
         );
     }
