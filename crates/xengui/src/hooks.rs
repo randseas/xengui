@@ -5,8 +5,7 @@ use std::cell::{ Cell, RefCell };
 use std::collections::{ HashMap, HashSet };
 use std::marker::PhantomData;
 use std::rc::Rc;
-use std::sync::Arc;
-use winit::window::Window;
+use crate::RedrawRequester;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ComponentId(SmolStr);
@@ -74,7 +73,7 @@ thread_local! {
     static LIVE_COMPONENTS: RefCell<HashSet<ComponentId>> = RefCell::new(HashSet::new());
 
     static DIRTY: Cell<bool> = const { Cell::new(false) };
-    static REDRAW_HANDLE: RefCell<Option<Arc<Window>>> = const { RefCell::new(None) };
+    static REDRAW_HANDLE: RefCell<Option<Rc<dyn RedrawRequester>>> = const { RefCell::new(None) };
 }
 
 pub fn begin_render() {
@@ -102,16 +101,16 @@ pub fn take_dirty() -> bool {
     DIRTY.with(|d| d.replace(false))
 }
 
-pub fn set_redraw_handle(window: Arc<Window>) {
+pub fn set_redraw_handle(handle: Rc<dyn RedrawRequester>) {
     REDRAW_HANDLE.with(|h| {
-        *h.borrow_mut() = Some(window);
+        *h.borrow_mut() = Some(handle);
     });
 }
 
 fn request_redraw() {
     REDRAW_HANDLE.with(|h| {
-        if let Some(window) = h.borrow().as_ref() {
-            window.request_redraw();
+        if let Some(handle) = h.borrow().as_ref() {
+            handle.request_redraw();
         }
     });
 }

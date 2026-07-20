@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::ImageCommand;
+use xengui::{ ImageCommand, ImageData, paint };
 use std::collections::HashMap;
 
 #[repr(C)]
@@ -168,7 +168,7 @@ impl ImagePipeline {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        image: &std::sync::Arc<crate::ImageData>
+        image: &std::sync::Arc<ImageData>
     ) {
         if self.textures.contains_key(&image.id) {
             return;
@@ -332,7 +332,7 @@ impl ImagePipeline {
                 continue;
             };
 
-            let (sx, sy, sw, sh) = crate::paint::draw_command::scissor_for_clip(
+            let (sx, sy, sw, sh) = paint::draw_command::scissor_for_clip(
                 cmd.clip_rect,
                 surface_width,
                 surface_height

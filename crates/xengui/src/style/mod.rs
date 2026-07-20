@@ -17,6 +17,7 @@ pub mod style_builder;
 pub mod typography;
 pub mod cursor;
 pub mod theme;
+pub mod system_theme;
 
 pub use background::Background;
 pub use border::Border;
@@ -46,6 +47,7 @@ pub use text_align::TextAlign;
 pub use text_decoration::TextDecoration;
 pub use typography::*;
 pub use cursor::Cursor;
+pub use system_theme::SystemTheme;
 pub use theme::{
     current_theme,
     set_active_theme,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::TriangleCommand;
+use xengui::{ TriangleCommand, paint };
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -171,7 +171,7 @@ impl TrianglePipeline {
         surface_width: u32,
         surface_height: u32
     ) {
-        let (sx, sy, sw, sh) = crate::paint::draw_command::scissor_for_clip(
+        let (sx, sy, sw, sh) = paint::draw_command::scissor_for_clip(
             clip,
             surface_width,
             surface_height

@@ -3235,25 +3235,20 @@ dependencies = [
  "winit",
  "xen-clipboard",
  "xengui",
+ "xengui-wgpu",
 ]
 
 [[package]]
 name = "xengui"
 version = "0.2.5"
 dependencies = [
- "bytemuck",
- "console_error_panic_hook",
  "image",
  "log",
- "pollster",
  "smol_str 0.3.6",
  "system-fonts",
  "taffy",
- "wasm-bindgen",
- "wasm-bindgen-futures",
  "web-sys",
  "web-time",
- "winit",
  "xen-animation",
  "xen-clipboard",
  "xen-svg",
@@ -3284,8 +3279,11 @@ dependencies = [
 name = "xengui-wgpu"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "glyphon",
  "log",
+ "pollster",
+ "wasm-bindgen-futures",
  "wgpu",
  "xengui",
 ]

@@ -11,3 +11,10 @@ pub enum Fullscreen {
     /// Providing `None` to `Borderless` will fullscreen on the current monitor.
     Borderless(Option<MonitorHandle>),
 }
+
+pub fn system_theme(theme: Option<winit::window::Theme>) -> xengui::SystemTheme {
+    match theme {
+        Some(winit::window::Theme::Light) => xengui::SystemTheme::Light,
+        _ => xengui::SystemTheme::Dark,
+    }
+}

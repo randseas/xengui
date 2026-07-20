@@ -12,7 +12,6 @@ use xengui::{
     TOUCH_LONG_PRESS_DURATION,
     TOUCH_LONG_PRESS_MOVE_TOLERANCE_DP,
     Widget,
-    XenRenderer,
     clear_text_selection_recursive,
     collect_focusable_paths,
     collect_selected_text_recursive,
@@ -25,6 +24,7 @@ use xengui::{
     style,
     update_global_text_selection,
 };
+use xengui_wgpu::WgpuWindowRenderer;
 
 use crate::AppThemeMode;
 use crate::config::AppConfig;
@@ -32,7 +32,7 @@ use crate::cursor::to_winit_cursor;
 use crate::event::XenEvent;
 
 pub struct App {
-    pub(crate) renderer: Option<XenRenderer>,
+    pub(crate) renderer: Option<WgpuWindowRenderer>,
     pub(crate) window: Option<Arc<Window>>,
 
     pub(crate) config: AppConfig,

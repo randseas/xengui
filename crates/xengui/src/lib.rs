@@ -3,7 +3,6 @@ pub mod layout;
 pub mod macros;
 pub mod paint;
 pub mod svg_compat;
-pub mod renderer;
 pub mod style;
 pub mod widgets;
 pub mod input;
@@ -14,11 +13,11 @@ pub mod widget;
 pub mod animation;
 pub mod constants;
 pub mod reconciler;
+pub mod redraw;
 
 pub use layout::*;
 pub use macros::WidgetContent;
 pub use paint::*;
-pub use renderer::XenRenderer;
 pub use style::*;
 pub use widget::{ Widget, scaled_layout_box };
 pub use animation::{
@@ -38,7 +37,6 @@ pub use interaction::*;
 pub use text::*;
 pub use hooks::{ component, use_state, ComponentId, ComponentKey, SetState };
 
-pub use app::{ App, AppConfig, AppThemeMode };
 pub use input::{
     InputEvent,
     Key,
@@ -84,6 +82,7 @@ pub use widgets::{
     View,
     TextBox,
 };
+pub use redraw::RedrawRequester;
 pub use xen_svg::{ SvgColor, SvgDocument, SvgElement, Transform2D };
 pub use svg_compat::IntoSvgColor;
 

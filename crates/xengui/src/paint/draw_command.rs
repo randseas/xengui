@@ -60,7 +60,7 @@ pub enum DrawCommand {
 
 // Converts a logical clip rect (top-left origin) into a physical scissor
 // rect clamped to the surface bounds. `None` means the full surface.
-pub(crate) fn scissor_for_clip(
+pub fn scissor_for_clip(
     clip: Option<(f32, f32, f32, f32)>,
     surface_width: u32,
     surface_height: u32

@@ -12,9 +12,6 @@ keywords = ["gui", "portable", "graphics"]
 categories = ["gui"]
 
 [dependencies]
-winit = { workspace = true }
-pollster = { workspace = true }
-bytemuck = { workspace = true }
 smol_str = { workspace = true }
 log = { workspace = true }
 web-time = { workspace = true }
@@ -43,6 +40,3 @@ web-sys = { version = "0.3", features = [
     "MediaQueryListEvent",
     "VisualViewport",
 ] }
-console_error_panic_hook = "0.1"
-wasm-bindgen = { workspace = true }
-wasm-bindgen-futures = { workspace = true }

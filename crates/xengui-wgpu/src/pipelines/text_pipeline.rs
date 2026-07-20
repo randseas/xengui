@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::{
+use xengui::{
     Background,
+    Color,
     FontStyle,
     FontWeight,
     MeasureResult,
     RectCommand,
+    SystemTheme,
     TextAlign,
     TextCommand,
     TextDecoration,
     TextMeasurer,
-    properties::DEFAULT_FONT_SIZE,
+    properties::{ self, DEFAULT_FONT_SIZE },
 };
 use glyphon::{
     Attrs,
@@ -152,7 +154,7 @@ impl TextPipeline {
         position: (f32, f32),
         color: GlyphonColor,
         decoration: TextDecoration,
-        decoration_color: crate::Color,
+        decoration_color: Color,
         max_width: Option<f32>,
         clip_rect: Option<(f32, f32, f32, f32)>
     ) {
@@ -229,7 +231,7 @@ impl TextPipeline {
         position: (f32, f32),
         scale: f32,
         decoration: TextDecoration,
-        fallback_color: crate::Color,
+        fallback_color: Color,
         clip_rect: Option<(f32, f32, f32, f32)>
     ) {
         let thickness = decoration
@@ -324,10 +326,10 @@ impl TextPipeline {
         (width, height)
     }
 
-    pub fn draw(&mut self, scale_factor: f32, theme: winit::window::Theme, command: &TextCommand) {
+    pub fn draw(&mut self, scale_factor: f32, theme: SystemTheme, command: &TextCommand) {
         let color = command.style.color.unwrap_or(match theme {
-            winit::window::Theme::Dark => crate::Color::WHITE,
-            winit::window::Theme::Light => crate::Color::BLACK,
+            SystemTheme::Dark => Color::WHITE,
+            SystemTheme::Light => Color::BLACK,
         });
 
         let scale = Self::snap(
@@ -707,11 +709,7 @@ fn convert_style(style: FontStyle) -> GlyphonStyle {
 }
 
 fn resolve_line_height(scale: f32, line_height: f32) -> f32 {
-    if line_height > 0.0 {
-        line_height
-    } else {
-        scale * crate::properties::DEFAULT_LINE_HEIGHT_RATIO
-    }
+    if line_height > 0.0 { line_height } else { scale * properties::DEFAULT_LINE_HEIGHT_RATIO }
 }
 
 fn map_text_align(align: TextAlign) -> glyphon::cosmic_text::Align {

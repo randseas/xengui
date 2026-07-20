@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::RectCommand;
+use xengui::{ Background, RectCommand, paint };
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -154,7 +154,7 @@ impl RectPipeline {
 
         for cmd in cmds {
             let fill_color = match cmd.background.as_ref() {
-                Some(crate::Background::Color(color)) => color.to_f32_array(),
+                Some(Background::Color(color)) => color.to_f32_array(),
                 None => [0.0, 0.0, 0.0, 0.0],
             };
 
@@ -248,7 +248,7 @@ impl RectPipeline {
         surface_width: u32,
         surface_height: u32
     ) {
-        let (sx, sy, sw, sh) = crate::paint::draw_command::scissor_for_clip(
+        let (sx, sy, sw, sh) = paint::draw_command::scissor_for_clip(
             clip,
             surface_width,
             surface_height

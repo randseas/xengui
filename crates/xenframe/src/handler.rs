@@ -227,13 +227,14 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
 
         self.window = Some(window.clone());
 
-        set_redraw_handle(window.clone());
+        set_redraw_handle(std::rc::Rc::new(crate::redraw::WinitRedraw(window.clone())));
 
         // Target dependent Graphics Pipeline initialization wrapper
         #[cfg(not(target_arch = "wasm32"))]
         {
             let user_fonts = std::mem::take(&mut self.config.fonts);
-            match XenRenderer::new(window, user_fonts) {
+            let size = window.inner_size();
+            match xengui_wgpu::WgpuWindowRenderer::new(window, size.width, size.height, user_fonts) {
                 Ok(renderer) => {
                     self.renderer = Some(renderer);
                     log::info!("application resumed, gpu context ready");
@@ -253,9 +254,17 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 let window_clone = window.clone();
                 let proxy_clone = proxy.clone();
                 let user_fonts = std::mem::take(&mut self.config.fonts);
+                let size = window_clone.inner_size();
 
                 wasm_bindgen_futures::spawn_local(async move {
-                    match XenRenderer::new(window_clone, user_fonts).await {
+                    match
+                        xengui_wgpu::WgpuWindowRenderer::new(
+                            window_clone,
+                            size.width,
+                            size.height,
+                            user_fonts
+                        ).await
+                    {
                         Ok(renderer) => {
                             let _ = proxy_clone.send_event(
                                 XenEvent::RendererReady(Box::new(renderer))
@@ -468,7 +477,11 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     self.schedule_render();
                 }
                 if let Some(renderer) = &mut self.renderer {
-                    renderer.render_frame(&mut self.root, &self.config.theme);
+                    let theme = crate::window::system_theme(self.config.theme);
+                    let scale_factor = self.window
+                        .as_ref()
+                        .map_or(1.0, |w| w.scale_factor() as f32);
+                    renderer.render_frame(&mut self.root, theme, scale_factor);
                     if !self.is_visible && let Some(window) = &self.window {
                         window.set_visible(true);
                         self.is_visible = true;
@@ -485,7 +498,17 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
             WindowEvent::Resized(new_size) => {
                 if let Some(renderer) = &mut self.renderer {
-                    renderer.resize(&mut self.root, &self.config.theme, new_size);
+                    let theme = crate::window::system_theme(self.config.theme);
+                    let scale_factor = self.window
+                        .as_ref()
+                        .map_or(1.0, |w| w.scale_factor() as f32);
+                    renderer.resize(
+                        &mut self.root,
+                        theme,
+                        scale_factor,
+                        new_size.width,
+                        new_size.height
+                    );
                     if !self.is_visible && let Some(window) = &self.window {
                         window.set_visible(true);
                         self.is_visible = true;
@@ -841,7 +864,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
         }
 
-        if let Some(renderer) = &self.renderer && renderer.anim.is_animating() {
+        if let Some(renderer) = &self.renderer && renderer.is_animating() {
             event_loop.set_control_flow(ControlFlow::Poll);
             if let Some(window) = &self.window {
                 window.request_redraw();

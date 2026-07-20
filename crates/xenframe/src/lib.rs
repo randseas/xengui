@@ -21,6 +21,7 @@ pub mod mouse;
 // pub mod platform;
 pub mod config;
 pub mod event;
+pub mod redraw;
 
 #[cfg(target_arch = "wasm32")]
 pub mod web;
