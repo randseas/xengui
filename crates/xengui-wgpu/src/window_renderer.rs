@@ -87,10 +87,11 @@ impl WgpuWindowRenderer {
             .create_surface(window)
             .map_err(|e| format!("Cannot create surface: {}", e))?;
 
+        log::info!("wgpu: requesting adapter");
         let adapter = instance
             .request_adapter(
                 &(wgpu::RequestAdapterOptions {
-                    power_preference: wgpu::PowerPreference::LowPower,
+                    power_preference: wgpu::PowerPreference::HighPerformance,
                     compatible_surface: Some(&surface),
                     force_fallback_adapter: false,
                     apply_limit_buckets: false,
@@ -98,8 +99,9 @@ impl WgpuWindowRenderer {
             ).await
             .map_err(|e| format!("Cannot find a compatible adapter: {}", e))?;
 
-        log::info!("adapter limits: {:?}", adapter.limits());
+        log::info!("wgpu: adapter received, limits={:?}", adapter.limits());
 
+        log::info!("wgpu: requesting device");
         let (device, queue) = adapter
             .request_device(
                 &(wgpu::DeviceDescriptor {
@@ -108,6 +110,7 @@ impl WgpuWindowRenderer {
                 })
             ).await
             .map_err(|e| format!("Cannot start GPU (device): {}", e))?;
+        log::info!("wgpu: device received");
 
         Self::init_common(surface, &adapter, device, queue, width, height, user_fonts)
     }

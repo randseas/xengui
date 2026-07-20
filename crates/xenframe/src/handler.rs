@@ -254,8 +254,11 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 let proxy_clone = proxy.clone();
                 let user_fonts = std::mem::take(&mut self.config.fonts);
                 let size = window_clone.inner_size();
+                log::info!("renderer init size: {}x{}", size.width, size.height);
 
                 wasm_bindgen_futures::spawn_local(async move {
+                    log::info!("renderer init: adapter/device request starting");
+                    let t0 = web_time::Instant::now();
                     match
                         xengui_wgpu::WgpuWindowRenderer::new(
                             window_clone,
@@ -265,6 +268,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         ).await
                     {
                         Ok(renderer) => {
+                            log::info!("renderer init: succeeded in {:?}", t0.elapsed());
                             let _ = proxy_clone.send_event(
                                 XenEvent::RendererReady(Box::new(renderer))
                             );
@@ -425,8 +429,23 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             XenEvent::RendererReady(renderer) => {
                 self.renderer = Some(*renderer);
                 log::info!("web gpu context successfully attached to event loop");
-                if let Some(w) = &self.window {
-                    w.request_redraw();
+                if let Some(window) = &self.window {
+                    let size = window.inner_size();
+                    let theme = crate::window::system_theme(self.config.theme);
+                    let scale_factor = window.scale_factor() as f32;
+                    if let Some(renderer) = &mut self.renderer {
+                        // Forces a real configure+render with the window's
+                        // actual current size, in case it changed between
+                        // renderer init (async) and this point.
+                        renderer.resize(
+                            &mut self.root,
+                            theme,
+                            scale_factor,
+                            size.width,
+                            size.height
+                        );
+                    }
+                    window.request_redraw();
                 }
             }
             XenEvent::CancelSelection => {
@@ -472,6 +491,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         match event {
             WindowEvent::CloseRequested => _event_loop.exit(),
             WindowEvent::RedrawRequested => {
+                log::info!("RedrawRequested fired, is_visible={}", self.is_visible);
                 if hooks::take_dirty() {
                     self.schedule_render();
                 }
@@ -496,6 +516,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 }
             }
             WindowEvent::Resized(new_size) => {
+                log::info!("Resized event: {}x{}", new_size.width, new_size.height);
                 if let Some(renderer) = &mut self.renderer {
                     let theme = crate::window::system_theme(self.config.theme);
                     let scale_factor = self.window
