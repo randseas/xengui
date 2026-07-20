@@ -1257,9 +1257,33 @@ impl Widget for TextBox {
             if !self.interaction.focused || key_event.state != KeyState::Pressed {
                 return EventStatus::Ignored;
             }
+
+            let was_dirty = self.dirty;
+            let before_content = self.content.clone();
+            let before_cursor = self.cursor_index;
+            let before_selection = self.selection_anchor;
+            let before_caret_visible = self.caret_visible.get();
+            let before_style = self.computed_style.clone();
+
             self.handle_key(key_event, *modifiers, ctx);
             self.recompute_style();
-            ctx.request_redraw();
+
+            let changed =
+                self.content != before_content ||
+                self.cursor_index != before_cursor ||
+                self.selection_anchor != before_selection ||
+                self.caret_visible.get() != before_caret_visible ||
+                self.computed_style != before_style;
+
+            // handle_key marks the widget dirty unconditionally for
+            // simplicity; undo that when the keystroke (e.g. a bare
+            // Ctrl/Shift press) produced no visible difference.
+            self.dirty = was_dirty || changed;
+
+            if changed {
+                ctx.request_redraw();
+            }
+
             return EventStatus::Handled;
         }
 
@@ -1301,6 +1325,8 @@ impl Widget for TextBox {
 
         // Interaction::handle() clears `pressed` on MouseExited, so the
         // real button-held state must be captured before calling it.
+        let before_style = self.computed_style.clone();
+
         let status = self.interaction.handle(event, ctx);
 
         if matches!(event, InputEvent::MouseExited) && !self.mouse_button_held.get() {
@@ -1325,7 +1351,18 @@ impl Widget for TextBox {
 
         if matches!(status, EventStatus::Handled) {
             self.recompute_style();
-            self.dirty = true;
+
+            // Caret appearing/disappearing on focus change isn't part of
+            // computed_style, so focus transitions always need a redraw.
+            let focus_event = matches!(
+                event,
+                InputEvent::FocusGained { .. } | InputEvent::FocusLost
+            );
+
+            if focus_event || self.computed_style != before_style {
+                self.dirty = true;
+                ctx.request_redraw();
+            }
         }
 
         status

@@ -524,14 +524,7 @@ impl Widget for Svg {
         if !self.interaction.is_active() {
             return EventStatus::Ignored;
         }
-
-        let status = self.interaction.handle(event, ctx);
-
-        if matches!(status, EventStatus::Handled) {
-            self.dirty = true;
-        }
-
-        status
+        self.interaction.handle(event, ctx)
     }
 
     fn content_eq(&self, other: &dyn Widget) -> bool {

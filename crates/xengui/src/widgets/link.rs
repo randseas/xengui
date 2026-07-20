@@ -644,6 +644,9 @@ impl Widget for Link {
             _ => false,
         };
 
+        let before_style = self.computed_style.clone();
+        let before_focus_visible = self.interaction.focus_visible;
+
         let status = self.interaction.handle(event, ctx);
 
         if is_click {
@@ -652,7 +655,14 @@ impl Widget for Link {
 
         if matches!(status, EventStatus::Handled) {
             self.recompute_style();
-            self.dirty = true;
+
+            if
+                self.computed_style != before_style ||
+                self.interaction.focus_visible != before_focus_visible
+            {
+                self.dirty = true;
+                ctx.request_redraw();
+            }
         }
 
         status

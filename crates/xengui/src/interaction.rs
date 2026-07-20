@@ -103,7 +103,6 @@ impl Interaction {
                 if let Some(cb) = self.on_hover.as_mut() {
                     cb(true, ctx);
                 }
-                ctx.request_redraw();
                 EventStatus::Handled
             }
 
@@ -120,7 +119,6 @@ impl Interaction {
                 if let Some(cb) = self.on_hover.as_mut() {
                     cb(false, ctx);
                 }
-                ctx.request_redraw();
                 EventStatus::Handled
             }
 
@@ -151,7 +149,6 @@ impl Interaction {
                         }
                     }
                 }
-                ctx.request_redraw();
                 EventStatus::Handled
             }
 
@@ -178,11 +175,9 @@ impl Interaction {
                             if let Some(cb) = self.on_click.as_mut() {
                                 cb(ctx);
                             }
-                            ctx.request_redraw();
                         }
                         KeyState::Released => {
                             self.pressed = false;
-                            ctx.request_redraw();
                         }
                         _ => {}
                     }
@@ -199,7 +194,6 @@ impl Interaction {
             InputEvent::FocusGained { via_keyboard } => {
                 self.focused = true;
                 self.focus_visible = *via_keyboard;
-                ctx.request_redraw();
                 EventStatus::Handled
             }
 
@@ -207,7 +201,6 @@ impl Interaction {
                 self.focused = false;
                 self.pressed = false;
                 self.focus_visible = false;
-                ctx.request_redraw();
                 EventStatus::Handled
             }
 

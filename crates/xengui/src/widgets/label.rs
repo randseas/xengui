@@ -196,8 +196,9 @@ impl Label {
         };
 
         // Only shows the I-beam when text selection is actually enabled.
-       self.interaction.hover_cursor = self.computed_style.cursor
-            .or(Some(if self.selectable { Cursor::Text } else { Cursor::Default }));
+        self.interaction.hover_cursor = self.computed_style.cursor.or(
+            Some(if self.selectable { Cursor::Text } else { Cursor::Default })
+        );
     }
 
     fn index_for_offset(&self, local_x: f32) -> usize {
@@ -543,11 +544,17 @@ impl Widget for Label {
             return EventStatus::Ignored;
         }
 
+        let before_style = self.computed_style.clone();
+
         let status = self.interaction.handle(event, ctx);
 
         if matches!(status, EventStatus::Handled) {
             self.recompute_style();
-            self.dirty = true;
+
+            if self.computed_style != before_style {
+                self.dirty = true;
+                ctx.request_redraw();
+            }
         }
 
         status

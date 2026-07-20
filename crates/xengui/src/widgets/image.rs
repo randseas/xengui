@@ -393,11 +393,17 @@ impl Widget for Image {
             return EventStatus::Ignored;
         }
 
+        let before_style = self.computed_style.clone();
+
         let status = self.interaction.handle(event, ctx);
 
         if matches!(status, EventStatus::Handled) {
             self.recompute_style();
-            self.dirty = true;
+
+            if self.computed_style != before_style {
+                self.dirty = true;
+                ctx.request_redraw();
+            }
         }
 
         status
