@@ -1191,9 +1191,11 @@ impl App {
     fn hide_native_input(&self) {
         if let Some(input) = &self.native_input {
             let _ = input.blur();
+            input.set_value("");
+            let _ = input.set_attribute("placeholder", "");
             let _ = input.set_attribute(
                 "style",
-                "position:fixed;opacity:0;pointer-events:none;caret-color:transparent;"
+                "position:fixed;left:-99999;bottom:-99999;width:0;height:0;opacity:0;font-size:0px;z-index:-2147483647;pointer-events:none;background:transparent;color:transparent;caret-color:transparent;"
             );
         }
     }
