@@ -692,7 +692,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 // leaves the native input stuck at a stale position.
                 #[cfg(target_arch = "wasm32")]
                 if let Some(path) = self.input.focused_path.clone() {
-                    self.sync_native_input(&path);
+                    self.sync_native_input(&path, false);
                 }
             }
             WindowEvent::Resized(new_size) => {
@@ -715,7 +715,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
 
                 #[cfg(target_arch = "wasm32")]
                 if let Some(path) = self.input.focused_path.clone() {
-                    self.sync_native_input(&path);
+                    self.sync_native_input(&path, false);
                 }
             }
             WindowEvent::ThemeChanged(new_theme) => {
@@ -1128,7 +1128,7 @@ impl App {
                 );
 
                 #[cfg(target_arch = "wasm32")]
-                self.sync_native_input(&new_focus);
+                self.sync_native_input(&new_focus, true);
                 self.input.focused_path = Some(new_focus);
                 self.next_blink = None;
             }
@@ -1149,7 +1149,7 @@ impl App {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn sync_native_input(&mut self, path: &str) {
+    fn sync_native_input(&mut self, path: &str, focus: bool) {
         use winit::platform::web::WindowExtWebSys;
 
         let Some(input) = &self.native_input else {
@@ -1178,7 +1178,13 @@ impl App {
             .unwrap_or((0.0, 0.0));
 
         widget.sync_native_input(input, scale_factor, canvas_offset);
-        let _ = input.focus();
+
+        // Only steal real DOM focus once, on an actual focus change - doing
+        // this every frame repeatedly pulls focus away from the canvas,
+        // breaking its own cursor icon and mouse-driven text selection.
+        if focus {
+            let _ = input.focus();
+        }
     }
 
     #[cfg(target_arch = "wasm32")]
