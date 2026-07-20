@@ -125,6 +125,9 @@ impl Interaction {
                             self.pressed = true;
                             // a pointer press dismisses the ring, even if the widget already has keyboard focus.
                             self.focus_visible = false;
+                            if let Some(icon) = self.hover_cursor {
+                                ctx.set_cursor_icon(icon);
+                            }
                             if self.focusable {
                                 ctx.request_focus();
                             }

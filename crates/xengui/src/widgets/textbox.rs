@@ -1440,6 +1440,7 @@ impl Widget for TextBox {
             &format!(
                 "position:fixed;left:{final_x}px;top:{final_y}px;\
                  width:{logical_w}px;height:{logical_h}px;\
+                 margin:0;padding:0;box-sizing:border-box;\
                  opacity:0;border:none;outline:none;background:transparent;\
                  font-size:16px;z-index:2147483647;pointer-events:none;"
             )
