@@ -1,4 +1,5 @@
 use crate::properties::{ DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT_RATIO };
+use crate::widget::NativeTextInputSnapshot;
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     AnimationManager,
@@ -1388,5 +1389,26 @@ impl Widget for TextBox {
 
     fn anim_id(&self) -> WidgetId {
         self.anim_id
+    }
+
+    fn native_text_input(&self) -> Option<NativeTextInputSnapshot> {
+        Some(NativeTextInputSnapshot {
+            value: self.content.clone(),
+            placeholder: self.placeholder.to_string(),
+            max_length: self.max_length,
+            read_only: self.read_only,
+        })
+    }
+
+    fn set_native_text_value(&mut self, value: &str, ctx: &mut EventCtx) {
+        if self.read_only {
+            return;
+        }
+        self.push_undo_snapshot();
+        self.content = value.to_string();
+        self.cursor_index = self.content.chars().count();
+        self.selection_anchor = None;
+        self.dirty = true;
+        self.notify_change(ctx);
     }
 }

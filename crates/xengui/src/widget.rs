@@ -20,8 +20,17 @@ use crate::{
     AnimationManager,
     WidgetId,
 };
-
 use std::any::Any;
+
+/// Snapshot of a widget's text-input state, used to mirror it onto a real
+/// DOM `<input>` on web targets so mobile browsers open the keyboard.
+#[derive(Clone, Debug)]
+pub struct NativeTextInputSnapshot {
+    pub value: String,
+    pub placeholder: String,
+    pub max_length: Option<usize>,
+    pub read_only: bool,
+}
 
 pub trait Widget: Any {
     fn as_any(&self) -> &dyn Any;
@@ -312,6 +321,16 @@ pub trait Widget: Any {
     fn anim_id(&self) -> WidgetId {
         WidgetId::default()
     }
+
+    /// `Some(...)` marks this widget as backed by a real DOM `<input>` on
+    /// web targets. `None` (the default) means it has no native counterpart.
+    fn native_text_input(&self) -> Option<NativeTextInputSnapshot> {
+        None
+    }
+
+    /// Applies a value typed into the native DOM `<input>` back onto this
+    /// widget's own state.
+    fn set_native_text_value(&mut self, _value: &str, _ctx: &mut EventCtx) {}
 }
 
 /// Shrinks or grows `rect` around its own center by `scale`, so an

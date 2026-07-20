@@ -131,6 +131,7 @@ pub enum XenEvent {
     RendererReady(Box<XenRenderer>),
     CancelSelection,
     SystemThemeChanged(winit::window::Theme),
+    NativeInputChanged(String),
 }
 
 pub struct App {
@@ -149,6 +150,8 @@ pub struct App {
     clipboard: xen_clipboard::Clipboard,
     pending_long_press: Option<(Instant, (f32, f32), String)>,
 
+    #[cfg(target_arch = "wasm32")]
+    native_input: Option<web_sys::HtmlInputElement>,
     #[cfg(target_arch = "wasm32")]
     pub event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
 }
@@ -192,6 +195,9 @@ impl App {
             reconcile_work: None,
             clipboard: xen_clipboard::Clipboard::new(),
             pending_long_press: None,
+
+            #[cfg(target_arch = "wasm32")]
+            native_input: None,
 
             #[cfg(target_arch = "wasm32")]
             event_proxy: None,
@@ -540,6 +546,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     );
                     key_closure.forget();
                 }
+
                 // Live-updates active_theme whenever the browser's
                 // color-scheme preference flips, mirroring native's
                 // WindowEvent::ThemeChanged.
@@ -566,6 +573,44 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         theme_closure.as_ref().unchecked_ref()
                     );
                     theme_closure.forget();
+                }
+
+                // create invisible input for mobile devices
+                #[cfg(target_arch = "wasm32")]
+                {
+                    if
+                        let Some(document) = web_sys::window().and_then(|w| w.document()) &&
+                        let Some(body) = document.body() &&
+                        let Ok(input) = document.create_element("input") &&
+                        let Ok(input) = input.dyn_into::<web_sys::HtmlInputElement>()
+                    {
+                        // Kept nearly transparent but not display:none - iOS Safari only
+                        // opens the keyboard for elements it considers actually interactive.
+                        let _ = input.set_attribute(
+                            "style",
+                            "position:fixed;opacity:0;border:none;outline:none;font-size:16px;z-index:2147483647;pointer-events:none;"
+                        );
+                        let _ = body.append_child(&input);
+
+                        if let Some(proxy) = &self.event_proxy {
+                            let proxy_clone = proxy.clone();
+                            let input_clone = input.clone();
+                            let closure = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(
+                                move || {
+                                    let _ = proxy_clone.send_event(
+                                        XenEvent::NativeInputChanged(input_clone.value())
+                                    );
+                                }
+                            );
+                            let _ = input.add_event_listener_with_callback(
+                                "input",
+                                closure.as_ref().unchecked_ref()
+                            );
+                            closure.forget();
+                        }
+
+                        self.native_input = Some(input);
+                    }
                 }
             }
             log::info!("application resumed, gpu context ready");
@@ -603,6 +648,18 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 }
                 if let Some(window) = &self.window {
                     window.request_redraw();
+                }
+            }
+            XenEvent::NativeInputChanged(text) => {
+                if let Some(path) = self.input.focused_path.clone() {
+                    let mut ctx = EventCtx::new();
+                    if let Some(widget) = find_widget_mut(&mut self.root, &path) {
+                        widget.set_native_text_value(&text, &mut ctx);
+                    }
+                    self.apply_event_ctx(ctx);
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
                 }
             }
         }
@@ -1039,19 +1096,26 @@ impl App {
                     let mut sub_ctx = EventCtx::new();
                     dispatch_to_path(&mut self.root, &old, &InputEvent::FocusLost, &mut sub_ctx);
                 }
+
                 let mut sub_ctx = EventCtx::new();
+
                 dispatch_to_path(
                     &mut self.root,
                     &new_focus,
                     &(InputEvent::FocusGained { via_keyboard: false }),
                     &mut sub_ctx
                 );
+
+                #[cfg(target_arch = "wasm32")]
+                self.sync_native_input(&new_focus);
                 self.input.focused_path = Some(new_focus);
                 self.next_blink = None;
             }
         } else if ctx.clear_focus && let Some(old) = self.input.focused_path.take() {
             let mut sub_ctx = EventCtx::new();
             dispatch_to_path(&mut self.root, &old, &InputEvent::FocusLost, &mut sub_ctx);
+            #[cfg(target_arch = "wasm32")]
+            self.hide_native_input();
         }
 
         if let Some(icon) = ctx.take_cursor_icon() && let Some(window) = &self.window {
@@ -1063,8 +1127,74 @@ impl App {
         }
     }
 
-    // Tab / Shift+Tab ile bir sonraki (backward=true ise bir önceki) focusable
-    // widget'a geçer, uçlarda başa/sona sarar.
+    #[cfg(target_arch = "wasm32")]
+    fn sync_native_input(&mut self, path: &str) {
+        use winit::platform::web::WindowExtWebSys;
+
+        let Some(input) = &self.native_input else {
+            return;
+        };
+        let Some(widget) = find_widget_mut(&mut self.root, path) else {
+            self.hide_native_input();
+            return;
+        };
+        let Some(snapshot) = widget.native_text_input() else {
+            self.hide_native_input();
+            return;
+        };
+
+        input.set_value(&snapshot.value);
+        let _ = input.set_attribute("placeholder", &snapshot.placeholder);
+        input.set_read_only(snapshot.read_only);
+
+        // layout_box() is in physical (device) pixels - CSS positioning needs
+        // logical pixels, so divide by scale_factor before placing the input.
+        let scale_factor = self.window.as_ref().map_or(1.0, |w| w.scale_factor()) as f32;
+
+        let b = widget.layout_box();
+        let (logical_x, logical_y, logical_w, logical_h) = (
+            b.x / scale_factor,
+            b.y / scale_factor,
+            b.width / scale_factor,
+            b.height / scale_factor,
+        );
+
+        // The canvas itself may not sit at (0,0) on the page (margins, layout
+        // shifts, etc), so the input's on-page position needs that offset too.
+        let (canvas_left, canvas_top) = self.window
+            .as_ref()
+            .and_then(|w| w.canvas())
+            .map(|canvas| {
+                let rect = canvas.get_bounding_client_rect();
+                (rect.left() as f32, rect.top() as f32)
+            })
+            .unwrap_or((0.0, 0.0));
+
+        let final_x = canvas_left + logical_x;
+        let final_y = canvas_top + logical_y;
+
+        let _ = input.set_attribute(
+            "style",
+            &format!(
+                "position:fixed;left:{final_x}px;top:{final_y}px;\
+             width:{logical_w}px;height:{logical_h}px;\
+             opacity:0;border:none;outline:none;background:transparent;\
+             font-size:16px;z-index:2147483647;pointer-events:auto;"
+            )
+        );
+        let _ = input.focus();
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn hide_native_input(&self) {
+        if let Some(input) = &self.native_input {
+            let _ = input.blur();
+            let _ = input.set_attribute("style", "position:fixed;opacity:0;pointer-events:none;");
+        }
+    }
+
+    // Tab / Shift+Tab moves to the next (or previous, if backward=true) focusable
+    // widget, wrapping to the beginning/end at the boundaries.
     fn advance_focus(&mut self, backward: bool) {
         let focusable = collect_focusable_paths(&self.root);
         if focusable.is_empty() {
