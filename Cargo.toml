@@ -30,6 +30,7 @@ xengui-lucide = { version = "0.1.0", path = "crates/xengui-lucide" }
 xen-svg = { version = "0.1.0", path = "crates/xen-svg" }
 lyon = "1.0.19"
 wgpu = { version = "30.0.0", features = ["webgl"] }
+raw-window-handle = "0.6.2"
 glyphon = "0.12.0"
 winit = "0.30.0"
 taffy = { version = "0.12.1", features = ["grid"] }

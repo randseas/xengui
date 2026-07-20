@@ -24,7 +24,7 @@ impl WgpuWindowRenderer {
         height: u32,
         user_fonts: Vec<(String, Vec<u8>)>
     ) -> Result<Self, String>
-        where W: wgpu::WindowHandle + 'static
+        where W: wgpu::WindowHandle + raw_window_handle::HasDisplayHandle + 'static
     {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: if cfg!(target_os = "windows") {
@@ -64,7 +64,7 @@ impl WgpuWindowRenderer {
         height: u32,
         user_fonts: Vec<(String, Vec<u8>)>
     ) -> Result<Self, String>
-        where W: wgpu::WindowHandle + 'static
+        where W: wgpu::WindowHandle + raw_window_handle::HasDisplayHandle + 'static
     {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),

@@ -94,6 +94,7 @@ dependencies = [
  "console_log",
  "env_logger",
  "log",
+ "xenframe",
  "xengui",
 ]
 
@@ -1723,6 +1724,7 @@ dependencies = [
  "env_logger",
  "log",
  "xen-clipboard",
+ "xenframe",
  "xengui",
 ]
 
@@ -2042,6 +2044,7 @@ dependencies = [
  "env_logger",
  "log",
  "xen-clipboard",
+ "xenframe",
  "xengui",
 ]
 
@@ -2881,6 +2884,7 @@ dependencies = [
  "env_logger",
  "log",
  "xen-clipboard",
+ "xenframe",
  "xengui",
  "xengui-lucide",
 ]
@@ -3264,6 +3268,7 @@ dependencies = [
  "log",
  "web-sys",
  "xen-clipboard",
+ "xenframe",
  "xengui",
  "xengui-lucide",
 ]
@@ -3283,6 +3288,7 @@ dependencies = [
  "glyphon",
  "log",
  "pollster",
+ "raw-window-handle",
  "wasm-bindgen-futures",
  "wgpu",
  "xengui",

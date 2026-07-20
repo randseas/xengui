@@ -6,6 +6,7 @@ rust-version = { workspace = true }
 
 [dependencies]
 xengui = { workspace = true }
+xenframe = { workspace = true }
 xen-clipboard = { workspace = true }
 xengui-lucide = { workspace = true }
 log = { workspace = true }

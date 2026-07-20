@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use xenframe::{ App, AppConfig };
+#[cfg(not(target_arch = "wasm32"))]
+use xenframe::WindowPosition;
+
 use xengui::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(not(target_arch = "wasm32"))]
         height: 700,
         #[cfg(not(target_arch = "wasm32"))]
-        position: xengui::WindowPosition::Center,
+        position: WindowPosition::Center,
         ..Default::default()
     };
 

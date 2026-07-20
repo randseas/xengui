@@ -15,7 +15,6 @@ use xengui::{
     ModifiersState,
     MouseButton,
     Theme,
-    XenRenderer,
     any_wants_animation,
     clear_text_selection_recursive,
     dispatch_animation_tick,

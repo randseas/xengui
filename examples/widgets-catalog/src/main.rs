@@ -2,6 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use std::time::Duration;
 
+use xenframe::{ App, AppConfig };
+#[cfg(not(target_arch = "wasm32"))]
+use xenframe::WindowPosition;
 // hides console window on windows subsystem
 use xengui::{ properties::StyleValue, widgets::Link, * };
 
@@ -30,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(not(target_arch = "wasm32"))]
         height: 700,
         #[cfg(not(target_arch = "wasm32"))]
-        position: xengui::WindowPosition::Center,
+        position: WindowPosition::Center,
 
         themes: vec![
             Theme::light(),

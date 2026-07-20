@@ -170,7 +170,7 @@ impl App {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn set_renderer(&mut self, renderer: XenRenderer) {
+    pub fn set_renderer(&mut self, renderer: WgpuWindowRenderer) {
         self.renderer = Some(renderer);
     }
 

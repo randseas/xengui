@@ -2,6 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use std::time::Duration;
 
+use xenframe::{ App, AppConfig };
+#[cfg(not(target_arch = "wasm32"))]
+use xenframe::WindowPosition;
 use xengui::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -29,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(not(target_arch = "wasm32"))]
         height: 500,
         #[cfg(not(target_arch = "wasm32"))]
-        position: xengui::WindowPosition::Center,
+        position: WindowPosition::Center,
         ..Default::default()
     };
 

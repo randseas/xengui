@@ -2,7 +2,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use std::time::Duration;
 
+#[cfg(not(target_arch = "wasm32"))]
+use xenframe::WindowPosition;
 use xengui::{ properties::StyleValue, * };
+use xenframe::{ App, AppConfig };
 use xen_clipboard::Clipboard;
 
 // write debug messages directly into the screen
@@ -66,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(not(target_arch = "wasm32"))]
         height: 480,
         #[cfg(not(target_arch = "wasm32"))]
-        position: xengui::WindowPosition::Center,
+        position: WindowPosition::Center,
 
         themes: vec![
             Theme::new("pearl_light")
