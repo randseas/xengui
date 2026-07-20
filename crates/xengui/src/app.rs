@@ -613,24 +613,29 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         let Ok(input) = document.create_element("input") &&
                         let Ok(input) = input.dyn_into::<web_sys::HtmlInputElement>()
                     {
-                        // Kept nearly transparent but not display:none - iOS Safari only
-                        // opens the keyboard for elements it considers actually interactive.
-                        let _ = input.set_attribute(
-                            "style",
-                            "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:none;outline:none;font-size:16px;z-index:-1;pointer-events:none;caret-color:transparent;"
-                        );
+                        // todo: write commentary
                         let _ = body.append_child(&input);
-
-                        let _ = input.set_attribute("id", "xengui-native-input");
-                        let _ = input.set_attribute("name", "xengui-native-input");
                         let _ = input.set_attribute("type", "text");
-                        let _ = input.set_attribute("value", "null");
-
                         let _ = input.set_attribute("autocomplete", "off");
                         let _ = input.set_attribute("autocorrect", "off");
                         let _ = input.set_attribute("autocapitalize", "off");
                         let _ = input.set_attribute("spellcheck", "false");
                         let _ = input.set_attribute("enterkeyhint", "done");
+
+                        let style = input.style();
+                        let _ = style.set_property("position", "fixed");
+                        let _ = style.set_property("top", "0");
+                        let _ = style.set_property("left", "0");
+                        let _ = style.set_property("opacity", "0");
+                        let _ = style.set_property("border", "none");
+                        let _ = style.set_property("outline", "none");
+                        let _ = style.set_property("width", "1px");
+                        let _ = style.set_property("height", "1px");
+                        let _ = style.set_property("font-size", "16px");
+                        let _ = style.set_property("z-index", "-1");
+                        let _ = style.set_property("pointer-events", "none");
+                        let _ = style.set_property("background-color", "transparent");
+                        let _ = style.set_property("caret-color", "transparent");
 
                         if let Some(proxy) = &self.event_proxy {
                             let proxy_clone = proxy.clone();
