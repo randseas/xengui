@@ -596,10 +596,18 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                             "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:none;outline:none;font-size:16px;z-index:-1;pointer-events:none;caret-color:transparent;"
                         );
                         let _ = body.append_child(&input);
+                        
                         let _ = input.set_attribute("id", "xengui-native-input");
                         let _ = input.set_attribute("name", "xengui-native-input");
+                        let _ = input.set_attribute("type", "text");
                         let _ = input.set_attribute("value", "null");
                         let _ = input.set_attribute("placeholder", "null");
+
+                        let _ = input.set_attribute("autocomplete", "off");
+                        let _ = input.set_attribute("autocorrect", "off");
+                        let _ = input.set_attribute("autocapitalize", "off");
+                        let _ = input.set_attribute("spellcheck", "false");
+                        let _ = input.set_attribute("enterkeyhint", "done");
 
                         if let Some(proxy) = &self.event_proxy {
                             let proxy_clone = proxy.clone();
