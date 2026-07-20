@@ -598,6 +598,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         let _ = body.append_child(&input);
                         let _ = input.set_attribute("id", "xengui-native-input");
                         let _ = input.set_attribute("name", "xengui-native-input");
+                        let _ = input.set_attribute("value", "null");
+                        let _ = input.set_attribute("placeholder", "null");
 
                         if let Some(proxy) = &self.event_proxy {
                             let proxy_clone = proxy.clone();
@@ -833,6 +835,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                                 &mut ctx
                             );
                             self.input.focused_path = None;
+                            #[cfg(target_arch = "wasm32")]
+                            self.hide_native_input();
                             self.apply_event_ctx(ctx);
                         }
                     }
@@ -1174,7 +1178,7 @@ impl App {
             let _ = input.set_attribute("placeholder", "null");
             let _ = input.set_attribute(
                 "style",
-                "position:fixed;left:-99999;bottom:-99999;width:0;height:0;opacity:0;font-size:0px;z-index:-2147483647;pointer-events:none;background:transparent;color:transparent;caret-color:transparent;"
+                "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:none;outline:none;font-size:16px;z-index:-1;pointer-events:none;caret-color:transparent;"
             );
         }
     }
@@ -1201,6 +1205,8 @@ impl App {
         if let Some(old) = self.input.focused_path.take() {
             let mut ctx = EventCtx::new();
             dispatch_to_path(&mut self.root, &old, &InputEvent::FocusLost, &mut ctx);
+            #[cfg(target_arch = "wasm32")]
+            self.hide_native_input();
             self.apply_event_ctx(ctx);
         }
 
