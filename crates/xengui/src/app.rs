@@ -625,7 +625,6 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         let _ = input.set_attribute("name", "xengui-native-input");
                         let _ = input.set_attribute("type", "text");
                         let _ = input.set_attribute("value", "null");
-                        let _ = input.set_attribute("placeholder", "null");
 
                         let _ = input.set_attribute("autocomplete", "off");
                         let _ = input.set_attribute("autocorrect", "off");
@@ -1210,7 +1209,6 @@ impl App {
         if let Some(input) = &self.native_input {
             let _ = input.blur();
             let _ = input.set_attribute("value", "null");
-            let _ = input.set_attribute("placeholder", "null");
             let _ = input.set_attribute(
                 "style",
                 "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:none;outline:none;font-size:16px;z-index:-1;pointer-events:none;caret-color:transparent;"
