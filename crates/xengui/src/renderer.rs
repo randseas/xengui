@@ -91,9 +91,20 @@ impl XenRenderer {
             .create_surface(window.clone())
             .map_err(|e| format!("Cannot create surface: {}", e))?;
 
+        // compatible_surface ensures the adapter picked can actually render to
+        // this surface - without it, browsers with partial WebGPU support (like
+        // Safari) may hand back an adapter that later fails at device/surface
+        // configuration instead of failing fast here with a clear error.
         let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions::default()).await
-            .expect("Cannot find a compatible adapter");
+            .request_adapter(
+                &(wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::LowPower,
+                    compatible_surface: Some(&surface),
+                    force_fallback_adapter: false,
+                    apply_limit_buckets: false,
+                })
+            ).await
+            .map_err(|e| format!("Cannot find a compatible adapter: {}", e))?;
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor::default()).await
@@ -122,7 +133,7 @@ impl XenRenderer {
                 "Surface reports no supported texture formats (GPU/browser incompatibility).".to_string()
             );
         };
-        
+
         let text_pipeline = TextPipeline::new(&device, &queue, surface_format, user_fonts)?;
         let rect_pipeline = RectPipeline::new(&device, surface_format);
         let triangle_pipeline = TrianglePipeline::new(&device, surface_format);
