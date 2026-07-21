@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
+    AnimKey,
+    AnimLayer,
+    AnimProperty,
     AnimationManager,
     Background,
     Constraints,
@@ -27,19 +30,21 @@ use crate::{
     StyleBuilder,
     TriangleCommand,
     Widget,
+    WidgetBase,
     WidgetId,
 };
 use smol_str::SmolStr;
+use xen_animation::{ AnimValue, Easing, Transition };
 use std::cell::Cell;
 
-// Fixed catch-up rate for the exponential-decay scroll animation, tuned so
-// a wheel step settles in roughly a quarter of a second.
-// TODO: write description & method to change this on view builder
-const SCROLL_ANIM_SPEED: f32 = 18.0;
-// TODO: write description & method to change this on view builder
-const SCROLL_ANIM_EPSILON: f32 = 0.25;
-const SCROLLBAR_THICKNESS_ANIM_SPEED: f32 = 22.0;
-const SCROLLBAR_THICKNESS_ANIM_EPSILON: f32 = 0.05;
+// Eased transition applied to scroll position when animating toward a
+// wheel/nudge target; drag updates bypass this and snap instantly.
+const SCROLL_TRANSITION: Transition = Transition::new(std::time::Duration::from_millis(250)).easing(
+    Easing::EaseOut
+);
+const SCROLLBAR_THICKNESS_TRANSITION: Transition = Transition::new(
+    std::time::Duration::from_millis(160)
+).easing(Easing::EaseOut);
 
 #[derive(Clone, Copy)]
 struct ScrollDrag {
@@ -83,65 +88,40 @@ fn arrow_triangle(
 }
 
 pub struct View {
-    key: Option<SmolStr>,
+    base: WidgetBase,
+
     anim_id: WidgetId,
-
-    dirty: bool,
-    style: Style,
-    inherited_style: Style,
-    computed_style: Style,
-
-    hover_style: Option<Style>,
-    pressed_style: Option<Style>,
-    disabled_style: Option<Style>,
-    focus_style: Option<Style>,
-
     layout_box: LayoutBox,
     children: Vec<Box<dyn Widget>>,
-    interaction: Interaction,
-
     scroll_offset: Cell<(f32, f32)>,
     scroll_target: Cell<(f32, f32)>,
-    scroll_animating: Cell<bool>,
+
     content_size: Cell<(f32, f32)>,
     scrollbar_drag: Cell<Option<ScrollDrag>>,
     scroll_step: f32,
     // Whether the pointer is over the scrollbar's own track/thumb/buttons,
     // separate from the widget's general hover state.
     scrollbar_hovered: Cell<bool>,
-    // Animated scrollbar thickness; negative means "not yet initialized",
-    // so the first frame snaps instead of animating in.
+    // Animated scrollbar thickness, driven by the shared AnimationManager.
     scrollbar_thickness_anim: Cell<f32>,
 }
 
 impl View {
     pub fn new() -> Self {
         let mut view = Self {
-            key: None,
+            base: WidgetBase::new(Interaction::new()),
+
             anim_id: WidgetId::new_unique(),
-
-            dirty: true,
-            style: Style::default(),
-            inherited_style: Style::default(),
-            computed_style: Style::default(),
-
-            hover_style: None,
-            pressed_style: None,
-            disabled_style: None,
-            focus_style: None,
-
             layout_box: LayoutBox::default(),
             children: Vec::new(),
-            interaction: Interaction::new(),
 
             scroll_offset: Cell::new((0.0, 0.0)),
             scroll_target: Cell::new((0.0, 0.0)),
-            scroll_animating: Cell::new(false),
             content_size: Cell::new((0.0, 0.0)),
             scrollbar_drag: Cell::new(None),
             scroll_step: 96.0,
             scrollbar_hovered: Cell::new(false),
-            scrollbar_thickness_anim: Cell::new(-1.0),
+            scrollbar_thickness_anim: Cell::new(0.0),
         };
 
         view = view
@@ -160,18 +140,18 @@ impl View {
     /// widget moves position (reorder, insert, remove). Use for list items
     /// instead of relying on array index.
     pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
-        self.key = Some(key.into());
+        self.base.key = Some(key.into());
         self
     }
 
     pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
-        self.style.font = Some(font.into());
+        self.base.style.font = Some(font.into());
         self.mark_dirty();
         self
     }
 
     pub fn hover_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.hover_style.get_or_insert_with(Style::default).background = Some(
+        self.base.hover_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
         );
         self.mark_dirty();
@@ -179,7 +159,7 @@ impl View {
     }
 
     pub fn pressed_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.pressed_style.get_or_insert_with(Style::default).background = Some(
+        self.base.pressed_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
         );
         self.mark_dirty();
@@ -187,7 +167,7 @@ impl View {
     }
 
     pub fn disabled_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.disabled_style.get_or_insert_with(Style::default).background = Some(
+        self.base.disabled_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
         );
         self.mark_dirty();
@@ -207,12 +187,12 @@ impl View {
     }
 
     pub fn focusable(mut self, focusable: bool) -> Self {
-        self.interaction.focusable = focusable;
+        self.base.interaction.focusable = focusable;
         self
     }
 
     pub fn enabled(mut self, enabled: bool) -> Self {
-        self.interaction.set_enabled(enabled);
+        self.base.interaction.set_enabled(enabled);
         self.mark_dirty();
         self
     }
@@ -223,36 +203,36 @@ impl View {
     }
 
     fn recompute_style(&mut self) {
-        let patch = if !self.interaction.enabled {
-            self.disabled_style.as_ref()
-        } else if self.interaction.pressed {
-            self.pressed_style.as_ref().or(self.hover_style.as_ref())
-        } else if self.interaction.focused {
-            self.focus_style.as_ref()
-        } else if self.interaction.hovered {
-            self.hover_style.as_ref()
+        let patch = if !self.base.interaction.enabled {
+            self.base.disabled_style.as_ref()
+        } else if self.base.interaction.pressed {
+            self.base.pressed_style.as_ref().or(self.base.hover_style.as_ref())
+        } else if self.base.interaction.focused {
+            self.base.focus_style.as_ref()
+        } else if self.base.interaction.hovered {
+            self.base.hover_style.as_ref()
         } else {
             None
         };
 
-        let base = self.inherited_style.inherit_style(&self.style);
+        let base = self.base.inherited_style.inherit_style(&self.base.style);
 
-        self.computed_style = match patch {
+        self.base.computed_style = match patch {
             Some(patch) => base.overlay(patch),
             None => base,
         };
 
-        self.interaction.hover_cursor = self.computed_style.cursor;
+        self.base.interaction.hover_cursor = self.base.computed_style.cursor;
     }
 
     fn resolved_scrollbar(&self) -> ResolvedScrollbar {
-        self.computed_style.scrollbar.unwrap_or_default().resolve()
+        self.base.computed_style.scrollbar.unwrap_or_default().resolve()
     }
 
     // Overlays scrollbar_hover / scrollbar_pressed on top of the base scrollbar style.
     fn resolved_scrollbar_for_state(&self, hovered: bool, pressed: bool) -> ResolvedScrollbar {
         let base = self.resolved_scrollbar();
-        let style = &self.computed_style;
+        let style = &self.base.computed_style;
 
         if pressed {
             return match style.scrollbar_pressed.as_ref().or(style.scrollbar_hover.as_ref()) {
@@ -288,36 +268,60 @@ impl View {
     }
 
     fn current_scrollbar_thickness(&self) -> f32 {
-        let current = self.scrollbar_thickness_anim.get();
-        if current < 0.0 {
-            self.target_scrollbar_thickness()
-        } else {
-            current
-        }
+        self.scrollbar_thickness_anim.get()
     }
 
-    fn advance_scrollbar_thickness(&self, dt: f32) {
+    // Pulls the scrollbar thickness toward its hover/pressed target through
+    // the shared AnimationManager, called once per frame from cascade_style.
+    fn animate_scrollbar_thickness(&mut self, anim: &mut AnimationManager) {
         let target = self.target_scrollbar_thickness();
-        let current = self.scrollbar_thickness_anim.get();
+        let key = AnimKey {
+            widget: self.anim_id,
+            layer: AnimLayer::Root,
+            property: AnimProperty::ScrollbarThickness,
+        };
 
-        if current < 0.0 {
-            self.scrollbar_thickness_anim.set(target);
-            return;
-        }
+        anim.set_target(
+            key,
+            AnimValue([target, 0.0, 0.0, 0.0]),
+            Some(SCROLLBAR_THICKNESS_TRANSITION)
+        );
 
-        let t = (1.0 - (-SCROLLBAR_THICKNESS_ANIM_SPEED * dt).exp()).clamp(0.0, 1.0);
-        let next = current + (target - current) * t;
-
-        if (target - next).abs() < SCROLLBAR_THICKNESS_ANIM_EPSILON {
-            self.scrollbar_thickness_anim.set(target);
-        } else {
-            self.scrollbar_thickness_anim.set(next);
+        match anim.value(key) {
+            Some(v) => {
+                self.scrollbar_thickness_anim.set(v.0[0]);
+                self.base.dirty = true;
+            }
+            None => self.scrollbar_thickness_anim.set(target),
         }
     }
 
-    fn scrollbar_thickness_settled(&self) -> bool {
-        (self.scrollbar_thickness_anim.get() - self.target_scrollbar_thickness()).abs() <
-            SCROLLBAR_THICKNESS_ANIM_EPSILON
+    // Pulls scroll_offset toward scroll_target through the shared
+    // AnimationManager; a thumb drag snaps instantly instead of easing so
+    // it tracks the cursor 1:1.
+    fn animate_scroll(&mut self, anim: &mut AnimationManager) {
+        let target = self.scroll_target.get();
+        let key = AnimKey {
+            widget: self.anim_id,
+            layer: AnimLayer::Root,
+            property: AnimProperty::ScrollOffset,
+        };
+
+        let transition = if self.scrollbar_drag.get().is_some() {
+            None
+        } else {
+            Some(SCROLL_TRANSITION)
+        };
+
+        anim.set_target(key, AnimValue([target.0, target.1, 0.0, 0.0]), transition);
+
+        match anim.value(key) {
+            Some(v) => {
+                self.scroll_offset.set((v.0[0], v.0[1]));
+                self.base.dirty = true;
+            }
+            None => self.scroll_offset.set(target),
+        }
     }
 
     // Hit area for scrollbar hover detection; uses the hover thickness so
@@ -341,23 +345,23 @@ impl View {
     }
 
     fn is_scrollable_x(&self) -> bool {
-        matches!(self.computed_style.overflow_x, Some(Overflow::Scroll | Overflow::Auto))
+        matches!(self.base.computed_style.overflow_x, Some(Overflow::Scroll | Overflow::Auto))
     }
 
     fn is_scrollable_y(&self) -> bool {
-        matches!(self.computed_style.overflow_y, Some(Overflow::Scroll | Overflow::Auto))
+        matches!(self.base.computed_style.overflow_y, Some(Overflow::Scroll | Overflow::Auto))
     }
 
     fn clips_x(&self) -> bool {
         matches!(
-            self.computed_style.overflow_x,
+            self.base.computed_style.overflow_x,
             Some(Overflow::Scroll | Overflow::Auto | Overflow::Hidden)
         )
     }
 
     fn clips_y(&self) -> bool {
         matches!(
-            self.computed_style.overflow_y,
+            self.base.computed_style.overflow_y,
             Some(Overflow::Scroll | Overflow::Auto | Overflow::Hidden)
         )
     }
@@ -379,10 +383,10 @@ impl View {
     fn scrollbar_visibility(&self) -> (bool, bool) {
         (
             self.is_scrollable_x() &&
-                (self.computed_style.overflow_x == Some(Overflow::Scroll) ||
+                (self.base.computed_style.overflow_x == Some(Overflow::Scroll) ||
                     self.max_scroll_x() > 0.0),
             self.is_scrollable_y() &&
-                (self.computed_style.overflow_y == Some(Overflow::Scroll) ||
+                (self.base.computed_style.overflow_y == Some(Overflow::Scroll) ||
                     self.max_scroll_y() > 0.0),
         )
     }
@@ -465,8 +469,7 @@ impl View {
 
     fn start_scroll_animation(&mut self, target: (f32, f32), ctx: &mut EventCtx) {
         self.scroll_target.set(target);
-        self.scroll_animating.set(true);
-        self.dirty = true;
+        self.base.dirty = true;
         ctx.request_redraw();
     }
 
@@ -617,7 +620,6 @@ impl View {
                     }
                 }
                 if let Some(thumb) = self.vertical_thumb_rect() && point_in_rect(position, thumb) {
-                    self.scroll_animating.set(false);
                     self.scrollbar_drag.set(
                         Some(ScrollDrag {
                             vertical: true,
@@ -628,7 +630,6 @@ impl View {
                     return true;
                 }
                 if let Some(thumb) = self.horizontal_thumb_rect() && point_in_rect(position, thumb) {
-                    self.scroll_animating.set(false);
                     self.scrollbar_drag.set(
                         Some(ScrollDrag {
                             vertical: false,
@@ -747,31 +748,11 @@ impl View {
             // and button nudges go through the animated path.
             self.scroll_offset.set(next);
             self.scroll_target.set(next);
-            self.dirty = true;
+            self.base.dirty = true;
             ctx.request_redraw();
         }
 
         true
-    }
-
-    fn advance_scroll_animation(&mut self, dt: f32, ctx: &mut EventCtx) {
-        let target = self.scroll_target.get();
-        let current = self.scroll_offset.get();
-
-        let t = (1.0 - (-SCROLL_ANIM_SPEED * dt).exp()).clamp(0.0, 1.0);
-        let next = (current.0 + (target.0 - current.0) * t, current.1 + (target.1 - current.1) * t);
-
-        let remaining = ((target.0 - next.0).powi(2) + (target.1 - next.1).powi(2)).sqrt();
-
-        if remaining < SCROLL_ANIM_EPSILON {
-            self.scroll_offset.set(target);
-            self.scroll_animating.set(false);
-        } else {
-            self.scroll_offset.set(next);
-        }
-
-        self.dirty = true;
-        ctx.request_redraw();
     }
 }
 
@@ -783,17 +764,17 @@ impl Default for View {
 
 impl StyleBuilder for View {
     fn style_mut(&mut self) -> &mut Style {
-        &mut self.style
+        &mut self.base.style
     }
 
     fn mark_dirty(&mut self) {
-        self.dirty = true;
+        self.base.dirty = true;
         self.recompute_style();
     }
 }
 
-crate::impl_interaction_builders!(View);
-crate::impl_themed_style_builders!(View; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style, focus_style => focus_style);
+crate::impl_interaction_builders!(base View);
+crate::impl_themed_style_builders!(base View; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style, focus_style => focus_style);
 
 impl Widget for View {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -809,27 +790,27 @@ impl Widget for View {
     }
 
     fn get_key(&self) -> Option<&SmolStr> {
-        self.key.as_ref()
+        self.base.key.as_ref()
     }
 
     fn is_dirty(&self) -> bool {
-        self.dirty
+        self.base.dirty
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.base.dirty = dirty;
     }
 
     fn style(&self) -> &Style {
-        &self.style
+        &self.base.style
     }
 
     fn style_mut(&mut self) -> &mut Style {
-        &mut self.style
+        &mut self.base.style
     }
 
     fn computed_style(&self) -> &Style {
-        &self.computed_style
+        &self.base.computed_style
     }
 
     fn children(&self) -> &[Box<dyn Widget>] {
@@ -841,11 +822,11 @@ impl Widget for View {
     }
 
     fn interaction(&self) -> Option<&Interaction> {
-        Some(&self.interaction)
+        Some(&self.base.interaction)
     }
 
     fn interaction_mut(&mut self) -> Option<&mut Interaction> {
-        Some(&mut self.interaction)
+        Some(&mut self.base.interaction)
     }
 
     fn scroll_offset(&self) -> (f32, f32) {
@@ -992,24 +973,6 @@ impl Widget for View {
     }
 
     fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {
-        if let InputEvent::AnimationTick { dt } = event {
-            let mut handled = false;
-
-            if self.scroll_animating.get() {
-                self.advance_scroll_animation(*dt, ctx);
-                handled = true;
-            }
-
-            if !self.scrollbar_thickness_settled() {
-                self.advance_scrollbar_thickness(*dt);
-                self.dirty = true;
-                ctx.request_redraw();
-                handled = true;
-            }
-
-            return if handled { EventStatus::Handled } else { EventStatus::Ignored };
-        }
-
         if let InputEvent::MouseMoved { position } = event {
             if self.scrollbar_drag.get().is_some() && self.handle_scrollbar_drag(*position, ctx) {
                 return EventStatus::Handled;
@@ -1018,14 +981,14 @@ impl Widget for View {
             let now_hovered = self.point_in_scrollbar(*position);
             if now_hovered != self.scrollbar_hovered.get() {
                 self.scrollbar_hovered.set(now_hovered);
-                self.dirty = true;
+                self.base.dirty = true;
                 ctx.request_redraw();
             }
         }
 
         if matches!(event, InputEvent::MouseExited) && self.scrollbar_hovered.get() {
             self.scrollbar_hovered.set(false);
-            self.dirty = true;
+            self.base.dirty = true;
             ctx.request_redraw();
         }
 
@@ -1051,23 +1014,23 @@ impl Widget for View {
             return EventStatus::Handled;
         }
 
-        if !self.interaction.is_active() {
+        if !self.base.interaction.is_active() {
             return EventStatus::Ignored;
         }
 
-        let before_style = self.computed_style.clone();
-        let before_focus_visible = self.interaction.focus_visible;
+        let before_style = self.base.computed_style.clone();
+        let before_focus_visible = self.base.interaction.focus_visible;
 
-        let status = self.interaction.handle(event, ctx);
+        let status = self.base.interaction.handle(event, ctx);
 
         if matches!(status, EventStatus::Handled) {
             self.recompute_style();
 
             if
-                self.computed_style != before_style ||
-                self.interaction.focus_visible != before_focus_visible
+                self.base.computed_style != before_style ||
+                self.base.interaction.focus_visible != before_focus_visible
             {
-                self.dirty = true;
+                self.base.dirty = true;
                 ctx.request_redraw();
             }
         }
@@ -1080,23 +1043,26 @@ impl Widget for View {
             return false;
         };
 
-        self.style == other.style &&
-            self.hover_style == other.hover_style &&
-            self.pressed_style == other.pressed_style &&
-            self.disabled_style == other.disabled_style &&
-            self.focus_style == other.focus_style
+        self.base.style == other.base.style &&
+            self.base.hover_style == other.base.hover_style &&
+            self.base.pressed_style == other.base.pressed_style &&
+            self.base.disabled_style == other.base.disabled_style &&
+            self.base.focus_style == other.base.focus_style
     }
 
     fn cascade_style(&mut self, parent: &Style, anim: &mut AnimationManager) {
-        self.inherited_style = parent.clone();
+        self.base.inherited_style = parent.clone();
         self.recompute_style();
 
-        if crate::animate_computed_style(self.anim_id, &mut self.computed_style, anim) {
-            self.dirty = true;
+        if crate::animate_computed_style(self.anim_id, &mut self.base.computed_style, anim) {
+            self.base.dirty = true;
         }
 
+        self.animate_scroll(anim);
+        self.animate_scrollbar_thickness(anim);
+
         for child in self.children.iter_mut() {
-            child.cascade_style(&self.computed_style, anim);
+            child.cascade_style(&self.base.computed_style, anim);
         }
     }
 
@@ -1108,16 +1074,11 @@ impl Widget for View {
         if let Some(old) = old.as_any().downcast_ref::<View>() {
             self.scroll_offset.set(old.scroll_offset.get());
             self.scroll_target.set(old.scroll_target.get());
-            self.scroll_animating.set(old.scroll_animating.get());
             self.content_size.set(old.content_size.get());
             self.scrollbar_hovered.set(old.scrollbar_hovered.get());
             self.scrollbar_thickness_anim.set(old.scrollbar_thickness_anim.get());
             self.anim_id = old.anim_id;
         }
-    }
-
-    fn wants_animation_frame(&self) -> bool {
-        self.scroll_animating.get() || !self.scrollbar_thickness_settled()
     }
 
     fn anim_id(&self) -> WidgetId {

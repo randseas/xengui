@@ -3237,6 +3237,7 @@ dependencies = [
  "web-sys",
  "web-time",
  "winit",
+ "xen-animation",
  "xen-clipboard",
  "xengui",
  "xengui-wgpu",

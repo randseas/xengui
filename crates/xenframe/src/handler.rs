@@ -159,6 +159,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             // the page jump instead of following the keyboard smoothly.
             fn animate_canvas_resize(window: &Arc<Window>, target_w: f64, target_h: f64) {
                 use std::{ cell::RefCell, rc::Rc };
+                use xen_animation::{ AnimationManager, AnimValue, Easing, Transition };
 
                 let current = window.inner_size().to_logical::<f64>(window.scale_factor());
                 if
@@ -168,32 +169,55 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     return;
                 }
 
-                let start = (current.width, current.height);
-                let start_time = web_time::Instant::now();
-                const DURATION_MS: f32 = 220.0;
+                let manager: Rc<RefCell<AnimationManager<()>>> = Rc::new(
+                    RefCell::new(AnimationManager::new())
+                );
+                manager
+                    .borrow_mut()
+                    .set_target(
+                        (),
+                        AnimValue([current.width as f32, current.height as f32, 0.0, 0.0]),
+                        None
+                    );
+                manager
+                    .borrow_mut()
+                    .set_target(
+                        (),
+                        AnimValue([target_w as f32, target_h as f32, 0.0, 0.0]),
+                        Some(
+                            Transition::new(std::time::Duration::from_millis(220)).easing(
+                                Easing::EaseOut
+                            )
+                        )
+                    );
 
                 type ScrollAnimClosure = wasm_bindgen::closure::Closure<dyn FnMut()>;
 
                 let tick: Rc<RefCell<Option<ScrollAnimClosure>>> = Rc::new(RefCell::new(None));
                 let tick_handle = tick.clone();
                 let window = window.clone();
+                let manager_handle = manager.clone();
+                let last_tick = Rc::new(RefCell::new(web_time::Instant::now()));
 
                 *tick_handle.borrow_mut() = Some(
                     wasm_bindgen::closure::Closure::new(move || {
-                        let t = ((start_time.elapsed().as_secs_f32() * 1000.0) / DURATION_MS).clamp(
-                            0.0,
-                            1.0
-                        );
-                        let eased = 1.0 - (1.0 - t).powi(3);
+                        let now = web_time::Instant::now();
+                        let dt = now.duration_since(*last_tick.borrow());
+                        *last_tick.borrow_mut() = now;
 
-                        let w = start.0 + (target_w - start.0) * (eased as f64);
-                        let h = start.1 + (target_h - start.1) * (eased as f64);
+                        manager_handle.borrow_mut().tick(dt);
+                        let still_animating = manager_handle.borrow().is_animating();
+
+                        let (w, h) = match manager_handle.borrow().value(()) {
+                            Some(v) => (v.0[0] as f64, v.0[1] as f64),
+                            None => (target_w, target_h),
+                        };
                         let phys = winit::dpi::LogicalSize
                             ::new(w, h)
                             .to_physical::<u32>(window.scale_factor());
                         let _ = window.request_inner_size(phys);
 
-                        if t < 1.0 && let Some(web_window) = web_sys::window() {
+                        if still_animating && let Some(web_window) = web_sys::window() {
                             let _ = web_window.request_animation_frame(
                                 tick.borrow().as_ref().unwrap().as_ref().unchecked_ref()
                             );

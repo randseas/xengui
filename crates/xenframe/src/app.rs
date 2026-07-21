@@ -147,7 +147,7 @@ impl App {
         const SLICE: std::time::Duration = std::time::Duration::from_millis(5);
         let deadline = Instant::now() + SLICE;
 
-        match work.perform_work(deadline) {
+        match work.perform_work(&mut self.root, deadline) {
             reconciler::WorkLoopStatus::Yielded => true,
             reconciler::WorkLoopStatus::Complete(tree) => {
                 self.root = tree;

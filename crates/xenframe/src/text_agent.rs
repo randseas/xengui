@@ -50,14 +50,17 @@ impl TextAgent {
         let _ = style.set_property("pointer-events", "none");
         let _ = style.set_property("background-color", "transparent");
         let _ = style.set_property("caret-color", "transparent");
-
+        
         let on_input = {
             let input = input.clone();
             move |event: web_sys::InputEvent| {
                 // Gboard leaves stray invisible characters behind after a
                 // suggestion commits unless focus is fully reset between
                 // words; forcing a blur/refocus here clears that state.
-                if !event.is_composing() {
+                // Skipped for deletions, since refocusing mid-gesture
+                // cancels the OS's own held-backspace repeat.
+                let is_delete = event.input_type().starts_with("delete");
+                if !event.is_composing() && !is_delete {
                     let _ = input.blur();
                     let _ = focus_without_scroll(&input);
                 }

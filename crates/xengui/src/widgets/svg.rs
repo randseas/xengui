@@ -14,8 +14,9 @@ use crate::{
     StyleBuilder,
     TriangleCommand,
     Widget,
+    WidgetBase,
     WidgetId,
-    svg_compat::{ from_svg_color, IntoSvgColor },
+    svg_compat::{ IntoSvgColor, from_svg_color },
 };
 use smol_str::SmolStr;
 use std::sync::Arc;
@@ -257,21 +258,12 @@ impl_svg_attrs_builder!(SvgGroupBuilder);
 /// CSS's `currentColor` works - this is what lets `xengui-lucide` ship icons
 /// that automatically match surrounding text color.
 pub struct Svg {
-    key: Option<SmolStr>,
+    base: WidgetBase,
     anim_id: WidgetId,
-
-    dirty: bool,
-    style: Style,
-    inherited_style: Style,
-    computed_style: Style,
-
-    interaction: Interaction,
-
     document: Arc<SvgDocument>,
     // Tessellated once per document change instead of on every paint, since
     // flattening curves and triangulating shapes isn't free.
     triangles: Arc<Vec<SvgTriangle>>,
-
     layout_box: LayoutBox,
 }
 
@@ -279,21 +271,13 @@ impl Svg {
     pub fn new() -> Self {
         let document = SvgDocument::default();
         let triangles = Arc::new(tessellate_document(&document));
+        let interaction = Interaction::new();
 
         Self {
-            key: None,
+            base: WidgetBase::new(interaction),
             anim_id: WidgetId::new_unique(),
-
-            dirty: true,
-            style: Style::default(),
-            inherited_style: Style::default(),
-            computed_style: Style::default(),
-
-            interaction: Interaction::new(),
-
             document: Arc::new(document),
             triangles,
-
             layout_box: LayoutBox::default(),
         }
     }
@@ -321,7 +305,7 @@ impl Svg {
     }
 
     pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
-        self.key = Some(key.into());
+        self.base.key = Some(key.into());
         self
     }
 
@@ -390,7 +374,7 @@ impl Svg {
     }
 
     fn recompute_style(&mut self) {
-        self.computed_style = self.inherited_style.inherit_style(&self.style);
+        self.base.computed_style = self.base.inherited_style.inherit_style(&self.base.style);
     }
 }
 
@@ -402,16 +386,16 @@ impl Default for Svg {
 
 impl StyleBuilder for Svg {
     fn style_mut(&mut self) -> &mut Style {
-        &mut self.style
+        &mut self.base.style
     }
 
     fn mark_dirty(&mut self) {
-        self.dirty = true;
+        self.base.dirty = true;
         self.recompute_style();
     }
 }
 
-crate::impl_interaction_builders!(Svg);
+crate::impl_interaction_builders!(base Svg);
 
 impl Widget for Svg {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -427,27 +411,27 @@ impl Widget for Svg {
     }
 
     fn get_key(&self) -> Option<&SmolStr> {
-        self.key.as_ref()
+        self.base.key.as_ref()
     }
 
     fn is_dirty(&self) -> bool {
-        self.dirty
+        self.base.dirty
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.base.dirty = dirty;
     }
 
     fn style(&self) -> &Style {
-        &self.style
+        &self.base.style
     }
 
     fn style_mut(&mut self) -> &mut Style {
-        &mut self.style
+        &mut self.base.style
     }
 
     fn computed_style(&self) -> &Style {
-        &self.computed_style
+        &self.base.computed_style
     }
 
     fn children(&self) -> &[Box<dyn Widget>] {
@@ -455,11 +439,11 @@ impl Widget for Svg {
     }
 
     fn interaction(&self) -> Option<&Interaction> {
-        Some(&self.interaction)
+        Some(&self.base.interaction)
     }
 
     fn interaction_mut(&mut self) -> Option<&mut Interaction> {
-        Some(&mut self.interaction)
+        Some(&mut self.base.interaction)
     }
 
     fn measure(&self, ctx: &mut MeasureContext, _constraints: Constraints) -> MeasureResult {
@@ -491,7 +475,7 @@ impl Widget for Svg {
         // `color` is the CSS-inherited text color; `currentColor` paints
         // resolve against it, so icons follow the parent's text color for
         // free instead of needing an explicit tint on every instance.
-        let inherited_color = self.computed_style.color.unwrap_or(crate::Color::BLACK);
+        let inherited_color = self.base.computed_style.color.unwrap_or(crate::Color::BLACK);
         let inherited_svg_color = xen_svg::Color::rgba_f32(
             inherited_color.r(),
             inherited_color.g(),
@@ -521,21 +505,21 @@ impl Widget for Svg {
     }
 
     fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {
-        if !self.interaction.is_active() {
+        if !self.base.interaction.is_active() {
             return EventStatus::Ignored;
         }
-        self.interaction.handle(event, ctx)
+        self.base.interaction.handle(event, ctx)
     }
 
     fn content_eq(&self, other: &dyn Widget) -> bool {
         let Some(other) = other.as_any().downcast_ref::<Svg>() else {
             return false;
         };
-        *self.document == *other.document && self.style == other.style
+        *self.document == *other.document && self.base.style == other.base.style
     }
 
     fn cascade_style(&mut self, parent: &Style, _anim: &mut AnimationManager) {
-        self.inherited_style = parent.clone();
+        self.base.inherited_style = parent.clone();
         self.recompute_style();
     }
 

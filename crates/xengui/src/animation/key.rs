@@ -32,6 +32,8 @@ pub enum AnimProperty {
     MarginBottom,
     GapX,
     GapY,
+    ScrollOffset,
+    ScrollbarThickness,
 }
 
 impl AnimProperty {

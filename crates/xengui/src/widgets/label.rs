@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
+    AnimationManager,
     Background,
     Color,
     Constraints,
@@ -9,7 +10,10 @@ use crate::{
     EventStatus,
     InputEvent,
     Interaction,
+    IntoThemed,
     LayoutBox,
+    MULTI_CLICK_DISTANCE_DP,
+    MULTI_CLICK_INTERVAL,
     MeasureContext,
     MeasureResult,
     MouseButton,
@@ -19,13 +23,9 @@ use crate::{
     StyleBuilder,
     TextCommand,
     Widget,
-    properties::DEFAULT_FONT_SIZE,
-    properties::DEFAULT_CURSOR_ICON,
-    AnimationManager,
+    WidgetBase,
     WidgetId,
-    IntoThemed,
-    MULTI_CLICK_INTERVAL,
-    MULTI_CLICK_DISTANCE_DP,
+    properties::{ DEFAULT_CURSOR_ICON, DEFAULT_FONT_SIZE },
 };
 use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
@@ -43,20 +43,8 @@ macro_rules! props {
 }
 
 pub struct Label {
-    key: Option<SmolStr>,
+    base: WidgetBase,
     anim_id: WidgetId,
-
-    dirty: bool,
-    style: Style,
-    inherited_style: Style,
-    computed_style: Style,
-
-    hover_style: Option<Style>,
-    pressed_style: Option<Style>,
-    disabled_style: Option<Style>,
-    focus_style: Option<Style>,
-
-    interaction: Interaction,
     selectable: bool,
 
     content: SmolStr,
@@ -82,22 +70,10 @@ impl Label {
         interaction.hover_cursor = Some(DEFAULT_CURSOR_ICON);
 
         let mut label = Self {
-            key: None,
+            base: WidgetBase::new(interaction),
             anim_id: WidgetId::new_unique(),
 
-            dirty: true,
-            style: Style::default(),
-            inherited_style: Style::default(),
-            computed_style: Style::default(),
-
-            hover_style: None,
-            pressed_style: None,
-            disabled_style: None,
-            focus_style: None,
-
-            interaction,
             selectable: false,
-
             content: SmolStr::new(""),
             layout_box: LayoutBox::default(),
             content_size: Cell::new((0.0, 0.0)),
@@ -122,81 +98,81 @@ impl Label {
     /// widget moves position (reorder, insert, remove). Use for list items
     /// instead of relying on array index.
     pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
-        self.key = Some(key.into());
+        self.base.key = Some(key.into());
         self
     }
 
     // Builder methods
     pub fn label(mut self, content: impl Into<SmolStr>) -> Self {
         self.content = content.into();
-        self.mark_dirty();
+        self.base.mark_dirty();
         self
     }
 
     pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
-        self.style.font = Some(font.into());
-        self.mark_dirty();
+        self.base.style.font = Some(font.into());
+        self.base.mark_dirty();
         self
     }
 
     pub fn selectable(mut self, selectable: bool) -> Self {
         self.selectable = selectable;
-        self.mark_dirty();
+        self.base.mark_dirty();
         self
     }
 
     pub fn hover_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.hover_style.get_or_insert_with(Style::default).background = Some(
+        self.base.hover_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
         );
-        self.mark_dirty();
+        self.base.mark_dirty();
         self
     }
 
     pub fn pressed_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.pressed_style.get_or_insert_with(Style::default).background = Some(
+        self.base.pressed_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
         );
-        self.mark_dirty();
+        self.base.mark_dirty();
         self
     }
 
     pub fn disabled_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.disabled_style.get_or_insert_with(Style::default).background = Some(
+        self.base.disabled_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
         );
-        self.mark_dirty();
+        self.base.mark_dirty();
         self
     }
 
     pub fn enabled(mut self, enabled: bool) -> Self {
-        self.interaction.set_enabled(enabled);
-        self.mark_dirty();
+        self.base.interaction.set_enabled(enabled);
+        self.base.mark_dirty();
         self
     }
 
     fn recompute_style(&mut self) {
-        let patch = if !self.interaction.enabled {
-            self.disabled_style.as_ref()
-        } else if self.interaction.pressed {
-            self.pressed_style.as_ref().or(self.hover_style.as_ref())
-        } else if self.interaction.focused {
-            self.focus_style.as_ref()
-        } else if self.interaction.hovered {
-            self.hover_style.as_ref()
+        let patch = if !self.base.interaction.enabled {
+            self.base.disabled_style.as_ref()
+        } else if self.base.interaction.pressed {
+            self.base.pressed_style.as_ref().or(self.base.hover_style.as_ref())
+        } else if self.base.interaction.focused {
+            self.base.focus_style.as_ref()
+        } else if self.base.interaction.hovered {
+            self.base.hover_style.as_ref()
         } else {
             None
         };
 
-        let base = self.inherited_style.inherit_style(&self.style);
+        let base = self.base.inherited_style.inherit_style(&self.base.style);
 
-        self.computed_style = match patch {
+        self.base.computed_style = match patch {
             Some(patch) => base.overlay(patch),
             None => base,
         };
 
         // Only shows the I-beam when text selection is actually enabled.
-        self.interaction.hover_cursor = self.computed_style.cursor.or(
+        self.base.interaction.hover_cursor = self.base.computed_style.cursor.or(
             Some(if self.selectable { Cursor::Text } else { Cursor::Default })
         );
     }
@@ -250,16 +226,16 @@ impl Default for Label {
 
 impl StyleBuilder for Label {
     fn style_mut(&mut self) -> &mut Style {
-        &mut self.style
+        &mut self.base.style
     }
 
     fn mark_dirty(&mut self) {
-        self.dirty = true;
-        self.recompute_style();
+        self.base.dirty = true;
+        self.base.recompute_style();
     }
 }
 
-crate::impl_themed_style_builders!(Label; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style, focus_style => focus_style);
+crate::impl_themed_style_builders!(base Label; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style, focus_style => focus_style);
 
 impl Widget for Label {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -275,27 +251,27 @@ impl Widget for Label {
     }
 
     fn get_key(&self) -> Option<&SmolStr> {
-        self.key.as_ref()
+        self.base.key.as_ref()
     }
 
     fn is_dirty(&self) -> bool {
-        self.dirty
+        self.base.dirty
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.base.dirty = dirty;
     }
 
     fn style(&self) -> &Style {
-        &self.style
+        &self.base.style
     }
 
     fn style_mut(&mut self) -> &mut Style {
-        &mut self.style
+        &mut self.base.style
     }
 
     fn computed_style(&self) -> &Style {
-        &self.computed_style
+        &self.base.computed_style
     }
 
     fn children(&self) -> &[Box<dyn Widget>] {
@@ -303,11 +279,11 @@ impl Widget for Label {
     }
 
     fn interaction(&self) -> Option<&Interaction> {
-        Some(&self.interaction)
+        Some(&self.base.interaction)
     }
 
     fn interaction_mut(&mut self) -> Option<&mut Interaction> {
-        Some(&mut self.interaction)
+        Some(&mut self.base.interaction)
     }
 
     fn layout(&mut self, rect: LayoutBox) {
@@ -321,7 +297,7 @@ impl Widget for Label {
     fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {
         let scale_factor = ctx.scale_factor;
         self.scale_factor.set(scale_factor);
-        let style = &self.computed_style;
+        let style = &self.base.computed_style;
 
         let font_size = style.font_size
             .map(|s| s.to_physical(scale_factor))
@@ -381,7 +357,7 @@ impl Widget for Label {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
-        let style = &self.computed_style;
+        let style = &self.base.computed_style;
 
         log::trace!(
             "paint -> '{}' x={} y={} dirty={:?}",
@@ -482,7 +458,7 @@ impl Widget for Label {
             self.selectable &&
             let InputEvent::MouseInput { state, button: MouseButton::Left, position } = event
         {
-            let padding_left = self.computed_style.padding
+            let padding_left = self.base.computed_style.padding
                 .unwrap_or_default()
                 .left.to_physical(self.scale_factor.get());
             let local_x = position.0 - self.layout_box.x - padding_left;
@@ -536,23 +512,23 @@ impl Widget for Label {
                     self.dragging.set(false);
                 }
             }
-            self.dirty = true;
+            self.base.dirty = true;
             ctx.request_redraw();
         }
 
-        if !self.interaction.is_active() {
+        if !self.base.interaction.is_active() {
             return EventStatus::Ignored;
         }
 
-        let before_style = self.computed_style.clone();
+        let before_style = self.base.computed_style.clone();
 
-        let status = self.interaction.handle(event, ctx);
+        let status = self.base.interaction.handle(event, ctx);
 
         if matches!(status, EventStatus::Handled) {
-            self.recompute_style();
+            self.base.recompute_style();
 
-            if self.computed_style != before_style {
-                self.dirty = true;
+            if self.base.computed_style != before_style {
+                self.base.dirty = true;
                 ctx.request_redraw();
             }
         }
@@ -574,18 +550,18 @@ impl Widget for Label {
         let (anchor, cursor) = range.map_or((None, None), |(s, e)| (Some(s), Some(e)));
         self.selection_anchor.set(anchor);
         self.selection_cursor.set(cursor);
-        self.dirty = true;
+        self.base.dirty = true;
     }
 
     fn cancel_text_selection(&mut self) {
         self.selection_anchor.set(None);
         self.selection_cursor.set(None);
         self.dragging.set(false);
-        self.dirty = true;
+        self.base.dirty = true;
     }
 
     fn text_index_at(&self, point: (f32, f32)) -> usize {
-        let padding_left = self.computed_style.padding
+        let padding_left = self.base.computed_style.padding
             .unwrap_or_default()
             .left.to_physical(self.scale_factor.get());
         let local_x = point.0 - self.layout_box.x - padding_left;
@@ -598,7 +574,7 @@ impl Widget for Label {
         }
         self.selection_anchor.set(Some(0));
         self.selection_cursor.set(Some(self.content.chars().count()));
-        self.dirty = true;
+        self.base.dirty = true;
     }
 
     fn content_eq(&self, other: &dyn Widget) -> bool {
@@ -607,24 +583,24 @@ impl Widget for Label {
         };
 
         self.content == other.content &&
-            self.style == other.style &&
-            self.hover_style == other.hover_style &&
-            self.pressed_style == other.pressed_style &&
-            self.disabled_style == other.disabled_style &&
-            self.focus_style == other.focus_style &&
+            self.base.style == other.base.style &&
+            self.base.hover_style == other.base.hover_style &&
+            self.base.pressed_style == other.base.pressed_style &&
+            self.base.disabled_style == other.base.disabled_style &&
+            self.base.focus_style == other.base.focus_style &&
             self.selectable == other.selectable
     }
 
     fn cascade_style(&mut self, parent: &Style, anim: &mut AnimationManager) {
-        self.inherited_style = parent.clone();
-        self.recompute_style();
-        if crate::animate_computed_style(self.anim_id, &mut self.computed_style, anim) {
-            self.dirty = true;
+        self.base.inherited_style = parent.clone();
+        self.base.recompute_style();
+        if crate::animate_computed_style(self.anim_id, &mut self.base.computed_style, anim) {
+            self.base.dirty = true;
         }
     }
 
     fn after_interaction_transfer(&mut self) {
-        self.recompute_style();
+        self.base.recompute_style();
     }
 
     fn transfer_measured_state(&mut self, old: &dyn Widget) {

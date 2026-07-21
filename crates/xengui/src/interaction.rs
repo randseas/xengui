@@ -220,10 +220,10 @@ impl Default for Interaction {
 
 #[macro_export]
 macro_rules! impl_interaction_builders {
-    ($ty:ty) => {
+    (base $ty:ty) => {
         impl $ty {
             pub fn on_click(mut self, f: impl FnMut(&mut $crate::EventCtx) + 'static) -> Self {
-                self.interaction.on_click = Some(Box::new(f));
+                self.base.interaction.on_click = Some(Box::new(f));
                 self
             }
 
@@ -231,7 +231,7 @@ macro_rules! impl_interaction_builders {
                 mut self,
                 f: impl FnMut(bool, &mut $crate::EventCtx) + 'static,
             ) -> Self {
-                self.interaction.on_hover = Some(Box::new(f));
+                self.base.interaction.on_hover = Some(Box::new(f));
                 self
             }
 
@@ -239,7 +239,7 @@ macro_rules! impl_interaction_builders {
                 mut self,
                 f: impl FnMut(&mut $crate::EventCtx) + 'static,
             ) -> Self {
-                self.interaction.on_mouse_enter = Some(Box::new(f));
+                self.base.interaction.on_mouse_enter = Some(Box::new(f));
                 self
             }
 
@@ -247,7 +247,7 @@ macro_rules! impl_interaction_builders {
                 mut self,
                 f: impl FnMut(&mut $crate::EventCtx) + 'static,
             ) -> Self {
-                self.interaction.on_mouse_leave = Some(Box::new(f));
+                self.base.interaction.on_mouse_leave = Some(Box::new(f));
                 self
             }
 
@@ -259,7 +259,7 @@ macro_rules! impl_interaction_builders {
                     &mut $crate::EventCtx,
                 ) + 'static,
             ) -> Self {
-                self.interaction.on_mouse_input = Some(Box::new(f));
+                self.base.interaction.on_mouse_input = Some(Box::new(f));
                 self
             }
 
@@ -267,7 +267,7 @@ macro_rules! impl_interaction_builders {
                 mut self,
                 f: impl FnMut(&$crate::KeyboardEvent, &mut $crate::EventCtx) + 'static,
             ) -> Self {
-                self.interaction.on_key = Some(Box::new(f));
+                self.base.interaction.on_key = Some(Box::new(f));
                 self
             }
         }

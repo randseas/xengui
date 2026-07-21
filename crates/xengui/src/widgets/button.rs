@@ -3,7 +3,6 @@ use crate::{
     AnimationManager,
     Background,
     Constraints,
-    Cursor,
     EventCtx,
     EventStatus,
     InputEvent,
@@ -146,17 +145,15 @@ impl Button {
     // style-overlay logic now lives in WidgetBase.
     fn recompute_style(&mut self) {
         self.base.recompute_style();
-        self.base.interaction.hover_cursor = self.base.computed_style.cursor
-            .map(Cursor::to_winit)
-            .or(
-                Some(
-                    if self.base.interaction.enabled {
-                        DEFAULT_POINTER_CURSOR_ICON
-                    } else {
-                        DEFAULT_CURSOR_ICON
-                    }
-                )
-            );
+        self.base.interaction.hover_cursor = self.base.computed_style.cursor.or(
+            Some(
+                if self.base.interaction.enabled {
+                    DEFAULT_POINTER_CURSOR_ICON
+                } else {
+                    DEFAULT_CURSOR_ICON
+                }
+            )
+        );
     }
 }
 
@@ -183,8 +180,8 @@ impl WidgetContent for Button {
     }
 }
 
-crate::impl_interaction_builders!(Button);
-crate::impl_themed_style_builders!(Button; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style, focus_style => focus_style);
+crate::impl_interaction_builders!(base Button);
+crate::impl_themed_style_builders!(base Button; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style, focus_style => focus_style);
 
 impl Widget for Button {
     fn as_any(&self) -> &dyn std::any::Any {

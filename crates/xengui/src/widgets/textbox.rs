@@ -16,6 +16,8 @@ use crate::{
     KeyboardEvent,
     LayoutBox,
     Length,
+    MULTI_CLICK_DISTANCE_DP,
+    MULTI_CLICK_INTERVAL,
     MeasureContext,
     MeasureResult,
     ModifiersState,
@@ -27,12 +29,11 @@ use crate::{
     StyleBuilder,
     TextCommand,
     Widget,
+    WidgetBase,
     WidgetContent,
     WidgetId,
-    widget::NativeTextInputSnapshot,
-    MULTI_CLICK_INTERVAL,
-    MULTI_CLICK_DISTANCE_DP,
     properties::{ DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT_RATIO },
+    widget::NativeTextInputSnapshot,
 };
 use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
@@ -41,22 +42,11 @@ use web_time::Instant;
 use xen_clipboard::Clipboard;
 
 pub struct TextBox {
-    key: Option<SmolStr>,
-    anim_id: WidgetId,
+    base: WidgetBase,
 
-    dirty: bool,
+    anim_id: WidgetId,
     content: String,
     placeholder: SmolStr,
-    style: Style,
-
-    hover_style: Option<Style>,
-    focus_style: Option<Style>,
-    disabled_style: Option<Style>,
-    inherited_style: Style,
-    computed_style: Style,
-
-    interaction: Interaction,
-
     cursor_index: usize,
     max_length: Option<usize>,
 
@@ -120,26 +110,20 @@ impl TextBox {
         interaction.focusable = true;
         interaction.hover_cursor = Some(Cursor::Text);
 
+        let mut base = WidgetBase::new(interaction);
         let style = Style {
             padding: Some(Edges::symmetric(8.0, 6.0)),
             min_size: Some(Size { width: Some(Length::px(120.0)), height: None }),
             ..Default::default()
         };
+        base.style = style;
 
         Self {
-            key: None,
-            anim_id: WidgetId::new_unique(),
+            base,
 
-            dirty: true,
+            anim_id: WidgetId::new_unique(),
             content: String::new(),
             placeholder: SmolStr::new(""),
-            style,
-            hover_style: None,
-            focus_style: None,
-            disabled_style: None,
-            inherited_style: Style::default(),
-            computed_style: Style::default(),
-            interaction,
             cursor_index: 0,
             max_length: None,
             selection_anchor: None,
@@ -180,7 +164,7 @@ impl TextBox {
     /// widget moves position (reorder, insert, remove). Use for list items
     /// instead of relying on array index.
     pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
-        self.key = Some(key.into());
+        self.base.key = Some(key.into());
         self
     }
 
@@ -203,7 +187,7 @@ impl TextBox {
     }
 
     pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
-        self.style.font = Some(font.into());
+        self.base.style.font = Some(font.into());
         self.mark_dirty();
         self
     }
@@ -214,7 +198,7 @@ impl TextBox {
     }
 
     pub fn enabled(mut self, enabled: bool) -> Self {
-        self.interaction.set_enabled(enabled);
+        self.base.interaction.set_enabled(enabled);
         self.mark_dirty();
         self
     }
@@ -235,24 +219,24 @@ impl TextBox {
     }
 
     fn recompute_style(&mut self) {
-        let patch = if !self.interaction.enabled {
-            self.disabled_style.as_ref()
-        } else if self.interaction.focused {
-            self.focus_style.as_ref()
-        } else if self.interaction.hovered {
-            self.hover_style.as_ref()
+        let patch = if !self.base.interaction.enabled {
+            self.base.disabled_style.as_ref()
+        } else if self.base.interaction.focused {
+            self.base.focus_style.as_ref()
+        } else if self.base.interaction.hovered {
+            self.base.hover_style.as_ref()
         } else {
             None
         };
 
-        let base = self.inherited_style.inherit_style(&self.style);
+        let base = self.base.inherited_style.inherit_style(&self.base.style);
 
-        self.computed_style = match patch {
+        self.base.computed_style = match patch {
             Some(patch) => base.overlay(patch),
             None => base,
         };
 
-        self.interaction.hover_cursor = self.computed_style.cursor.or(Some(Cursor::Text));
+        self.base.interaction.hover_cursor = self.base.computed_style.cursor.or(Some(Cursor::Text));
     }
 
     fn byte_index_for(&self, char_idx: usize) -> usize {
@@ -666,7 +650,7 @@ impl TextBox {
                 Key::Character('a' | 'A') => {
                     self.selection_anchor = Some(0);
                     self.cursor_index = self.content.chars().count();
-                    self.dirty = true;
+                    self.base.dirty = true;
                     return;
                 }
                 Key::Character('c' | 'C') => {
@@ -675,14 +659,14 @@ impl TextBox {
                 }
                 Key::Character('x' | 'X') => {
                     self.cut_selection(ctx);
-                    self.dirty = true;
+                    self.base.dirty = true;
                     return;
                 }
                 Key::Character('v' | 'V') => {
                     self.paste_from_clipboard();
                     // Applies immediately on backends that resolve synchronously.
                     self.poll_clipboard_paste(ctx);
-                    self.dirty = true;
+                    self.base.dirty = true;
                     return;
                 }
                 Key::Character('z' | 'Z') => {
@@ -691,34 +675,34 @@ impl TextBox {
                     } else {
                         self.undo(ctx);
                     }
-                    self.dirty = true;
+                    self.base.dirty = true;
                     return;
                 }
                 Key::Character('y' | 'Y') => {
                     self.redo(ctx);
-                    self.dirty = true;
+                    self.base.dirty = true;
                     return;
                 }
                 Key::ArrowLeft => {
                     let target = self.word_left(self.cursor_index);
                     self.move_cursor_to(target, modifiers.shift);
-                    self.dirty = true;
+                    self.base.dirty = true;
                     return;
                 }
                 Key::ArrowRight => {
                     let target = self.word_right(self.cursor_index);
                     self.move_cursor_to(target, modifiers.shift);
-                    self.dirty = true;
+                    self.base.dirty = true;
                     return;
                 }
                 Key::Backspace => {
                     self.delete_word_before_cursor(ctx);
-                    self.dirty = true;
+                    self.base.dirty = true;
                     return;
                 }
                 Key::Delete => {
                     self.delete_word_after_cursor(ctx);
-                    self.dirty = true;
+                    self.base.dirty = true;
                     return;
                 }
                 _ => {}
@@ -765,11 +749,11 @@ impl TextBox {
             Key::Tab => ctx.release_focus(),
             _ => {}
         }
-        self.dirty = true;
+        self.base.dirty = true;
     }
 
     fn handle_mouse_press(&mut self, position: (f32, f32)) {
-        let padding_left = self.computed_style.padding
+        let padding_left = self.base.computed_style.padding
             .unwrap_or_default()
             .left.to_physical(self.scale_factor.get());
         let local_x = position.0 - self.layout_box.x - padding_left + self.scroll_offset.get();
@@ -843,7 +827,7 @@ impl TextBox {
             self.drag_threshold_passed.set(true);
         }
 
-        let padding_left = self.computed_style.padding
+        let padding_left = self.base.computed_style.padding
             .unwrap_or_default()
             .left.to_physical(self.scale_factor.get());
         let local_x = position.0 - self.layout_box.x - padding_left + self.scroll_offset.get();
@@ -880,11 +864,11 @@ impl Default for TextBox {
 
 impl StyleBuilder for TextBox {
     fn style_mut(&mut self) -> &mut Style {
-        &mut self.style
+        &mut self.base.style
     }
 
     fn mark_dirty(&mut self) {
-        self.dirty = true;
+        self.base.dirty = true;
         self.recompute_style();
     }
 }
@@ -895,8 +879,8 @@ impl WidgetContent for TextBox {
     }
 }
 
-crate::impl_interaction_builders!(TextBox);
-crate::impl_themed_style_builders!(TextBox; hover_style => hover_style, focus_style => focus_style, disabled_style => disabled_style);
+crate::impl_interaction_builders!(base TextBox);
+crate::impl_themed_style_builders!(base TextBox; hover_style => hover_style, focus_style => focus_style, disabled_style => disabled_style);
 
 impl Widget for TextBox {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -908,7 +892,7 @@ impl Widget for TextBox {
     }
 
     fn get_key(&self) -> Option<&SmolStr> {
-        self.key.as_ref()
+        self.base.key.as_ref()
     }
 
     fn debug_name(&self) -> &'static str {
@@ -916,23 +900,23 @@ impl Widget for TextBox {
     }
 
     fn is_dirty(&self) -> bool {
-        self.dirty
+        self.base.dirty
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.base.dirty = dirty;
     }
 
     fn style(&self) -> &Style {
-        &self.style
+        &self.base.style
     }
 
     fn style_mut(&mut self) -> &mut Style {
-        &mut self.style
+        &mut self.base.style
     }
 
     fn computed_style(&self) -> &Style {
-        &self.computed_style
+        &self.base.computed_style
     }
 
     fn children(&self) -> &[Box<dyn Widget>] {
@@ -940,17 +924,17 @@ impl Widget for TextBox {
     }
 
     fn interaction(&self) -> Option<&Interaction> {
-        Some(&self.interaction)
+        Some(&self.base.interaction)
     }
 
     fn interaction_mut(&mut self) -> Option<&mut Interaction> {
-        Some(&mut self.interaction)
+        Some(&mut self.base.interaction)
     }
 
     fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {
         let scale_factor = ctx.scale_factor;
         self.scale_factor.set(scale_factor);
-        let style = &self.computed_style;
+        let style = &self.base.computed_style;
 
         let font_size = style.font_size
             .map(|s| s.to_physical(scale_factor))
@@ -1056,7 +1040,7 @@ impl Widget for TextBox {
             self.is_dirty()
         );
 
-        let style = &self.computed_style;
+        let style = &self.base.computed_style;
 
         self.paint_box(ctx);
         self.paint_outline(ctx);
@@ -1115,7 +1099,9 @@ impl Widget for TextBox {
             self.layout_box.height,
         ));
 
-        let active_selection = self.interaction.focused.then(|| self.selection_range()).flatten();
+        let active_selection = self.base.interaction.focused
+            .then(|| self.selection_range())
+            .flatten();
         let mut sel_bounds: Option<(f32, f32)> = None;
 
         if let Some((start, end)) = active_selection {
@@ -1213,7 +1199,7 @@ impl Widget for TextBox {
             });
         }
 
-        if self.interaction.focused && self.caret_visible.get() {
+        if self.base.interaction.focused && self.caret_visible.get() {
             let cursor_x = (text_x + self.cursor_offset.get()).round();
             let caret_color = style.caret_color.unwrap_or(style.color.unwrap_or(Color::BLACK));
 
@@ -1230,7 +1216,7 @@ impl Widget for TextBox {
     }
 
     fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {
-        if !self.interaction.enabled {
+        if !self.base.interaction.enabled {
             return EventStatus::Ignored;
         }
 
@@ -1245,7 +1231,7 @@ impl Widget for TextBox {
 
         if matches!(event, InputEvent::BlinkTick) {
             self.caret_visible.set(!self.caret_visible.get());
-            self.dirty = true;
+            self.base.dirty = true;
             ctx.request_redraw();
             return EventStatus::Handled;
         }
@@ -1254,16 +1240,16 @@ impl Widget for TextBox {
         // treats Enter/Space as a click-activation key, which would prevent
         // typing spaces and would fire on_click on every Enter press.
         if let InputEvent::KeyInput { event: key_event, modifiers } = event {
-            if !self.interaction.focused || key_event.state != KeyState::Pressed {
+            if !self.base.interaction.focused || key_event.state != KeyState::Pressed {
                 return EventStatus::Ignored;
             }
 
-            let was_dirty = self.dirty;
+            let was_dirty = self.base.dirty;
             let before_content = self.content.clone();
             let before_cursor = self.cursor_index;
             let before_selection = self.selection_anchor;
             let before_caret_visible = self.caret_visible.get();
-            let before_style = self.computed_style.clone();
+            let before_style = self.base.computed_style.clone();
 
             self.handle_key(key_event, *modifiers, ctx);
             self.recompute_style();
@@ -1273,12 +1259,12 @@ impl Widget for TextBox {
                 self.cursor_index != before_cursor ||
                 self.selection_anchor != before_selection ||
                 self.caret_visible.get() != before_caret_visible ||
-                self.computed_style != before_style;
+                self.base.computed_style != before_style;
 
             // handle_key marks the widget dirty unconditionally for
             // simplicity; undo that when the keystroke (e.g. a bare
             // Ctrl/Shift press) produced no visible difference.
-            self.dirty = was_dirty || changed;
+            self.base.dirty = was_dirty || changed;
 
             if changed {
                 ctx.request_redraw();
@@ -1288,7 +1274,7 @@ impl Widget for TextBox {
         }
 
         if let InputEvent::MouseInput { state, button, position } = event {
-            let status = self.interaction.handle(event, ctx);
+            let status = self.base.interaction.handle(event, ctx);
 
             if *button == MouseButton::Left {
                 match state {
@@ -1303,7 +1289,7 @@ impl Widget for TextBox {
                     }
                 }
                 self.recompute_style();
-                self.dirty = true;
+                self.base.dirty = true;
                 ctx.request_redraw();
                 return EventStatus::Handled;
             }
@@ -1316,7 +1302,7 @@ impl Widget for TextBox {
         if let InputEvent::MouseMoved { position } = event {
             if self.dragging {
                 self.handle_mouse_drag(*position);
-                self.dirty = true;
+                self.base.dirty = true;
                 ctx.request_redraw();
                 return EventStatus::Handled;
             }
@@ -1325,9 +1311,9 @@ impl Widget for TextBox {
 
         // Interaction::handle() clears `pressed` on MouseExited, so the
         // real button-held state must be captured before calling it.
-        let before_style = self.computed_style.clone();
+        let before_style = self.base.computed_style.clone();
 
-        let status = self.interaction.handle(event, ctx);
+        let status = self.base.interaction.handle(event, ctx);
 
         if matches!(event, InputEvent::MouseExited) && !self.mouse_button_held.get() {
             self.dragging = false;
@@ -1359,8 +1345,8 @@ impl Widget for TextBox {
                 InputEvent::FocusGained { .. } | InputEvent::FocusLost
             );
 
-            if focus_event || self.computed_style != before_style {
-                self.dirty = true;
+            if focus_event || self.base.computed_style != before_style {
+                self.base.dirty = true;
                 ctx.request_redraw();
             }
         }
@@ -1376,17 +1362,17 @@ impl Widget for TextBox {
             self.placeholder == other.placeholder &&
             self.cursor_index == other.cursor_index &&
             self.selection_anchor == other.selection_anchor &&
-            self.style == other.style &&
-            self.hover_style == other.hover_style &&
-            self.focus_style == other.focus_style &&
-            self.disabled_style == other.disabled_style
+            self.base.style == other.base.style &&
+            self.base.hover_style == other.base.hover_style &&
+            self.base.focus_style == other.base.focus_style &&
+            self.base.disabled_style == other.base.disabled_style
     }
 
     fn cascade_style(&mut self, parent: &Style, anim: &mut AnimationManager) {
-        self.inherited_style = parent.clone();
+        self.base.inherited_style = parent.clone();
         self.recompute_style();
-        if crate::animate_computed_style(self.anim_id, &mut self.computed_style, anim) {
-            self.dirty = true;
+        if crate::animate_computed_style(self.anim_id, &mut self.base.computed_style, anim) {
+            self.base.dirty = true;
         }
     }
 
@@ -1431,11 +1417,11 @@ impl Widget for TextBox {
         self.selection_anchor = None;
         self.dragging = false;
         self.drag_word_selection = false;
-        self.dirty = true;
+        self.base.dirty = true;
     }
 
     fn blink_interval(&self) -> Option<std::time::Duration> {
-        self.interaction.focused.then_some(std::time::Duration::from_millis(530))
+        self.base.interaction.focused.then_some(std::time::Duration::from_millis(530))
     }
 
     fn anim_id(&self) -> WidgetId {
@@ -1459,7 +1445,7 @@ impl Widget for TextBox {
         self.content = value.to_string();
         self.cursor_index = self.content.chars().count();
         self.selection_anchor = None;
-        self.dirty = true;
+        self.base.dirty = true;
         self.notify_change(ctx);
     }
 

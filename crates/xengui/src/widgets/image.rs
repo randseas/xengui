@@ -19,6 +19,7 @@ use crate::{
     Style,
     StyleBuilder,
     Widget,
+    WidgetBase,
     WidgetId,
 };
 use smol_str::SmolStr;
@@ -84,21 +85,8 @@ pub fn image_source_from_path(path: impl AsRef<std::path::Path>) -> Result<Image
 }
 
 pub struct Image {
-    key: Option<SmolStr>,
+    base: WidgetBase,
     anim_id: WidgetId,
-
-    dirty: bool,
-    style: Style,
-    inherited_style: Style,
-    computed_style: Style,
-
-    hover_style: Option<Style>,
-    pressed_style: Option<Style>,
-    disabled_style: Option<Style>,
-    focus_style: Option<Style>,
-
-    interaction: Interaction,
-
     layout_box: LayoutBox,
     source: Option<ImageSource>,
     object_fit: ObjectFit,
@@ -107,22 +95,11 @@ pub struct Image {
 
 impl Image {
     pub fn new() -> Self {
+        let interaction = Interaction::new();
+
         let mut image = Self {
-            key: None,
+            base: WidgetBase::new(interaction),
             anim_id: WidgetId::new_unique(),
-
-            dirty: true,
-            style: Style::default(),
-            inherited_style: Style::default(),
-            computed_style: Style::default(),
-
-            hover_style: None,
-            pressed_style: None,
-            disabled_style: None,
-            focus_style: None,
-
-            interaction: Interaction::new(),
-
             layout_box: LayoutBox::default(),
             source: None,
             object_fit: ObjectFit::default(),
@@ -137,7 +114,7 @@ impl Image {
     /// widget moves position (reorder, insert, remove). Use for list items
     /// instead of relying on array index.
     pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
-        self.key = Some(key.into());
+        self.base.key = Some(key.into());
         self
     }
 
@@ -184,7 +161,7 @@ impl Image {
     }
 
     pub fn hover_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.hover_style.get_or_insert_with(Style::default).background = Some(
+        self.base.hover_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
         );
         self.mark_dirty();
@@ -192,7 +169,7 @@ impl Image {
     }
 
     pub fn pressed_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.pressed_style.get_or_insert_with(Style::default).background = Some(
+        self.base.pressed_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
         );
         self.mark_dirty();
@@ -200,7 +177,7 @@ impl Image {
     }
 
     pub fn disabled_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.disabled_style.get_or_insert_with(Style::default).background = Some(
+        self.base.disabled_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
         );
         self.mark_dirty();
@@ -208,32 +185,32 @@ impl Image {
     }
 
     pub fn enabled(mut self, enabled: bool) -> Self {
-        self.interaction.set_enabled(enabled);
+        self.base.interaction.set_enabled(enabled);
         self.mark_dirty();
         self
     }
 
     fn recompute_style(&mut self) {
-        let patch = if !self.interaction.enabled {
-            self.disabled_style.as_ref()
-        } else if self.interaction.pressed {
-            self.pressed_style.as_ref().or(self.hover_style.as_ref())
-        } else if self.interaction.focused {
-            self.focus_style.as_ref()
-        } else if self.interaction.hovered {
-            self.hover_style.as_ref()
+        let patch = if !self.base.interaction.enabled {
+            self.base.disabled_style.as_ref()
+        } else if self.base.interaction.pressed {
+            self.base.pressed_style.as_ref().or(self.base.hover_style.as_ref())
+        } else if self.base.interaction.focused {
+            self.base.focus_style.as_ref()
+        } else if self.base.interaction.hovered {
+            self.base.hover_style.as_ref()
         } else {
             None
         };
 
-        let base = self.inherited_style.inherit_style(&self.style);
+        let base = self.base.inherited_style.inherit_style(&self.base.style);
 
-        self.computed_style = match patch {
+        self.base.computed_style = match patch {
             Some(patch) => base.overlay(patch),
             None => base,
         };
 
-        self.interaction.hover_cursor = self.computed_style.cursor;
+        self.base.interaction.hover_cursor = self.base.computed_style.cursor;
     }
 
     fn intrinsic_size(&self) -> (f32, f32) {
@@ -284,17 +261,17 @@ impl Default for Image {
 
 impl StyleBuilder for Image {
     fn style_mut(&mut self) -> &mut Style {
-        &mut self.style
+        &mut self.base.style
     }
 
     fn mark_dirty(&mut self) {
-        self.dirty = true;
+        self.base.dirty = true;
         self.recompute_style();
     }
 }
 
-crate::impl_interaction_builders!(Image);
-crate::impl_themed_style_builders!(Image; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style, focus_style => focus_style);
+crate::impl_interaction_builders!(base Image);
+crate::impl_themed_style_builders!(base Image; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style, focus_style => focus_style);
 
 impl Widget for Image {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -310,27 +287,27 @@ impl Widget for Image {
     }
 
     fn get_key(&self) -> Option<&SmolStr> {
-        self.key.as_ref()
+        self.base.key.as_ref()
     }
 
     fn is_dirty(&self) -> bool {
-        self.dirty
+        self.base.dirty
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.base.dirty = dirty;
     }
 
     fn style(&self) -> &Style {
-        &self.style
+        &self.base.style
     }
 
     fn style_mut(&mut self) -> &mut Style {
-        &mut self.style
+        &mut self.base.style
     }
 
     fn computed_style(&self) -> &Style {
-        &self.computed_style
+        &self.base.computed_style
     }
 
     fn children(&self) -> &[Box<dyn Widget>] {
@@ -338,11 +315,11 @@ impl Widget for Image {
     }
 
     fn interaction(&self) -> Option<&Interaction> {
-        Some(&self.interaction)
+        Some(&self.base.interaction)
     }
 
     fn interaction_mut(&mut self) -> Option<&mut Interaction> {
-        Some(&mut self.interaction)
+        Some(&mut self.base.interaction)
     }
 
     fn measure(&self, ctx: &mut MeasureContext, _constraints: Constraints) -> MeasureResult {
@@ -375,7 +352,7 @@ impl Widget for Image {
         };
 
         let (position, size) = self.fitted_rect();
-        let border = self.computed_style.border.as_ref();
+        let border = self.base.computed_style.border.as_ref();
         let sf = ctx.scale_factor;
 
         ctx.draw_image(ImageCommand {
@@ -389,19 +366,19 @@ impl Widget for Image {
     }
 
     fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {
-        if !self.interaction.is_active() {
+        if !self.base.interaction.is_active() {
             return EventStatus::Ignored;
         }
 
-        let before_style = self.computed_style.clone();
+        let before_style = self.base.computed_style.clone();
 
-        let status = self.interaction.handle(event, ctx);
+        let status = self.base.interaction.handle(event, ctx);
 
         if matches!(status, EventStatus::Handled) {
             self.recompute_style();
 
-            if self.computed_style != before_style {
-                self.dirty = true;
+            if self.base.computed_style != before_style {
+                self.base.dirty = true;
                 ctx.request_redraw();
             }
         }
@@ -423,11 +400,11 @@ impl Widget for Image {
         source_eq &&
             self.object_fit == other.object_fit &&
             self.tint == other.tint &&
-            self.style == other.style &&
-            self.hover_style == other.hover_style &&
-            self.pressed_style == other.pressed_style &&
-            self.disabled_style == other.disabled_style &&
-            self.focus_style == other.focus_style
+            self.base.style == other.base.style &&
+            self.base.hover_style == other.base.hover_style &&
+            self.base.pressed_style == other.base.pressed_style &&
+            self.base.disabled_style == other.base.disabled_style &&
+            self.base.focus_style == other.base.focus_style
     }
 
     fn after_interaction_transfer(&mut self) {
@@ -435,10 +412,10 @@ impl Widget for Image {
     }
 
     fn cascade_style(&mut self, parent: &Style, anim: &mut AnimationManager) {
-        self.inherited_style = parent.clone();
+        self.base.inherited_style = parent.clone();
         self.recompute_style();
-        if crate::animate_computed_style(self.anim_id, &mut self.computed_style, anim) {
-            self.dirty = true;
+        if crate::animate_computed_style(self.anim_id, &mut self.base.computed_style, anim) {
+            self.base.dirty = true;
         }
     }
 

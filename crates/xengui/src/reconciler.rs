@@ -1,44 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
-//! Fiber-style interruptible reconciler.
+//! Interruptible tree reconciler.
 //!
-//! Instead of a single recursive walk, reconciliation runs as an explicit
-//! work stack: each stack frame owns one level of new-tree siblings still
-//! waiting to be matched against the corresponding old-tree siblings.
-//! `WorkLoop::perform_work` pops and processes one node at a time and can
-//! be stopped after any node and resumed later with a fresh deadline -
-//! the same shape as React's `workLoopConcurrent` / `performUnitOfWork`.
+//! Reconciliation is driven by an explicit work stack. Each stack frame
+//! represents one level of sibling traversal and stores the state needed
+//! to continue processing that level. `WorkLoop::perform_work` repeatedly
+//! pops the current frame, processes a single widget, updates the frame's
+//! progress, and pushes any newly discovered child work back onto the
+//! stack. Because the traversal state lives entirely in the work stack,
+//! execution can stop after any processed node and resume later by
+//! continuing from the remaining frames.
 //!
-//! Matching rules are unchanged from the previous synchronous version:
-//! - A keyed new widget only matches an old widget with the same key.
-//! - An unkeyed new widget matches the next unclaimed unkeyed old widget
-//!   in sibling order.
-//! - A match is only honored when both widgets share the same concrete
-//!   type; a type change is treated as unmount + mount.
+//! Widgets are matched one sibling level at a time. Keyed widgets are
+//! looked up by key, while unkeyed widgets consume the next available
+//! unkeyed sibling in order. A match is considered valid only when both
+//! widgets have the same concrete type; otherwise the existing widget is
+//! discarded and the new widget is treated as a fresh insertion.
 //!
-//! # Safety
-//! The old ("current") tree is not owned by `WorkLoop` - it keeps being
-//! painted on screen for the whole duration of a possibly multi-frame
-//! reconciliation pass, so `WorkLoop` only ever reads it through a raw
-//! pointer. This is sound as long as the caller upholds one invariant:
-//! the old tree's node addresses and structure (children, keys, types)
-//! must not change while a `WorkLoop` referencing it is alive. Flipping a
-//! `dirty` flag on it (as `XenRenderer::render_frame` does after
-//! painting) is fine; adding, removing, reordering, or replacing nodes is
-//! not.
+//! Rather than storing references into the old tree, each frame records
+//! its location as a path of child indices from the root. On every
+//! `perform_work` invocation, this path is resolved against `old_root` to
+//! obtain the current sibling slice, ensuring that no references into the
+//! old tree are kept alive across yields.
 
 use crate::Widget;
 use smol_str::SmolStr;
 use std::collections::HashMap;
 use web_time::Instant;
 
-/// One level of siblings still waiting to be matched, plus everything
-/// needed to resume exactly where processing left off.
 struct Frame {
-    /// Owned new-tree siblings at this level. Once every sibling here has
-    /// been processed, this `Vec` is handed back to whichever new-tree
-    /// node's `children_mut()` slot it was taken from.
     new_siblings: Vec<Box<dyn Widget>>,
-    old_siblings: *const [Box<dyn Widget>],
+    old_path: Vec<usize>,
     keyed_old: HashMap<SmolStr, usize>,
     consumed: Vec<bool>,
     positional_cursor: usize,
@@ -46,7 +37,11 @@ struct Frame {
 }
 
 impl Frame {
-    fn new(new_siblings: Vec<Box<dyn Widget>>, old_siblings: &[Box<dyn Widget>]) -> Self {
+    fn new(
+        new_siblings: Vec<Box<dyn Widget>>,
+        old_siblings: &[Box<dyn Widget>],
+        old_path: Vec<usize>
+    ) -> Self {
         let mut keyed_old = HashMap::new();
         for (i, old) in old_siblings.iter().enumerate() {
             if let Some(key) = old.get_key() {
@@ -56,7 +51,7 @@ impl Frame {
 
         Self {
             new_siblings,
-            old_siblings: old_siblings as *const [Box<dyn Widget>],
+            old_path,
             keyed_old,
             consumed: vec![false; old_siblings.len()],
             positional_cursor: 0,
@@ -75,34 +70,55 @@ pub enum WorkLoopStatus {
     Complete(Vec<Box<dyn Widget>>),
 }
 
-/// Number of nodes processed between deadline checks, so `Instant::now()`
-/// isn't paid for on every single node.
 const YIELD_CHECK_INTERVAL: u32 = 8;
 
 /// An in-progress, interruptible reconciliation pass.
-///
-/// Create with [`WorkLoop::new`], then call [`WorkLoop::perform_work`]
-/// repeatedly (once per time slice) until it reports
-/// [`WorkLoopStatus::Complete`].
 pub struct WorkLoop {
     stack: Vec<Frame>,
     units_since_check: u32,
 }
 
+// Walks down `root` following a path of child indices, returning the
+// sibling slice at that depth.
+fn resolve_old_siblings<'a>(root: &'a [Box<dyn Widget>], path: &[usize]) -> &'a [Box<dyn Widget>] {
+    let mut current = root;
+    for &idx in path {
+        current = current[idx].children();
+    }
+    current
+}
+
+fn resolve_old_siblings_mut<'a>(
+    root: &'a mut [Box<dyn Widget>],
+    path: &[usize]
+) -> &'a mut [Box<dyn Widget>] {
+    let mut current = root;
+    for &idx in path {
+        current = current[idx]
+            .children_mut()
+            .expect("old tree structure changed during reconciliation")
+            .as_mut_slice();
+    }
+    current
+}
+
 impl WorkLoop {
-    /// Begins reconciling `new_root` against `old_root`. `old_root` must
-    /// stay alive and structurally unchanged (see module docs) for as
-    /// long as the returned `WorkLoop` is alive.
+    /// Begins reconciling `new_root` against `old_root`.
     pub fn new(new_root: Vec<Box<dyn Widget>>, old_root: &[Box<dyn Widget>]) -> Self {
         Self {
-            stack: vec![Frame::new(new_root, old_root)],
+            stack: vec![Frame::new(new_root, old_root, Vec::new())],
             units_since_check: 0,
         }
     }
 
     /// Runs until either the whole tree has been reconciled or `deadline`
-    /// is reached, whichever comes first.
-    pub fn perform_work(&mut self, deadline: Instant) -> WorkLoopStatus {
+    /// is reached, whichever comes first. `old_root` must be the same
+    /// tree (unchanged in structure) this `WorkLoop` was created against.
+    pub fn perform_work(
+        &mut self,
+        old_root: &mut [Box<dyn Widget>],
+        deadline: Instant
+    ) -> WorkLoopStatus {
         loop {
             let frame_done = {
                 let frame = self.stack.last().expect("root frame always present");
@@ -112,12 +128,10 @@ impl WorkLoop {
             if frame_done {
                 let finished = self.stack.pop().expect("frame exists");
 
-                let old_siblings: &[Box<dyn Widget>] = unsafe { &*finished.old_siblings };
+                let old_siblings = resolve_old_siblings_mut(old_root, &finished.old_path);
                 for (i, consumed) in finished.consumed.iter().enumerate() {
                     if !consumed {
-                        unsafe {
-                            unmount_subtree(old_siblings[i].as_ref());
-                        }
+                        unmount_subtree(old_siblings[i].as_mut());
                     }
                 }
                 match self.stack.last_mut() {
@@ -134,7 +148,7 @@ impl WorkLoop {
                 continue;
             }
 
-            self.process_one_node();
+            self.process_one_node(old_root);
 
             self.units_since_check += 1;
             if self.units_since_check >= YIELD_CHECK_INTERVAL {
@@ -146,12 +160,12 @@ impl WorkLoop {
         }
     }
 
-    fn process_one_node(&mut self) {
+    fn process_one_node(&mut self, old_root: &mut [Box<dyn Widget>]) {
         let frame = self.stack.last_mut().expect("root frame always present");
         let idx = frame.next_index;
         frame.next_index += 1;
 
-        let Some(old_idx) = Self::find_match(frame, idx) else {
+        let Some(old_idx) = Self::find_match(frame, old_root, idx) else {
             mount_subtree(frame.new_siblings[idx].as_mut());
             return;
         };
@@ -160,21 +174,20 @@ impl WorkLoop {
             return;
         }
 
-        let old_siblings: &[Box<dyn Widget>] = unsafe { &*frame.old_siblings };
-        let old_node = &old_siblings[old_idx];
+        frame.consumed[old_idx] = true;
+        let old_path = frame.old_path.clone();
 
-        if frame.new_siblings[idx].as_any().type_id() != old_node.as_any().type_id() {
-            frame.consumed[old_idx] = true;
-            unsafe {
-                unmount_subtree(old_node.as_ref());
-            }
+        let old_siblings = resolve_old_siblings_mut(old_root, &old_path);
+
+        if frame.new_siblings[idx].as_any().type_id() != old_siblings[old_idx].as_any().type_id() {
+            unmount_subtree(old_siblings[old_idx].as_mut());
             mount_subtree(frame.new_siblings[idx].as_mut());
             return;
         }
 
-        frame.consumed[old_idx] = true;
-
         let new_node = &mut frame.new_siblings[idx];
+        let old_node = &mut old_siblings[old_idx];
+
         new_node.transfer_interaction_state(old_node.as_ref());
         let content_equal = new_node.content_eq(old_node.as_ref());
         new_node.after_interaction_transfer();
@@ -184,25 +197,25 @@ impl WorkLoop {
             new_node.set_dirty(false);
         }
 
-        let old_children: *const [Box<dyn Widget>] = old_node.children() as *const _;
+        let has_children = new_node.children_mut().is_some_and(|c| !c.is_empty());
 
-        if let Some(child_slot) = frame.new_siblings[idx].children_mut() && !child_slot.is_empty() {
-            let taken_children = std::mem::take(child_slot);
-            // SAFETY: `old_children` is derived from the same frozen
-            // old tree this WorkLoop was constructed with.
-            let old_children: &[Box<dyn Widget>] = unsafe { &*old_children };
-            self.stack.push(Frame::new(taken_children, old_children));
+        if has_children {
+            let mut child_path = old_path;
+            child_path.push(old_idx);
+
+            let taken_children = std::mem::take(new_node.children_mut().unwrap());
+            let old_children = resolve_old_siblings(old_root, &child_path);
+            self.stack.push(Frame::new(taken_children, old_children, child_path));
         }
     }
 
-    fn find_match(frame: &mut Frame, idx: usize) -> Option<usize> {
+    fn find_match(frame: &mut Frame, old_root: &[Box<dyn Widget>], idx: usize) -> Option<usize> {
         let key = frame.new_siblings[idx].get_key().cloned();
         if let Some(key) = key {
             return frame.keyed_old.get(&key).copied();
         }
 
-        // SAFETY: see module-level safety invariant.
-        let old_siblings: &[Box<dyn Widget>] = unsafe { &*frame.old_siblings };
+        let old_siblings = resolve_old_siblings(old_root, &frame.old_path);
         while frame.positional_cursor < old_siblings.len() {
             let candidate = frame.positional_cursor;
             frame.positional_cursor += 1;
@@ -224,16 +237,11 @@ fn mount_subtree(widget: &mut dyn Widget) {
     }
 }
 
-// SAFETY: only called on old-tree nodes reconciliation has just discarded
-// (unmatched, or matched to a different widget type) - never read again.
-unsafe fn unmount_subtree(widget: &dyn Widget) {
-    let widget = unsafe { &mut *(widget as *const dyn Widget as *mut dyn Widget) };
+fn unmount_subtree(widget: &mut dyn Widget) {
     widget.on_unmount();
     if let Some(children) = widget.children_mut() {
         for child in children.iter_mut() {
-            unsafe {
-                unmount_subtree(child.as_ref());
-            }
+            unmount_subtree(child.as_mut());
         }
     }
 }
