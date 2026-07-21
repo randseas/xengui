@@ -230,6 +230,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                             .to_physical::<u32>(window.scale_factor());
 
                         *viewport.borrow_mut() = Some((size.width, size.height));
+                        window.request_redraw();
 
                         if !still_animating {
                             let phys = winit::dpi::LogicalSize
@@ -287,6 +288,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
 
             let animated_viewport = Rc::new(RefCell::new(None));
+            self.animated_viewport = animated_viewport.clone();
             let initial_resize_done = self.initial_resize_done.clone();
 
             if window.canvas().is_some() {
@@ -578,7 +580,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         .map_or(1.0, |w| w.scale_factor() as f32);
 
                     #[cfg(target_arch = "wasm32")]
-                    if let Some((w, h)) = self.animated_viewport.take() {
+                    if let Some((w, h)) = *self.animated_viewport.borrow() {
                         renderer.resize(&mut self.root, theme, scale_factor, w, h);
                     }
 

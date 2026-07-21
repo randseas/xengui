@@ -7,6 +7,8 @@ use web_time::Instant;
 
 use winit::event_loop::{ ControlFlow, EventLoop };
 use winit::window::Window;
+#[cfg(target_arch = "wasm32")]
+use xen_animation::AnimationManager;
 use xengui::{
     ElementState,
     EventCtx,
@@ -53,12 +55,24 @@ pub struct App {
 
     #[cfg(target_arch = "wasm32")]
     pub(crate) initial_resize_done: Rc<RefCell<bool>>,
+
     #[cfg(target_arch = "wasm32")]
     pub(crate) animated_viewport: Rc<RefCell<Option<(u32, u32)>>>,
+
     #[cfg(target_arch = "wasm32")]
     pub(crate) text_agent: Option<crate::text_agent::TextAgent>,
+
     #[cfg(target_arch = "wasm32")]
     pub(crate) event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
+
+    #[cfg(target_arch = "wasm32")]
+    pub viewport_animation: AnimationManager<()>,
+
+    #[cfg(target_arch = "wasm32")]
+    pub viewport_target: Option<(f64, f64)>,
+
+    #[cfg(target_arch = "wasm32")]
+    pub viewport_animating: bool,
     // Set right before focusing the hidden native <input>; the resulting
     // canvas blur is reported by winit as WindowEvent::Focused(false),
     // which must not be treated like a real window focus loss.
@@ -87,12 +101,25 @@ impl App {
 
             #[cfg(target_arch = "wasm32")]
             initial_resize_done: Rc::new(RefCell::new(false)),
+
             #[cfg(target_arch = "wasm32")]
             animated_viewport: Rc::new(RefCell::new(None)),
+
             #[cfg(target_arch = "wasm32")]
             text_agent: None,
+
             #[cfg(target_arch = "wasm32")]
             event_proxy: None,
+
+            #[cfg(target_arch = "wasm32")]
+            viewport_animation: AnimationManager::new(),
+
+            #[cfg(target_arch = "wasm32")]
+            viewport_target: None,
+
+            #[cfg(target_arch = "wasm32")]
+            viewport_animating: false,
+
             #[cfg(target_arch = "wasm32")]
             suppress_next_focus_loss: false,
         }
