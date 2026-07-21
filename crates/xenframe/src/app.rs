@@ -215,44 +215,6 @@ impl App {
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn sync_native_input(&mut self, path: &str, focus: bool) {
-        use xengui::find_widget_mut;
-
-        let Some(input) = &self.native_input else {
-            return;
-        };
-        let Some(widget) = find_widget_mut(&mut self.root, path) else {
-            self.hide_native_input();
-            return;
-        };
-        if widget.native_text_input().is_none() {
-            self.hide_native_input();
-            return;
-        }
-
-        widget.sync_native_input(input);
-
-        // The input is never visually positioned over the canvas anymore,
-        // so this only opens the mobile keyboard - it doesn't interfere
-        // with the canvas's own cursor icon or mouse-driven selection.
-        if focus {
-            let _ = input.focus();
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn hide_native_input(&self) {
-        if let Some(input) = &self.native_input {
-            let _ = input.blur();
-            let _ = input.set_attribute("value", "null");
-            let _ = input.set_attribute(
-                "style",
-                "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:none;outline:none;font-size:16px;z-index:-1;pointer-events:none;caret-color:transparent;"
-            );
-        }
-    }
-
     // Tab / Shift+Tab moves to the next (or previous, if backward=true) focusable
     // widget, wrapping to the beginning/end at the boundaries.
     pub(crate) fn advance_focus(&mut self, backward: bool) {

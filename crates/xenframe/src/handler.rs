@@ -369,55 +369,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
 
                 // create invisible input for mobile devices
                 #[cfg(target_arch = "wasm32")]
-                {
-                    if
-                        let Some(document) = web_sys::window().and_then(|w| w.document()) &&
-                        let Some(body) = document.body() &&
-                        let Ok(input) = document.create_element("input") &&
-                        let Ok(input) = input.dyn_into::<web_sys::HtmlInputElement>()
-                    {
-                        let _ = body.append_child(&input);
-                        let _ = input.set_attribute("type", "text");
-                        let _ = input.set_attribute("autocomplete", "off");
-                        let _ = input.set_attribute("autocorrect", "off");
-                        let _ = input.set_attribute("autocapitalize", "off");
-                        let _ = input.set_attribute("spellcheck", "false");
-
-                        let style = input.style();
-                        let _ = style.set_property("position", "fixed");
-                        let _ = style.set_property("top", "0");
-                        let _ = style.set_property("left", "0");
-                        let _ = style.set_property("opacity", "0");
-                        let _ = style.set_property("border", "none");
-                        let _ = style.set_property("outline", "none");
-                        let _ = style.set_property("width", "1px");
-                        let _ = style.set_property("height", "1px");
-                        let _ = style.set_property("font-size", "16px");
-                        let _ = style.set_property("z-index", "-1");
-                        let _ = style.set_property("pointer-events", "none");
-                        let _ = style.set_property("background-color", "transparent");
-                        let _ = style.set_property("caret-color", "transparent");
-
-                        if let Some(proxy) = &self.event_proxy {
-                            let proxy_clone = proxy.clone();
-                            let input_clone = input.clone();
-                            let closure = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(
-                                move || {
-                                    let _ = proxy_clone.send_event(
-                                        XenEvent::NativeInputChanged(input_clone.value())
-                                    );
-                                }
-                            );
-                            let _ = input.add_event_listener_with_callback(
-                                "input",
-                                closure.as_ref().unchecked_ref()
-                            );
-                            closure.forget();
-                        }
-
-                        self.native_input = Some(input);
-                    }
-                }
+                self.create_native_input();
             }
             log::info!("application resumed, gpu context ready");
         }

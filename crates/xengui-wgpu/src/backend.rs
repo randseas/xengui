@@ -218,10 +218,6 @@ impl<'a> RenderBackend for WgpuFrame<'a> {
     }
 
     fn flush_text(&mut self) {
-        // glyphon opens its own render pass internally, so the shape pass
-        // must already be closed by the time we get here.
-        self.shape_pass_open = false;
-
         const MAX_RETRIES: u32 = 3;
         let mut attempts = 0;
         loop {

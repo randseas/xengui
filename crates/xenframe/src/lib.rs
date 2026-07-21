@@ -16,6 +16,7 @@ pub mod handler;
 pub mod cursor;
 pub mod keyboard;
 pub mod mouse;
+pub mod text_agent;
 // pub mod focus;
 // pub mod ime;
 // pub mod platform;
