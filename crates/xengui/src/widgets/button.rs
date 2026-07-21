@@ -3,6 +3,7 @@ use crate::{
     AnimationManager,
     Background,
     Constraints,
+    Cursor,
     EventCtx,
     EventStatus,
     InputEvent,
@@ -18,6 +19,7 @@ use crate::{
     StyleBuilder,
     TextCommand,
     Widget,
+    WidgetBase,
     WidgetContent,
     WidgetId,
     properties::{ DEFAULT_CURSOR_ICON, DEFAULT_FONT_SIZE, DEFAULT_POINTER_CURSOR_ICON },
@@ -44,24 +46,10 @@ use std::cell::Cell;
 ///     .label("Click me");
 /// ```
 pub struct Button {
-    key: Option<SmolStr>,
-
-    dirty: bool,
-    style: Style,
-    inherited_style: Style,
-    computed_style: Style,
-
-    hover_style: Option<Style>,
-    pressed_style: Option<Style>,
-    disabled_style: Option<Style>,
-    focus_style: Option<Style>,
-
-    interaction: Interaction,
-
+    base: WidgetBase,
     content: SmolStr,
     layout_box: LayoutBox,
     content_size: Cell<(f32, f32)>,
-
     anim_id: WidgetId,
 }
 
@@ -71,30 +59,13 @@ impl Button {
         interaction.focusable = true;
         interaction.hover_cursor = Some(DEFAULT_POINTER_CURSOR_ICON);
 
-        let mut button = Self {
-            key: None,
-
-            dirty: true,
-            style: Style::default(),
-            inherited_style: Style::default(),
-            computed_style: Style::default(),
-
-            hover_style: None,
-            pressed_style: None,
-            disabled_style: None,
-            focus_style: None,
-
-            interaction,
-
+        Self {
+            base: WidgetBase::new(interaction),
             content: SmolStr::new(""),
             layout_box: LayoutBox::default(),
             content_size: Cell::new((0.0, 0.0)),
-
             anim_id: WidgetId::new_unique(),
-        };
-
-        button.recompute_style();
-        button
+        }
     }
 
     /// Assigns a stable identifier to this widget.
@@ -103,7 +74,7 @@ impl Button {
     /// to remain associated with the same logical widget even if its position in
     /// the widget tree changes.
     pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
-        self.key = Some(key.into());
+        self.base.key = Some(key.into());
         self
     }
 
@@ -119,13 +90,13 @@ impl Button {
     /// The font name must correspond to a font that has been registered with the
     /// application.
     pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
-        self.style.font = Some(font.into());
+        self.base.style.font = Some(font.into());
         self.mark_dirty();
         self
     }
 
     pub fn hover_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.hover_style.get_or_insert_with(Style::default).background = Some(
+        self.base.hover_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
         );
         self.mark_dirty();
@@ -133,7 +104,7 @@ impl Button {
     }
 
     pub fn pressed_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.pressed_style.get_or_insert_with(Style::default).background = Some(
+        self.base.pressed_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
         );
         self.mark_dirty();
@@ -141,7 +112,7 @@ impl Button {
     }
 
     pub fn disabled_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.disabled_style.get_or_insert_with(Style::default).background = Some(
+        self.base.disabled_style.get_or_insert_with(Style::default).background = Some(
             background.resolve_themed()
         );
         self.mark_dirty();
@@ -155,7 +126,7 @@ impl Button {
     ///
     /// This is equivalent to calling [`Self::disabled`] with the opposite value.
     pub fn enabled(mut self, enabled: bool) -> Self {
-        self.interaction.set_enabled(enabled);
+        self.base.interaction.set_enabled(enabled);
         self.mark_dirty();
         self
     }
@@ -166,40 +137,26 @@ impl Button {
     ///
     /// This is equivalent to calling [`Self::enabled`] with the negated value.
     pub fn disabled(mut self, disabled: bool) -> Self {
-        self.interaction.set_enabled(!disabled);
+        self.base.interaction.set_enabled(!disabled);
         self.mark_dirty();
         self
     }
 
+    // Widget-specific extra step (hover cursor) stays local; the shared
+    // style-overlay logic now lives in WidgetBase.
     fn recompute_style(&mut self) {
-        let patch = if !self.interaction.enabled {
-            self.disabled_style.as_ref()
-        } else if self.interaction.pressed {
-            self.pressed_style.as_ref().or(self.hover_style.as_ref())
-        } else if self.interaction.hovered {
-            self.hover_style.as_ref()
-        } else if self.interaction.focused {
-            self.focus_style.as_ref()
-        } else {
-            None
-        };
-
-        let base = self.inherited_style.inherit_style(&self.style);
-
-        self.computed_style = match patch {
-            Some(patch) => base.overlay(patch),
-            None => base,
-        };
-
-        self.interaction.hover_cursor = self.computed_style.cursor.or(
-            Some(
-                if self.interaction.enabled {
-                    DEFAULT_POINTER_CURSOR_ICON
-                } else {
-                    DEFAULT_CURSOR_ICON
-                }
-            )
-        );
+        self.base.recompute_style();
+        self.base.interaction.hover_cursor = self.base.computed_style.cursor
+            .map(Cursor::to_winit)
+            .or(
+                Some(
+                    if self.base.interaction.enabled {
+                        DEFAULT_POINTER_CURSOR_ICON
+                    } else {
+                        DEFAULT_CURSOR_ICON
+                    }
+                )
+            );
     }
 }
 
@@ -211,11 +168,11 @@ impl Default for Button {
 
 impl StyleBuilder for Button {
     fn style_mut(&mut self) -> &mut Style {
-        &mut self.style
+        &mut self.base.style
     }
 
     fn mark_dirty(&mut self) {
-        self.dirty = true;
+        self.base.dirty = true;
         self.recompute_style();
     }
 }
@@ -243,27 +200,27 @@ impl Widget for Button {
     }
 
     fn get_key(&self) -> Option<&SmolStr> {
-        self.key.as_ref()
+        self.base.key.as_ref()
     }
 
     fn is_dirty(&self) -> bool {
-        self.dirty
+        self.base.dirty
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.base.dirty = dirty;
     }
 
     fn style(&self) -> &Style {
-        &self.style
+        &self.base.style
     }
 
     fn style_mut(&mut self) -> &mut Style {
-        &mut self.style
+        &mut self.base.style
     }
 
     fn computed_style(&self) -> &Style {
-        &self.computed_style
+        &self.base.computed_style
     }
 
     fn children(&self) -> &[Box<dyn Widget>] {
@@ -271,11 +228,11 @@ impl Widget for Button {
     }
 
     fn interaction(&self) -> Option<&Interaction> {
-        Some(&self.interaction)
+        Some(&self.base.interaction)
     }
 
     fn interaction_mut(&mut self) -> Option<&mut Interaction> {
-        Some(&mut self.interaction)
+        Some(&mut self.base.interaction)
     }
 
     fn layout(&mut self, rect: LayoutBox) {
@@ -288,7 +245,7 @@ impl Widget for Button {
 
     fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {
         let scale_factor = ctx.scale_factor;
-        let style = &self.computed_style;
+        let style = &self.base.computed_style;
 
         let font_size = style.font_size
             .map(|s| s.to_physical(scale_factor))
@@ -339,7 +296,7 @@ impl Widget for Button {
             self.is_dirty()
         );
 
-        let style = &self.computed_style;
+        let style = &self.base.computed_style;
         let sf = ctx.scale_factor;
 
         // Background is painted through its own scaled rect instead of
@@ -402,23 +359,23 @@ impl Widget for Button {
     }
 
     fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {
-        if !self.interaction.is_active() {
+        if !self.base.interaction.is_active() {
             return EventStatus::Ignored;
         }
 
-        let before_style = self.computed_style.clone();
-        let before_focus_visible = self.interaction.focus_visible;
+        let before_style = self.base.computed_style.clone();
+        let before_focus_visible = self.base.interaction.focus_visible;
 
-        let status = self.interaction.handle(event, ctx);
+        let status = self.base.interaction.handle(event, ctx);
 
         if matches!(status, EventStatus::Handled) {
             self.recompute_style();
 
             if
-                self.computed_style != before_style ||
-                self.interaction.focus_visible != before_focus_visible
+                self.base.computed_style != before_style ||
+                self.base.interaction.focus_visible != before_focus_visible
             {
-                self.dirty = true;
+                self.base.dirty = true;
                 ctx.request_redraw();
             }
         }
@@ -432,18 +389,18 @@ impl Widget for Button {
         };
 
         self.content == other.content &&
-            self.style == other.style &&
-            self.hover_style == other.hover_style &&
-            self.pressed_style == other.pressed_style &&
-            self.disabled_style == other.disabled_style &&
-            self.focus_style == other.focus_style
+            self.base.style == other.base.style &&
+            self.base.hover_style == other.base.hover_style &&
+            self.base.pressed_style == other.base.pressed_style &&
+            self.base.disabled_style == other.base.disabled_style &&
+            self.base.focus_style == other.base.focus_style
     }
 
     fn cascade_style(&mut self, parent: &Style, anim: &mut AnimationManager) {
-        self.inherited_style = parent.clone();
+        self.base.inherited_style = parent.clone();
         self.recompute_style();
-        if crate::animate_computed_style(self.anim_id, &mut self.computed_style, anim) {
-            self.dirty = true;
+        if crate::animate_computed_style(self.anim_id, &mut self.base.computed_style, anim) {
+            self.base.dirty = true;
         }
     }
 

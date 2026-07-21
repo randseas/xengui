@@ -57,6 +57,12 @@ pub trait Widget: Any {
         self.style()
     }
 
+    /// Called once, right after this widget is inserted into the tree.
+    fn on_mount(&mut self) {}
+
+    /// Called once, right before this widget is permanently removed from the tree.
+    fn on_unmount(&mut self) {}
+
     fn children(&self) -> &[Box<dyn Widget>] {
         &[]
     }

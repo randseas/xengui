@@ -172,9 +172,9 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 let start_time = web_time::Instant::now();
                 const DURATION_MS: f32 = 220.0;
 
-                let tick: Rc<
-                    RefCell<Option<wasm_bindgen::closure::Closure<dyn FnMut()>>>
-                > = Rc::new(RefCell::new(None));
+                type ScrollAnimClosure = wasm_bindgen::closure::Closure<dyn FnMut()>;
+
+                let tick: Rc<RefCell<Option<ScrollAnimClosure>>> = Rc::new(RefCell::new(None));
                 let tick_handle = tick.clone();
                 let window = window.clone();
 

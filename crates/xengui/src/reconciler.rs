@@ -111,6 +111,15 @@ impl WorkLoop {
 
             if frame_done {
                 let finished = self.stack.pop().expect("frame exists");
+
+                let old_siblings: &[Box<dyn Widget>] = unsafe { &*finished.old_siblings };
+                for (i, consumed) in finished.consumed.iter().enumerate() {
+                    if !consumed {
+                        unsafe {
+                            unmount_subtree(old_siblings[i].as_ref());
+                        }
+                    }
+                }
                 match self.stack.last_mut() {
                     Some(parent) => {
                         let parent_idx = parent.next_index - 1;
@@ -143,19 +152,23 @@ impl WorkLoop {
         frame.next_index += 1;
 
         let Some(old_idx) = Self::find_match(frame, idx) else {
+            mount_subtree(frame.new_siblings[idx].as_mut());
             return;
         };
         if frame.consumed[old_idx] {
-            // Duplicate key in the old tree: first match wins, rest mount fresh.
+            mount_subtree(frame.new_siblings[idx].as_mut());
             return;
         }
 
-        // SAFETY: see module-level safety invariant.
         let old_siblings: &[Box<dyn Widget>] = unsafe { &*frame.old_siblings };
         let old_node = &old_siblings[old_idx];
 
         if frame.new_siblings[idx].as_any().type_id() != old_node.as_any().type_id() {
             frame.consumed[old_idx] = true;
+            unsafe {
+                unmount_subtree(old_node.as_ref());
+            }
+            mount_subtree(frame.new_siblings[idx].as_mut());
             return;
         }
 
@@ -199,5 +212,28 @@ impl WorkLoop {
             return Some(candidate);
         }
         None
+    }
+}
+
+fn mount_subtree(widget: &mut dyn Widget) {
+    widget.on_mount();
+    if let Some(children) = widget.children_mut() {
+        for child in children.iter_mut() {
+            mount_subtree(child.as_mut());
+        }
+    }
+}
+
+// SAFETY: only called on old-tree nodes reconciliation has just discarded
+// (unmatched, or matched to a different widget type) - never read again.
+unsafe fn unmount_subtree(widget: &dyn Widget) {
+    let widget = unsafe { &mut *(widget as *const dyn Widget as *mut dyn Widget) };
+    widget.on_unmount();
+    if let Some(children) = widget.children_mut() {
+        for child in children.iter_mut() {
+            unsafe {
+                unmount_subtree(child.as_ref());
+            }
+        }
     }
 }

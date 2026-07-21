@@ -112,7 +112,7 @@ macro_rules! impl_themed_style_builders {
                     build: impl FnOnce($crate::StylePatch, &$crate::Theme) -> $crate::StylePatch
                 ) -> Self {
                     let theme = $crate::current_theme();
-                    self.$field = Some(build($crate::StylePatch::new(), &theme).build());
+                    self.base.$field = Some(build($crate::StylePatch::new(), &theme).build());
                     self.mark_dirty();
                     self
                 }

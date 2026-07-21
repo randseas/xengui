@@ -10,6 +10,7 @@ pub mod interaction;
 pub mod text;
 pub mod hooks;
 pub mod widget;
+pub mod widget_base;
 pub mod animation;
 pub mod constants;
 pub mod reconciler;
@@ -20,6 +21,7 @@ pub use macros::WidgetContent;
 pub use paint::*;
 pub use style::*;
 pub use widget::{ Widget, scaled_layout_box };
+pub use widget_base::WidgetBase;
 pub use animation::{
     AnimKey,
     AnimLayer,
