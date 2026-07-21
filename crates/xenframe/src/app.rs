@@ -190,6 +190,10 @@ impl App {
                     &mut sub_ctx
                 );
 
+                if let Some(icon) = sub_ctx.take_cursor_icon() {
+                    ctx.set_cursor_icon(icon);
+                }
+
                 #[cfg(target_arch = "wasm32")]
                 self.sync_native_input(&new_focus, true);
                 self.input.focused_path = Some(new_focus);
@@ -384,6 +388,9 @@ impl App {
 
                 if let Some(anchor) = self.input.text_drag_anchor {
                     update_global_text_selection(&mut self.root, anchor, point);
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
                 }
 
                 if let Some((_, start_point, _)) = self.pending_long_press {

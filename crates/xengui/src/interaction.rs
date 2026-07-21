@@ -190,10 +190,13 @@ impl Interaction {
                     EventStatus::Ignored
                 }
             }
-
+            
             InputEvent::FocusGained { via_keyboard } => {
                 self.focused = true;
                 self.focus_visible = *via_keyboard;
+                if let Some(icon) = self.hover_cursor {
+                    ctx.set_cursor_icon(icon);
+                }
                 EventStatus::Handled
             }
 
