@@ -818,9 +818,14 @@ impl TextBox {
     }
 
     fn handle_mouse_drag(&mut self, position: (f32, f32)) {
+        // A much smaller threshold than tap/click disambiguation - text
+        // selection should register as soon as the drag crosses into a
+        // different character, not only after a full tap-distance move.
+        const TEXT_DRAG_THRESHOLD_DP: f32 = 2.0;
+
         if !self.drag_word_selection && !self.drag_threshold_passed.get() {
             let (start_x, start_y) = self.drag_start_pos.get();
-            let threshold = MULTI_CLICK_DISTANCE_DP * self.scale_factor.get();
+            let threshold = TEXT_DRAG_THRESHOLD_DP * self.scale_factor.get();
             if (position.0 - start_x).abs() < threshold && (position.1 - start_y).abs() < threshold {
                 return;
             }
