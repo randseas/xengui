@@ -48,7 +48,7 @@ pub struct App {
     pub(crate) pending_long_press: Option<(Instant, (f32, f32), String)>,
 
     #[cfg(target_arch = "wasm32")]
-    pub(crate) native_input: Option<web_sys::HtmlInputElement>,
+    pub(crate) text_agent: Option<crate::text_agent::TextAgent>,
     #[cfg(target_arch = "wasm32")]
     pub(crate) event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
 }
@@ -73,8 +73,7 @@ impl App {
             pending_long_press: None,
 
             #[cfg(target_arch = "wasm32")]
-            native_input: None,
-
+            text_agent: None,
             #[cfg(target_arch = "wasm32")]
             event_proxy: None,
         }

@@ -27,6 +27,8 @@ web-sys = { version = "0.3", features = [
     "Navigator",
     "KeyboardEvent",
     "Event",
+    "InputEvent",
+    "FocusOptions",
     "MediaQueryList",
     "MediaQueryListEvent",
     "VisualViewport",
