@@ -422,13 +422,20 @@ pub fn select_all_text_recursive(tree: &mut [Box<dyn Widget>]) {
     }
 }
 
-pub fn clear_text_selection_recursive(tree: &mut [Box<dyn Widget>]) {
+// Returns whether any widget actually had a selection to clear, so the
+// caller can skip a redraw when nothing changed.
+pub fn clear_text_selection_recursive(tree: &mut [Box<dyn Widget>]) -> bool {
+    let mut cleared = false;
     for widget in tree.iter_mut() {
+        if widget.text_selection().is_some() {
+            cleared = true;
+        }
         widget.cancel_text_selection();
         if let Some(children) = widget.children_mut() {
-            clear_text_selection_recursive(children);
+            cleared |= clear_text_selection_recursive(children);
         }
     }
+    cleared
 }
 
 /// Recomputes every selectable widget's own text selection from two

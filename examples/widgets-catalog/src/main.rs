@@ -34,14 +34,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         height: 700,
         #[cfg(not(target_arch = "wasm32"))]
         position: WindowPosition::Center,
-
-        themes: vec![
-            Theme::light(),
-            Theme::dark(),
-            Theme::new("ocean").primary(Color::CYAN_500).background(Color::SKY_950)
-        ],
-        active_theme: 1,
-
         ..Default::default()
     };
 
@@ -71,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Label::new()
                         .label("Widgets Catalog")
                         .font_size(Length::px(18.0))
-                        .color(Color::NEUTRAL_500)
+                        .color(|theme: &Theme| theme.foreground)
                         .margin(Edges::only(0, 0, 0, 6))
                 )
                 .child(
@@ -82,7 +74,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .scrollbar_track_color(Color::NEUTRAL_100)
                         .scrollbar_thumb_color(Color::NEUTRAL_400)
                         .scrollbar_arrow_color(Color::NEUTRAL_400)
-                        .child(Label::new().label("label1").color(Color::NEUTRAL_500))
+                        .gap(0, 4)
+                        .child(
+                            Label::new()
+                                .label("label1")
+                                .color(|theme: &Theme| theme.foreground)
+                        )
                         .child(
                             Link::new()
                                 .label("https://github.com/randseas")
@@ -91,25 +88,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .child(
                             TextBox::new()
                                 .value(text.clone())
-                                .color(Color::NEUTRAL_500)
-                                .placeholder("textBox1...")
+                                .color(|theme: &Theme| theme.foreground)
+                                .placeholder("textBox1")
                                 .font_size(14)
                                 .outline(StyleValue::None)
-                                .min_width(Length::px(150.0))
-                                .max_width(Length::px(170.0))
+                                .min_width(Length::px(180.0))
                                 .transition_all(
                                     Transition::new(Duration::from_millis(200)).easing(
                                         Easing::EaseInOut
                                     )
                                 )
-                                .padding(Edges::only(10, 7, 10, 8))
-                                .background(Color::WHITE)
-                                .border(Border::new(1, Color::NEUTRAL_300, Length::px(8.0)))
-                                .hover_style(|s, _theme: &Theme|
-                                    s.border(Border::new(1, Color::NEUTRAL_400, Length::px(8.0)))
+                                .padding(Edges::all(8))
+                                .background(|theme: &Theme| theme.surface)
+                                .border(|theme: &Theme|
+                                    Border::new(1, theme.border, Length::px(8.0))
                                 )
-                                .focus_style(|s, _theme: &Theme|
-                                    s.border(Border::new(2, Color::BLUE_500, Length::px(8.0)))
+                                .hover_style(|s, theme: &Theme|
+                                    s.border(Border::new(1, theme.border_hover, Length::px(8.0)))
+                                )
+                                .focus_style(|s, theme: &Theme|
+                                    s.border(Border::new(2, theme.primary, Length::px(8.0)))
                                 )
                                 .on_change(move |value, _ctx| set_text.set(value.to_string()))
                         )

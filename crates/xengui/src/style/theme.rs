@@ -65,7 +65,7 @@ impl Theme {
 
             // Colors
             primary: Color::BLUE_500,
-            accent: Color::VIOLET_500,
+            accent: Color::BLUE_500,
 
             background: Color::WHITE,
             surface: Color::NEUTRAL_50,
@@ -115,7 +115,7 @@ impl Theme {
         Self::new("light")
             .mode(ThemeMode::Light)
             .primary(Color::BLUE_500)
-            .accent(Color::VIOLET_500)
+            .accent(Color::BLUE_500)
 
             .background(Color::WHITE)
             .surface(Color::NEUTRAL_50)
@@ -142,7 +142,7 @@ impl Theme {
         Self::new("dark")
             .mode(ThemeMode::Dark)
             .primary(Color::BLUE_400)
-            .accent(Color::VIOLET_400)
+            .accent(Color::BLUE_400)
 
             .background(Color::NEUTRAL_950)
             .surface(Color::NEUTRAL_900)
@@ -159,7 +159,7 @@ impl Theme {
 
             .selection(Color::BLUE_500.with_alpha(80))
             .selection_color(Color::BLUE_200)
-            .caret_color(Color::VIOLET_400)
+            .caret_color(Color::BLUE_400)
             .selection_border_color(Color::TRANSPARENT)
             .selection_border_width(Length::px(0.0))
             .selection_border_radius(Length::px(4.0))

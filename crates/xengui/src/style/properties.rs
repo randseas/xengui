@@ -31,7 +31,7 @@ pub const DEFAULT_FONT_SIZE: Length = Length::px(15.0);
 pub const DEFAULT_LINE_HEIGHT_RATIO: f32 = 1.25;
 pub const DEFAULT_CURSOR_ICON: Cursor = Cursor::Default;
 pub const DEFAULT_POINTER_CURSOR_ICON: Cursor = Cursor::Pointer;
-pub const DEFAULT_LINK_COLOR: Color = Color::BLUE_500;
+pub const DEFAULT_LINK_COLOR: Color = Color::BLUE_400;
 
 #[derive(Default, Clone, Debug, PartialEq)]
 pub enum StyleValue<T> {

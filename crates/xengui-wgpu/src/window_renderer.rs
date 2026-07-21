@@ -50,7 +50,7 @@ impl WgpuWindowRenderer {
             ::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
             .expect("Cannot find a compatible adapter");
 
-        log::info!("adapter limits: {:?}", adapter.limits());
+        log::trace!("adapter limits: {:?}", adapter.limits());
 
         let (device, queue) = pollster
             ::block_on(

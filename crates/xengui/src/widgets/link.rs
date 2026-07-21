@@ -172,10 +172,10 @@ impl Link {
             self.base.disabled_style.as_ref()
         } else if self.base.interaction.pressed {
             self.base.pressed_style.as_ref().or(self.base.hover_style.as_ref())
-        } else if self.base.interaction.focused {
-            self.base.focus_style.as_ref()
         } else if self.base.interaction.hovered {
             self.base.hover_style.as_ref()
+        } else if self.base.interaction.focused {
+            self.base.focus_style.as_ref()
         } else {
             None
         };
@@ -625,6 +625,7 @@ impl Widget for Link {
 
         let before_style = self.base.computed_style.clone();
         let before_focus_visible = self.base.interaction.focus_visible;
+        let before_hovered = self.base.interaction.hovered;
 
         let status = self.base.interaction.handle(event, ctx);
 
@@ -637,7 +638,8 @@ impl Widget for Link {
 
             if
                 self.base.computed_style != before_style ||
-                self.base.interaction.focus_visible != before_focus_visible
+                self.base.interaction.focus_visible != before_focus_visible ||
+                self.base.interaction.hovered != before_hovered
             {
                 self.base.dirty = true;
                 ctx.request_redraw();

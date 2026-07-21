@@ -718,8 +718,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 if state == winit::event::ElementState::Pressed {
-                    clear_text_selection_recursive(&mut self.root);
-                    if let Some(window) = &self.window {
+                    let had_selection = clear_text_selection_recursive(&mut self.root);
+                    if had_selection && let Some(window) = &self.window {
                         window.request_redraw();
                     }
                 }
