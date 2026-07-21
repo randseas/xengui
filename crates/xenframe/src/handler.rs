@@ -153,13 +153,63 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
 
             use winit::{ platform::web::WindowExtWebSys, window::Window };
 
-            // Local helper: pull the current browser viewport size and push it
-            // into the winit window. This is what actually causes winit to
-            // enqueue a `WindowEvent::Resized` (when the size changed).
-            fn sync_canvas_to_viewport(window: &Window) {
+            // Animates the canvas toward the visual viewport's new size instead of
+            // snapping to it - iOS/Android report the keyboard's final height before
+            // their own show/hide transition finishes, so an immediate resize makes
+            // the page jump instead of following the keyboard smoothly.
+            fn animate_canvas_resize(window: &Arc<Window>, target_w: f64, target_h: f64) {
+                use std::{ cell::RefCell, rc::Rc };
+
+                let current = window.inner_size().to_logical::<f64>(window.scale_factor());
+                if
+                    (current.width - target_w).abs() < 1.0 &&
+                    (current.height - target_h).abs() < 1.0
+                {
+                    return;
+                }
+
+                let start = (current.width, current.height);
+                let start_time = web_time::Instant::now();
+                const DURATION_MS: f32 = 220.0;
+
+                let tick: Rc<
+                    RefCell<Option<wasm_bindgen::closure::Closure<dyn FnMut()>>>
+                > = Rc::new(RefCell::new(None));
+                let tick_handle = tick.clone();
+                let window = window.clone();
+
+                *tick_handle.borrow_mut() = Some(
+                    wasm_bindgen::closure::Closure::new(move || {
+                        let t = ((start_time.elapsed().as_secs_f32() * 1000.0) / DURATION_MS).clamp(
+                            0.0,
+                            1.0
+                        );
+                        let eased = 1.0 - (1.0 - t).powi(3);
+
+                        let w = start.0 + (target_w - start.0) * (eased as f64);
+                        let h = start.1 + (target_h - start.1) * (eased as f64);
+                        let phys = winit::dpi::LogicalSize
+                            ::new(w, h)
+                            .to_physical::<u32>(window.scale_factor());
+                        let _ = window.request_inner_size(phys);
+
+                        if t < 1.0 && let Some(web_window) = web_sys::window() {
+                            let _ = web_window.request_animation_frame(
+                                tick.borrow().as_ref().unwrap().as_ref().unchecked_ref()
+                            );
+                        }
+                    })
+                );
+
                 if let Some(web_window) = web_sys::window() {
-                    // visualViewport shrinks when the on-screen keyboard opens;
-                    // window.innerHeight doesn't reliably do that on mobile browsers
+                    let _ = web_window.request_animation_frame(
+                        tick_handle.borrow().as_ref().unwrap().as_ref().unchecked_ref()
+                    );
+                }
+            }
+
+            fn sync_canvas_to_viewport(window: &Arc<Window>) {
+                if let Some(web_window) = web_sys::window() {
                     let (inner_w, inner_h) = if let Some(vv) = web_window.visual_viewport() {
                         (Some(vv.width()), Some(vv.height()))
                     } else {
@@ -176,10 +226,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     };
 
                     if let (Some(w_val), Some(h_val)) = (inner_w, inner_h) {
-                        let phys_size = winit::dpi::LogicalSize
-                            ::new(w_val, h_val)
-                            .to_physical::<u32>(window.scale_factor());
-                        let _ = window.request_inner_size(phys_size);
+                        animate_canvas_resize(window, w_val, h_val);
                     }
                 }
             }
