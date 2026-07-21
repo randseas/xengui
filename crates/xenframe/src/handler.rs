@@ -192,7 +192,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         (),
                         AnimValue([target_w as f32, target_h as f32, 0.0, 0.0]),
                         Some(
-                            Transition::new(std::time::Duration::from_millis(200)).easing(
+                            Transition::new(std::time::Duration::from_millis(220)).easing(
                                 Easing::EaseOut
                             )
                         )
