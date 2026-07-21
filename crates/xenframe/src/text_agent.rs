@@ -90,7 +90,8 @@ impl TextAgent {
     /// used once focus leaves every native-text-backed widget.
     pub(crate) fn hide(&self) {
         let _ = self.input.blur();
-        let _ = self.input.set_attribute("value", "null");
+        let _ = self.input.remove_attribute("value");
+        let _ = self.input.remove_attribute("placeholder");
         let _ = self.input.set_attribute(
             "style",
             "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:none;outline:none;font-size:16px;z-index:-1;pointer-events:none;caret-color:transparent;"
@@ -138,6 +139,7 @@ impl App {
 
         agent.mirror(widget);
         if focus {
+            self.suppress_next_focus_loss = true;
             agent.focus();
         }
     }

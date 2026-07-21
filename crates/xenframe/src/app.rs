@@ -51,6 +51,11 @@ pub struct App {
     pub(crate) text_agent: Option<crate::text_agent::TextAgent>,
     #[cfg(target_arch = "wasm32")]
     pub(crate) event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
+    // Set right before focusing the hidden native <input>; the resulting
+    // canvas blur is reported by winit as WindowEvent::Focused(false),
+    // which must not be treated like a real window focus loss.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) suppress_next_focus_loss: bool,
 }
 
 impl App {
@@ -76,6 +81,8 @@ impl App {
             text_agent: None,
             #[cfg(target_arch = "wasm32")]
             event_proxy: None,
+            #[cfg(target_arch = "wasm32")]
+            suppress_next_focus_loss: false,
         }
     }
 

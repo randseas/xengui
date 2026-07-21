@@ -779,6 +779,10 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 }
             }
             WindowEvent::Focused(has_focus) if !has_focus => {
+                #[cfg(target_arch = "wasm32")]
+                if std::mem::take(&mut self.suppress_next_focus_loss) {
+                    return;
+                }
                 // Window losing focus mid-drag (e.g. alt-tab while holding the
                 // scrollbar thumb) never delivers a real mouse-up, so synthesize
                 // one to the captured widget before clearing capture - otherwise
