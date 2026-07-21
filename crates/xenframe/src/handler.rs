@@ -110,12 +110,6 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         {
             use crate::WindowPosition;
 
-            if let Some(actual_theme) = window.theme() {
-                self.config.theme = Some(actual_theme);
-            } else {
-                self.config.theme = Some(winit::window::Theme::Dark);
-            }
-
             if
                 let WindowPosition::Center = self.config.position &&
                 let Some(monitor) = window.current_monitor()
@@ -152,12 +146,31 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             );
 
             use winit::{ platform::web::WindowExtWebSys, window::Window };
+            use std::{ cell::RefCell, rc::Rc };
 
             // Animates the canvas toward the visual viewport's new size instead of
             // snapping to it - iOS/Android report the keyboard's final height before
             // their own show/hide transition finishes, so an immediate resize makes
             // the page jump instead of following the keyboard smoothly.
-            fn animate_canvas_resize(window: &Arc<Window>, target_w: f64, target_h: f64) {
+            fn animate_canvas_resize(
+                window: &Arc<Window>,
+                initial_resize_done: Rc<RefCell<bool>>,
+                viewport: Rc<RefCell<Option<(u32, u32)>>>,
+                target_w: f64,
+                target_h: f64
+            ) {
+                if !*initial_resize_done.borrow() {
+                    *initial_resize_done.borrow_mut() = true;
+
+                    let phys = winit::dpi::LogicalSize
+                        ::new(target_w, target_h)
+                        .to_physical::<u32>(window.scale_factor());
+
+                    let _ = window.request_inner_size(phys);
+                    window.request_redraw();
+                    return;
+                }
+
                 use std::{ cell::RefCell, rc::Rc };
                 use xen_animation::{ AnimationManager, AnimValue, Easing, Transition };
 
@@ -172,20 +185,14 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 let manager: Rc<RefCell<AnimationManager<()>>> = Rc::new(
                     RefCell::new(AnimationManager::new())
                 );
-                manager
-                    .borrow_mut()
-                    .set_target(
-                        (),
-                        AnimValue([current.width as f32, current.height as f32, 0.0, 0.0]),
-                        None
-                    );
+
                 manager
                     .borrow_mut()
                     .set_target(
                         (),
                         AnimValue([target_w as f32, target_h as f32, 0.0, 0.0]),
                         Some(
-                            Transition::new(std::time::Duration::from_millis(220)).easing(
+                            Transition::new(std::time::Duration::from_millis(200)).easing(
                                 Easing::EaseOut
                             )
                         )
@@ -205,21 +212,40 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         let dt = now.duration_since(*last_tick.borrow());
                         *last_tick.borrow_mut() = now;
 
-                        manager_handle.borrow_mut().tick(dt);
-                        let still_animating = manager_handle.borrow().is_animating();
+                        let (still_animating, value) = {
+                            let mut manager = manager_handle.borrow_mut();
 
-                        let (w, h) = match manager_handle.borrow().value(()) {
+                            manager.tick(dt);
+
+                            (manager.is_animating(), manager.value(()))
+                        };
+
+                        let (w, h) = match value {
                             Some(v) => (v.0[0] as f64, v.0[1] as f64),
                             None => (target_w, target_h),
                         };
-                        let phys = winit::dpi::LogicalSize
+
+                        let size = winit::dpi::LogicalSize
                             ::new(w, h)
                             .to_physical::<u32>(window.scale_factor());
-                        let _ = window.request_inner_size(phys);
+
+                        *viewport.borrow_mut() = Some((size.width, size.height));
+
+                        if !still_animating {
+                            let phys = winit::dpi::LogicalSize
+                                ::new(w, h)
+                                .to_physical::<u32>(window.scale_factor());
+
+                            let _ = window.request_inner_size(phys);
+                            window.request_redraw();
+                        }
 
                         if still_animating && let Some(web_window) = web_sys::window() {
+                            let callback = tick.borrow();
+                            let callback = callback.as_ref().unwrap();
+
                             let _ = web_window.request_animation_frame(
-                                tick.borrow().as_ref().unwrap().as_ref().unchecked_ref()
+                                callback.as_ref().unchecked_ref()
                             );
                         }
                     })
@@ -232,7 +258,11 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 }
             }
 
-            fn sync_canvas_to_viewport(window: &Arc<Window>) {
+            fn sync_canvas_to_viewport(
+                window: &Arc<Window>,
+                initial_resize_done: Rc<RefCell<bool>>,
+                viewport: Rc<RefCell<Option<(u32, u32)>>>
+            ) {
                 if let Some(web_window) = web_sys::window() {
                     let (inner_w, inner_h) = if let Some(vv) = web_window.visual_viewport() {
                         (Some(vv.width()), Some(vv.height()))
@@ -250,19 +280,35 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     };
 
                     if let (Some(w_val), Some(h_val)) = (inner_w, inner_h) {
-                        animate_canvas_resize(window, w_val, h_val);
+                        animate_canvas_resize(window, initial_resize_done, viewport, w_val, h_val);
+                        window.request_redraw();
                     }
                 }
             }
 
+            let animated_viewport = Rc::new(RefCell::new(None));
+            let initial_resize_done = self.initial_resize_done.clone();
+
             if window.canvas().is_some() {
-                sync_canvas_to_viewport(&window);
+                sync_canvas_to_viewport(
+                    &window,
+                    self.initial_resize_done.clone(),
+                    animated_viewport.clone()
+                );
 
                 if let Some(web_window) = web_sys::window() {
                     let window_for_closure = window.clone();
+                    let viewport_clone = animated_viewport.clone();
+                    let initial_resize_done_clone = initial_resize_done.clone();
+
                     let closure = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(move || {
-                        sync_canvas_to_viewport(&window_for_closure);
+                        sync_canvas_to_viewport(
+                            &window_for_closure,
+                            initial_resize_done_clone.clone(),
+                            viewport_clone.clone()
+                        );
                     });
+
                     let _ = web_window.add_event_listener_with_callback(
                         "resize",
                         closure.as_ref().unchecked_ref()
@@ -273,9 +319,17 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     // which the window's resize event doesn't always trigger
                     if let Some(vv) = web_window.visual_viewport() {
                         let window_for_vv = window.clone();
+                        let viewport_clone = animated_viewport.clone();
+                        let initial_resize_done_clone = initial_resize_done.clone();
+
                         let vv_closure = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(
                             move || {
-                                sync_canvas_to_viewport(&window_for_vv);
+                                log::info!("visual viewport resize");
+                                sync_canvas_to_viewport(
+                                    &window_for_vv,
+                                    initial_resize_done_clone.clone(),
+                                    viewport_clone.clone()
+                                );
                             }
                         );
                         let _ = vv.add_event_listener_with_callback(
@@ -522,6 +576,12 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     let scale_factor = self.window
                         .as_ref()
                         .map_or(1.0, |w| w.scale_factor() as f32);
+
+                    #[cfg(target_arch = "wasm32")]
+                    if let Some((w, h)) = self.animated_viewport.take() {
+                        renderer.resize(&mut self.root, theme, scale_factor, w, h);
+                    }
+
                     renderer.render_frame(&mut self.root, theme, scale_factor);
                     if !self.is_visible && let Some(window) = &self.window {
                         window.set_visible(true);

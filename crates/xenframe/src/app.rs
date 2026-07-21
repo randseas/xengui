@@ -1,3 +1,7 @@
+#[cfg(target_arch = "wasm32")]
+use std::cell::RefCell;
+#[cfg(target_arch = "wasm32")]
+use std::rc::Rc;
 use std::{ sync::Arc };
 use web_time::Instant;
 
@@ -48,6 +52,10 @@ pub struct App {
     pub(crate) pending_long_press: Option<(Instant, (f32, f32), String)>,
 
     #[cfg(target_arch = "wasm32")]
+    pub(crate) initial_resize_done: Rc<RefCell<bool>>,
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) animated_viewport: Rc<RefCell<Option<(u32, u32)>>>,
+    #[cfg(target_arch = "wasm32")]
     pub(crate) text_agent: Option<crate::text_agent::TextAgent>,
     #[cfg(target_arch = "wasm32")]
     pub(crate) event_proxy: Option<winit::event_loop::EventLoopProxy<XenEvent>>,
@@ -77,6 +85,10 @@ impl App {
             clipboard: xen_clipboard::Clipboard::new(),
             pending_long_press: None,
 
+            #[cfg(target_arch = "wasm32")]
+            initial_resize_done: Rc::new(RefCell::new(false)),
+            #[cfg(target_arch = "wasm32")]
+            animated_viewport: Rc::new(RefCell::new(None)),
             #[cfg(target_arch = "wasm32")]
             text_agent: None,
             #[cfg(target_arch = "wasm32")]
