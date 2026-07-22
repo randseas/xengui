@@ -10,7 +10,6 @@ use crate::{
     RenderBackend,
     RenderCache,
     SystemTheme,
-    TextCommand,
     TriangleCommand,
     Widget,
 };
@@ -125,13 +124,13 @@ impl FrameRenderer {
             Rect,
             Triangle,
             Image,
+            Text,
         }
 
         let mut current_kind: Option<RunKind> = None;
         let mut rect_buf: Vec<RectCommand> = Vec::new();
         let mut tri_buf: Vec<TriangleCommand> = Vec::new();
         let mut img_buf: Vec<ImageCommand> = Vec::new();
-        let mut text_cmds: Vec<(i32, TextCommand)> = Vec::new();
 
         macro_rules! flush_run {
             () => {
@@ -139,6 +138,17 @@ impl FrameRenderer {
                     Some(RunKind::Rect) => backend.draw_rects(&rect_buf),
                     Some(RunKind::Triangle) => backend.draw_triangles(&tri_buf),
                     Some(RunKind::Image) => backend.draw_images(&img_buf),
+                    Some(RunKind::Text) => {
+                        // Flushing here (instead of once at the end of the
+                        // frame) is what makes text interleave with rects/
+                        // triangles/images in true paint order, Flutter/
+                        // Skia-style, rather than always drawing on top.
+                        backend.flush_text();
+                        let decorations = backend.take_text_decorations();
+                        if !decorations.is_empty() {
+                            backend.draw_rects(&decorations);
+                        }
+                    }
                     None => {}
                 }
                 rect_buf.clear();
@@ -149,10 +159,16 @@ impl FrameRenderer {
 
         // Draws each contiguous run of same-type commands in the order
         // z-index (then paint order) puts them in, instead of always
-        // drawing every rect, then every triangle, then every image.
-        for (z, command) in commands {
+        // drawing every rect, then every triangle, then every image/text.
+        for (_z, command) in commands {
             match command {
-                DrawCommand::Text(cmd) => text_cmds.push((z, *cmd)),
+                DrawCommand::Text(cmd) => {
+                    if current_kind != Some(RunKind::Text) {
+                        flush_run!();
+                        current_kind = Some(RunKind::Text);
+                    }
+                    backend.draw_text(theme, scale_factor, &cmd);
+                }
                 DrawCommand::Rect(cmd) => {
                     if current_kind != Some(RunKind::Rect) {
                         flush_run!();
@@ -178,29 +194,29 @@ impl FrameRenderer {
         }
         flush_run!();
 
-        // Top layer: rendered strictly after the main pass and its text
-        // flush, so a popup here always sits above every other widget's
-        // content, including their own deferred text.
+        // Top layer: rendered strictly after the main pass, so a popup
+        // here always sits above every other widget's content. Within the
+        // top layer itself, commands still interleave by paint order
+        // (rect/triangle/image/text) instead of being grouped by type.
         if !top_commands.is_empty() {
-            top_commands.sort_by_key(|_| 0); // stable no-op, keeps paint order
             let mut top_rect_buf: Vec<RectCommand> = Vec::new();
             let mut top_tri_buf: Vec<TriangleCommand> = Vec::new();
             let mut top_img_buf: Vec<ImageCommand> = Vec::new();
-
-            #[derive(PartialEq, Clone, Copy)]
-            enum TopRunKind {
-                Rect,
-                Triangle,
-                Image,
-            }
-            let mut top_kind: Option<TopRunKind> = None;
+            let mut top_kind: Option<RunKind> = None;
 
             macro_rules! flush_top_run {
                 () => {
                     match top_kind {
-                        Some(TopRunKind::Rect) => backend.draw_rects(&top_rect_buf),
-                        Some(TopRunKind::Triangle) => backend.draw_triangles(&top_tri_buf),
-                        Some(TopRunKind::Image) => backend.draw_images(&top_img_buf),
+                        Some(RunKind::Rect) => backend.draw_rects(&top_rect_buf),
+                        Some(RunKind::Triangle) => backend.draw_triangles(&top_tri_buf),
+                        Some(RunKind::Image) => backend.draw_images(&top_img_buf),
+                        Some(RunKind::Text) => {
+                            backend.flush_text();
+                            let decorations = backend.take_text_decorations();
+                            if !decorations.is_empty() {
+                                backend.draw_rects(&decorations);
+                            }
+                        }
                         None => {}
                     }
                     top_rect_buf.clear();
@@ -211,25 +227,31 @@ impl FrameRenderer {
 
             for command in top_commands {
                 match command {
-                    DrawCommand::Text(cmd) => text_cmds.push((i32::MAX, *cmd)),
-                    DrawCommand::Rect(cmd) => {
-                        if top_kind != Some(TopRunKind::Rect) {
+                    DrawCommand::Text(cmd) => {
+                        if top_kind != Some(RunKind::Text) {
                             flush_top_run!();
-                            top_kind = Some(TopRunKind::Rect);
+                            top_kind = Some(RunKind::Text);
+                        }
+                        backend.draw_text(theme, scale_factor, &cmd);
+                    }
+                    DrawCommand::Rect(cmd) => {
+                        if top_kind != Some(RunKind::Rect) {
+                            flush_top_run!();
+                            top_kind = Some(RunKind::Rect);
                         }
                         top_rect_buf.push(cmd);
                     }
                     DrawCommand::Triangle(cmd) => {
-                        if top_kind != Some(TopRunKind::Triangle) {
+                        if top_kind != Some(RunKind::Triangle) {
                             flush_top_run!();
-                            top_kind = Some(TopRunKind::Triangle);
+                            top_kind = Some(RunKind::Triangle);
                         }
                         top_tri_buf.push(cmd);
                     }
                     DrawCommand::Image(cmd) => {
-                        if top_kind != Some(TopRunKind::Image) {
+                        if top_kind != Some(RunKind::Image) {
                             flush_top_run!();
-                            top_kind = Some(TopRunKind::Image);
+                            top_kind = Some(RunKind::Image);
                         }
                         top_img_buf.push(*cmd);
                     }
@@ -238,22 +260,13 @@ impl FrameRenderer {
             flush_top_run!();
         }
 
-        text_cmds.sort_by_key(|(z, _)| *z);
-
-        for (_, cmd) in &text_cmds {
-            backend.draw_text(theme, scale_factor, cmd);
-        }
-
-        let decorations = backend.take_text_decorations();
-        if !decorations.is_empty() {
-            backend.draw_rects(&decorations);
-        }
-
+        // Focus rings paint last, above everything else including the top
+        // layer. All text (main pass and top layer) is already flushed to
+        // the GPU by this point via the per-run flush_text() calls above.
         if !focus_commands.is_empty() {
             backend.draw_rects(&focus_commands);
         }
-        
-        backend.flush_text();
+
         backend.end_frame();
     }
 }

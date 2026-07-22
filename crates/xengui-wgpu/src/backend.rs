@@ -251,6 +251,12 @@ impl<'a> RenderBackend for WgpuFrame<'a> {
                 }
             }
         }
+        // Cleared after every flush (not just once per frame) since
+        // flush_text is now invoked once per text run instead of once
+        // per frame. A retry must only ever redraw the commands that
+        // belong to the run currently being flushed, not glyphs from
+        // an earlier run that already succeeded and was cleared.
+        self.text_cmds.clear();
     }
 
     fn end_frame(&mut self) {
