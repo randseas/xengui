@@ -21,6 +21,7 @@ pub use layout::*;
 pub use macros::WidgetContent;
 pub use paint::*;
 pub use style::*;
+pub use style::system_theme::SystemTheme;
 pub use widget::{ Widget, scaled_layout_box };
 pub use widget_base::WidgetBase;
 pub use animation::{

@@ -12,4 +12,4 @@ keywords = ["gui", "icons", "svg", "lucide"]
 categories = ["gui"]
 
 [dependencies]
-xengui = { workspace = true }
+xen-svg = { workspace = true }

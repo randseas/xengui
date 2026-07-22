@@ -3278,7 +3278,7 @@ dependencies = [
 name = "xengui-lucide"
 version = "0.1.0"
 dependencies = [
- "xengui",
+ "xen-svg",
 ]
 
 [[package]]
