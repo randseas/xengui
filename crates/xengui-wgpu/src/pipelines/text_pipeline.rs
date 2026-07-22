@@ -612,10 +612,15 @@ impl TextPipeline {
                 .map_err(|e| e.to_string())?;
         }
 
-        self.atlas.trim();
         self.pending.clear();
 
         Ok(())
+    }
+
+    // Evicts atlas entries unused this frame; must run only once, after
+    // every prepare/render call for the frame has already been recorded.
+    pub fn trim_atlas(&mut self) {
+        self.atlas.trim();
     }
 }
 

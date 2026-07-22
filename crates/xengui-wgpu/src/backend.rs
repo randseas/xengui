@@ -254,8 +254,7 @@ impl<'a> RenderBackend for WgpuFrame<'a> {
     }
 
     fn end_frame(&mut self) {
-        // Submission/presentation belongs to whoever created `encoder`
-        // and `view` (`WgpuWindowRenderer`, or the host's render graph).
+        self.pipelines.text.trim_atlas();
     }
 
     fn resize(&mut self, _width: u32, _height: u32) {}

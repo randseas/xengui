@@ -94,6 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ContextMenu::new()
                 .item(
                     ContextMenuItem::new("Back")
+                        .shortcut("Ctrl+B")
                         .enabled(false)
                         .on_click(|_ctx| {
                             log::info!("context menu -> back");
@@ -101,7 +102,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .item(
                     ContextMenuItem::new("Forward")
-                        .shortcut("Ctrl+R")
+                        .transition(
+                            Transition::new(Duration::from_millis(200)).easing(Easing::EaseInOut)
+                        )
+                        .shortcut("Ctrl+F")
                         .enabled(true)
                         .on_click(|_ctx| {
                             log::info!("context menu -> forward");
@@ -110,12 +114,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .item(
                     ContextMenuItem::new("Reload")
                         .shortcut("Ctrl+R")
-                        .submenu_item(ContextMenuItem::new("Test1"))
-                        .submenu_item(ContextMenuItem::new("Test2"))
-                        .submenu_divider()
-                        .submenu_item(ContextMenuItem::new("Test3"))
                         .on_click(|_ctx| {
                             log::info!("context menu -> reload");
+                        })
+                )
+                .divider()
+                .item(
+                    ContextMenuItem::new("New")
+                        .shortcut("Ctrl+N")
+                        .submenu_item(ContextMenuItem::new("Text file"))
+                        .submenu_item(ContextMenuItem::new("HTML file"))
+                        .submenu_divider()
+                        .submenu_item(ContextMenuItem::new("JS file"))
+                        .submenu_item(ContextMenuItem::new("Rust file"))
+                        .on_click(|_ctx| {
+                            log::info!("context menu -> new file");
                         })
                 )
                 .divider()
