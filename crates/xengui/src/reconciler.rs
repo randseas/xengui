@@ -194,6 +194,10 @@ impl WorkLoop {
 
         if content_equal {
             new_node.transfer_measured_state(old_node.as_ref());
+            // Fresh widget instances default to a zero LayoutBox and are
+            // never touched by transfer_measured_state, so without this
+            // they'd render at (0,0,0,0) whenever layout is skipped below.
+            new_node.layout(*old_node.layout_box());
             new_node.set_dirty(false);
         }
 
