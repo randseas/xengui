@@ -33,6 +33,7 @@ pub struct TrianglePipeline {
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     vertex_capacity: usize,
+    write_offset: usize,
 }
 
 const VERTICES_PER_TRIANGLE: usize = 3;
@@ -100,7 +101,12 @@ impl TrianglePipeline {
             pipeline,
             vertex_buffer,
             vertex_capacity,
+            write_offset: 0,
         }
+    }
+
+    pub fn reset_frame(&mut self) {
+        self.write_offset = 0;
     }
 
     pub fn draw_batch(
@@ -129,8 +135,14 @@ impl TrianglePipeline {
             vertices.push(Vertex { position: ndc(cmd.p2.0, cmd.p2.1), color });
         }
 
-        self.ensure_capacity(device, vertices.len());
-        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+        let base_vertex = self.write_offset;
+        self.ensure_capacity(device, base_vertex + vertices.len());
+        queue.write_buffer(
+            &self.vertex_buffer,
+            (base_vertex * std::mem::size_of::<Vertex>()) as u64,
+            bytemuck::cast_slice(&vertices)
+        );
+        self.write_offset += vertices.len();
 
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -143,6 +155,7 @@ impl TrianglePipeline {
             if cmd.clip_rect != current_clip {
                 Self::draw_run(
                     render_pass,
+                    base_vertex,
                     run_start,
                     i,
                     current_clip,
@@ -155,6 +168,7 @@ impl TrianglePipeline {
         }
         Self::draw_run(
             render_pass,
+            base_vertex,
             run_start,
             cmds.len(),
             current_clip,
@@ -165,6 +179,7 @@ impl TrianglePipeline {
 
     fn draw_run(
         render_pass: &mut wgpu::RenderPass<'_>,
+        base_vertex: usize,
         start: usize,
         end: usize,
         clip: Option<(f32, f32, f32, f32)>,
@@ -181,7 +196,8 @@ impl TrianglePipeline {
         }
         render_pass.set_scissor_rect(sx, sy, sw, sh);
         render_pass.draw(
-            (start * VERTICES_PER_TRIANGLE) as u32..(end * VERTICES_PER_TRIANGLE) as u32,
+            (base_vertex + start * VERTICES_PER_TRIANGLE) as u32..(base_vertex +
+                end * VERTICES_PER_TRIANGLE) as u32,
             0..1
         );
     }

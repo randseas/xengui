@@ -48,6 +48,10 @@ impl WgpuPipelines {
         width: u32,
         height: u32
     ) -> WgpuFrame<'a> {
+        self.rect.reset_frame();
+        self.triangle.reset_frame();
+        self.image.reset_frame();
+
         WgpuFrame {
             pipelines: self,
             device,

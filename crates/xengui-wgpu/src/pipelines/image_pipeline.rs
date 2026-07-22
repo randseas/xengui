@@ -68,6 +68,7 @@ pub struct ImagePipeline {
     vertex_buffer: wgpu::Buffer,
     vertex_capacity: usize,
     textures: HashMap<u64, CachedTexture>,
+    write_offset: usize,
 }
 
 const VERTICES_PER_IMAGE: usize = 6;
@@ -161,7 +162,12 @@ impl ImagePipeline {
             vertex_buffer,
             vertex_capacity,
             textures: HashMap::new(),
+            write_offset: 0,
         }
+    }
+
+    pub fn reset_frame(&mut self) {
+        self.write_offset = 0;
     }
 
     fn ensure_texture(
@@ -320,8 +326,14 @@ impl ImagePipeline {
             );
         }
 
-        self.ensure_capacity(device, vertices.len());
-        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+        let base_vertex = self.write_offset;
+        self.ensure_capacity(device, base_vertex + vertices.len());
+        queue.write_buffer(
+            &self.vertex_buffer,
+            (base_vertex * std::mem::size_of::<Vertex>()) as u64,
+            bytemuck::cast_slice(&vertices)
+        );
+        self.write_offset += vertices.len();
 
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -343,7 +355,7 @@ impl ImagePipeline {
             render_pass.set_scissor_rect(sx, sy, sw, sh);
 
             render_pass.set_bind_group(0, &cached.bind_group, &[]);
-            let start = (i * VERTICES_PER_IMAGE) as u32;
+            let start = (base_vertex + i * VERTICES_PER_IMAGE) as u32;
             render_pass.draw(start..start + (VERTICES_PER_IMAGE as u32), 0..1);
         }
     }
