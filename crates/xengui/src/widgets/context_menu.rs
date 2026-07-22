@@ -275,13 +275,7 @@ fn measure_entries_width(
 
         let arrow_w = if item.has_submenu() { SUBMENU_ARROW_RESERVED } else { 0.0 };
         let shortcut_gap = if shortcut_w > 0.0 { SHORTCUT_GAP } else { 0.0 };
-        // Submenu items already keep the shortcut clear of the edge via
-        // the arrow's own reserved space, so only bare shortcuts get this.
-        let shortcut_padding = if shortcut_w > 0.0 && !item.has_submenu() {
-            SHORTCUT_RIGHT_PADDING
-        } else {
-            0.0
-        };
+        let shortcut_padding = if shortcut_w > 0.0 { SHORTCUT_RIGHT_PADDING } else { 0.0 };
 
         let row_w = label_w + shortcut_gap + shortcut_w + shortcut_padding + arrow_w + pad_lr;
         max_w = max_w.max(row_w);
@@ -357,12 +351,13 @@ fn index_at(
 // Builds a rounded-corner chevron ("›") as a set of filled triangles:
 // two thick line segments plus round caps at the joints, so the arrow
 // reads as a smooth stroke instead of a sharp mitered triangle.
+#[allow(clippy::type_complexity)]
 fn submenu_arrow_triangles(
     rect: (f32, f32, f32, f32)
 ) -> Vec<((f32, f32), (f32, f32), (f32, f32))> {
     let (x, y, w, h) = rect;
     let cy = y + h * 0.5;
-    let right = x + w - 6.0;
+    let right = x + w - SHORTCUT_RIGHT_PADDING;
 
     let top = (right - ARROW_SIZE, cy - ARROW_SIZE);
     let tip = (right, cy);
@@ -376,6 +371,7 @@ fn submenu_arrow_triangles(
     tris
 }
 
+#[allow(clippy::type_complexity)]
 fn arrow_segment(a: (f32, f32), b: (f32, f32)) -> Vec<((f32, f32), (f32, f32), (f32, f32))> {
     let (dx, dy) = (b.0 - a.0, b.1 - a.1);
     let len = (dx * dx + dy * dy).sqrt().max(0.0001);
@@ -389,6 +385,7 @@ fn arrow_segment(a: (f32, f32), b: (f32, f32)) -> Vec<((f32, f32), (f32, f32), (
 
 // Small filled fan approximating a circle, rounding off a joint or line
 // end that would otherwise show as a sharp corner.
+#[allow(clippy::type_complexity)]
 fn arrow_cap(center: (f32, f32)) -> Vec<((f32, f32), (f32, f32), (f32, f32))> {
     let r = ARROW_THICKNESS * 0.5;
     (0..ARROW_CAP_SEGMENTS)
@@ -1095,29 +1092,32 @@ impl ContextMenu {
             let is_hovered = item.enabled && hovered_index == Some(i);
             let is_pressed = is_hovered && pressed_index == Some(i);
 
-            let (target_bg, border, hover_text_color_opt) = if is_pressed {
+            // Keeps blending toward the hover/pressed color even after the
+            // pointer leaves, so hover_progress drives a real fade back to
+            // idle instead of an instant snap.
+            let (target_bg, hover_text_color_opt) = if is_pressed {
                 (
-                    Some(
-                        self.item_pressed_background
-                            .clone()
-                            .or_else(|| self.item_hover_background.clone())
-                            .unwrap_or(Background::Color(theme.pressed))
-                    ),
-                    self.item_pressed_border.or(self.item_hover_border).or(self.item_border),
+                    self.item_pressed_background
+                        .clone()
+                        .or_else(|| self.item_hover_background.clone())
+                        .unwrap_or(Background::Color(theme.pressed)),
                     self.item_pressed_text_color
                         .or(self.item_hover_text_color)
                         .or(self.item_text_color),
                 )
-            } else if is_hovered {
+            } else {
                 (
-                    Some(
-                        self.item_hover_background.clone().unwrap_or(Background::Color(theme.hover))
-                    ),
-                    self.item_hover_border.or(self.item_border),
+                    self.item_hover_background.clone().unwrap_or(Background::Color(theme.hover)),
                     self.item_hover_text_color.or(self.item_text_color),
                 )
+            };
+
+            let border = if is_pressed {
+                self.item_pressed_border.or(self.item_hover_border).or(self.item_border)
+            } else if is_hovered {
+                self.item_hover_border.or(self.item_border)
             } else {
-                (self.item_background.clone(), self.item_border, self.item_text_color)
+                self.item_border
             };
 
             // A press snaps straight to its color; otherwise the highlight
@@ -1129,8 +1129,7 @@ impl ContextMenu {
                 None => Color::TRANSPARENT,
             };
             let target_bg_color = match &target_bg {
-                Some(Background::Color(c)) => *c,
-                None => Color::TRANSPARENT,
+                Background::Color(c) => *c,
             };
             let blended_bg = lerp_color(idle_bg_color, target_bg_color, t);
 
@@ -1200,12 +1199,10 @@ impl ContextMenu {
                 shortcut_style.color = Some(
                     base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale * 0.6)
                 );
+
                 let shortcut_w = item.shortcut_width.get();
-                let shortcut_padding = if item.has_submenu() {
-                    0.0
-                } else {
-                    SHORTCUT_RIGHT_PADDING
-                };
+                let shortcut_padding = SHORTCUT_RIGHT_PADDING;
+
                 ctx.draw_text(TextCommand {
                     text: shortcut.clone(),
                     position: (x + w - right_reserved - shortcut_padding - shortcut_w, text_y),
@@ -1390,8 +1387,11 @@ impl Widget for ContextMenu {
         self.layout_box.contains_rounded(point, 0.0) || self.point_in_any_menu(point)
     }
 
-    fn blocks_children_hit_test(&self, point: (f32, f32)) -> bool {
-        self.point_in_any_menu(point)
+    fn blocks_children_hit_test(&self, _point: (f32, f32)) -> bool {
+        // While open, every click must land here first so an outside
+        // click can close the menu instead of being consumed by
+        // whatever widget sits underneath it.
+        self.open.get()
     }
 
     fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {
