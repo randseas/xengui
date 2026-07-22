@@ -91,162 +91,213 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let dec: SetState<i32> = set_counter.clone();
 
         Box::new(
-            View::new()
-                .font("Noto_Sans")
-                .display(Display::Flex)
-                .flex_direction(FlexDirection::Column)
-                .justify_content(JustifyContent::Start)
-                .align_items(AlignItems::Start)
-                .width(Length::Percent(100.0))
-                .height(Length::Percent(100.0))
-                .background(|theme: &Theme| theme.background)
+            ContextMenu::new()
+                .item(
+                    ContextMenuItem::new("Back").on_click(|_ctx| {
+                        log::info!("context menu -> copy");
+                    })
+                )
+                .item(
+                    ContextMenuItem::new("Forward").on_click(|_ctx| {
+                        log::info!("context menu -> delete");
+                    })
+                )
+                .item(
+                    ContextMenuItem::new("Reload").on_click(|_ctx| {
+                        log::info!("context menu -> delete");
+                    })
+                )
+                .divider()
+                .item(
+                    ContextMenuItem::new("DevTools").enabled(false).on_click(|_ctx| {
+                        log::info!("context menu -> delete");
+                    })
+                )
+                .padding(8.0)
+                .menu_background(|theme: &Theme| theme.surface)
+                .border(|theme: &Theme| Border::new(1, theme.border, Length::px(10.0)))
                 .child(
                     View::new()
+                        .font("Noto_Sans")
+                        .display(Display::Flex)
                         .flex_direction(FlexDirection::Column)
+                        .justify_content(JustifyContent::Start)
+                        .align_items(AlignItems::Start)
                         .width(Length::Percent(100.0))
                         .height(Length::Percent(100.0))
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::Center)
-                        .child(
-                            Label::new()
-                                .selectable(true)
-                                .label("My XenGui Application")
-                                .margin(Edges::only(0, 0, 0, 10))
-                                .font_size(20)
-                                .color(|theme: &Theme| theme.foreground)
-                        )
-                        .child(
-                            TextBox::new()
-                                .value(text.clone())
-                                .color(|theme: &Theme| theme.foreground)
-                                .placeholder("Enter your name...")
-                                .font_size(15)
-                                .outline(StyleValue::None)
-                                .width(Length::px(150.0))
-                                .padding(Edges::all(8))
-                                .transition_all(
-                                    Transition::new(Duration::from_millis(200)).easing(
-                                        Easing::EaseInOut
-                                    )
-                                )
-                                .background(|theme: &Theme| theme.surface)
-                                .border(|theme: &Theme|
-                                    Border::new(1, theme.border, Length::px(8.0))
-                                )
-                                .hover_style(|s, theme|
-                                    s.border(Border::new(1, theme.border_hover, Length::px(8.0)))
-                                )
-                                .focus_style(|s, theme|
-                                    s.border(Border::new(2, theme.primary, Length::px(8.0)))
-                                )
-                                .on_change(move |value, _ctx| set_text.set(value.to_string()))
-                                .on_submit(move |value, _ctx| {
-                                    clipboard.set_text(value.to_string(), move |result| {
-                                        match result {
-                                            Ok(_) => log::info!("clipboard -> copied"),
-                                            Err(err) => log::error!("clipboard -> failed: {err}"),
-                                        }
-                                    });
-                                })
-                        )
-                        .child(
-                            Label::new()
-                                .label(format!("Hello {text}, age {counter}"))
-                                .font_size(15)
-                                .color(|theme: &Theme| theme.foreground)
-                                .margin(Edges::only(0, 6, 0, 0))
-                        )
+                        .background(|theme: &Theme| theme.background)
                         .child(
                             View::new()
-                                .flex_direction(FlexDirection::Row)
-                                .gap(4, 0)
+                                .flex_direction(FlexDirection::Column)
+                                .width(Length::Percent(100.0))
+                                .height(Length::Percent(100.0))
+                                .align_items(AlignItems::Center)
+                                .justify_content(JustifyContent::Center)
                                 .child(
-                                    Button::new()
-                                        .label("Increment")
-                                        .font_size(15)
+                                    Label::new()
+                                        .selectable(true)
+                                        .label("My XenGui Application")
+                                        .margin(Edges::only(0, 0, 0, 10))
+                                        .font_size(20)
                                         .color(|theme: &Theme| theme.foreground)
-                                        .background(|theme: &Theme| theme.surface)
-                                        .border(|theme: &Theme|
-                                            Border::new(1, theme.border, Length::px(8.0))
-                                        )
-                                        .padding(Edges::only(8, 5, 8, 5))
-                                        .margin(Edges::only(0, 10, 0, 0))
+                                )
+                                .child(
+                                    TextBox::new()
+                                        .value(text.clone())
+                                        .color(|theme: &Theme| theme.foreground)
+                                        .placeholder("Enter your name...")
+                                        .font_size(15)
+                                        .outline(StyleValue::None)
+                                        .width(Length::px(150.0))
+                                        .padding(Edges::all(8))
                                         .transition_all(
                                             Transition::new(Duration::from_millis(200)).easing(
                                                 Easing::EaseInOut
                                             )
                                         )
-                                        .on_click(move |_ctx|
-                                            inc.update(|v| {
-                                                *v += 1;
-                                            })
-                                        )
-                                        .hover_style(|s, theme|
-                                            s
-                                                .background(theme.hover)
-                                                .border(
-                                                    Border::new(1, theme.border, Length::px(8.0))
-                                                )
-                                                .color(theme.foreground)
-                                        )
-                                        .pressed_style(|s, theme|
-                                            s
-                                                .background(theme.pressed)
-                                                .border(
-                                                    Border::new(1, theme.pressed, Length::px(8.0))
-                                                )
-                                                .color(theme.foreground)
-                                        )
-                                )
-                                .child(
-                                    Button::new()
-                                        .label("Decrement")
-                                        .font_size(15)
-                                        .color(|theme: &Theme| theme.foreground)
                                         .background(|theme: &Theme| theme.surface)
                                         .border(|theme: &Theme|
                                             Border::new(1, theme.border, Length::px(8.0))
                                         )
-                                        .padding(Edges::only(8, 5, 8, 5))
-                                        .margin(Edges::only(0, 10, 0, 0))
-                                        .transition_all(
-                                            Transition::new(Duration::from_millis(200)).easing(
-                                                Easing::EaseInOut
+                                        .hover_style(|s, theme|
+                                            s.border(
+                                                Border::new(1, theme.border_hover, Length::px(8.0))
                                             )
                                         )
-                                        .on_click(move |_ctx|
-                                            dec.update(|v| {
-                                                *v -= 1;
-                                            })
+                                        .focus_style(|s, theme|
+                                            s.border(Border::new(2, theme.primary, Length::px(8.0)))
                                         )
-                                        .hover_style(|s, theme|
-                                            s
-                                                .background(theme.hover)
-                                                .border(
+                                        .on_change(move |value, _ctx|
+                                            set_text.set(value.to_string())
+                                        )
+                                        .on_submit(move |value, _ctx| {
+                                            clipboard.set_text(value.to_string(), move |result| {
+                                                match result {
+                                                    Ok(_) => log::info!("clipboard -> copied"),
+                                                    Err(err) =>
+                                                        log::error!("clipboard -> failed: {err}"),
+                                                }
+                                            });
+                                        })
+                                )
+                                .child(
+                                    Label::new()
+                                        .label(format!("Hello {text}, age {counter}"))
+                                        .font_size(15)
+                                        .color(|theme: &Theme| theme.foreground)
+                                        .margin(Edges::only(0, 6, 0, 0))
+                                )
+                                .child(
+                                    View::new()
+                                        .flex_direction(FlexDirection::Row)
+                                        .gap(4, 0)
+                                        .child(
+                                            Button::new()
+                                                .label("Increment")
+                                                .font_size(15)
+                                                .color(|theme: &Theme| theme.foreground)
+                                                .background(|theme: &Theme| theme.surface)
+                                                .border(|theme: &Theme|
                                                     Border::new(1, theme.border, Length::px(8.0))
                                                 )
-                                                .color(theme.foreground)
-                                        )
-                                        .pressed_style(|s, theme|
-                                            s
-                                                .background(theme.pressed)
-                                                .border(
-                                                    Border::new(1, theme.pressed, Length::px(8.0))
+                                                .padding(Edges::only(8, 5, 8, 5))
+                                                .margin(Edges::only(0, 10, 0, 0))
+                                                .transition_all(
+                                                    Transition::new(
+                                                        Duration::from_millis(200)
+                                                    ).easing(Easing::EaseInOut)
                                                 )
-                                                .color(theme.foreground)
+                                                .on_click(move |_ctx|
+                                                    inc.update(|v| {
+                                                        *v += 1;
+                                                    })
+                                                )
+                                                .hover_style(|s, theme|
+                                                    s
+                                                        .background(theme.hover)
+                                                        .border(
+                                                            Border::new(
+                                                                1,
+                                                                theme.border,
+                                                                Length::px(8.0)
+                                                            )
+                                                        )
+                                                        .color(theme.foreground)
+                                                )
+                                                .pressed_style(|s, theme|
+                                                    s
+                                                        .background(theme.pressed)
+                                                        .border(
+                                                            Border::new(
+                                                                1,
+                                                                theme.pressed,
+                                                                Length::px(8.0)
+                                                            )
+                                                        )
+                                                        .color(theme.foreground)
+                                                )
+                                        )
+                                        .child(
+                                            Button::new()
+                                                .label("Decrement")
+                                                .font_size(15)
+                                                .color(|theme: &Theme| theme.foreground)
+                                                .background(|theme: &Theme| theme.surface)
+                                                .border(|theme: &Theme|
+                                                    Border::new(1, theme.border, Length::px(8.0))
+                                                )
+                                                .padding(Edges::only(8, 5, 8, 5))
+                                                .margin(Edges::only(0, 10, 0, 0))
+                                                .transition_all(
+                                                    Transition::new(
+                                                        Duration::from_millis(200)
+                                                    ).easing(Easing::EaseInOut)
+                                                )
+                                                .on_click(move |_ctx|
+                                                    dec.update(|v| {
+                                                        *v -= 1;
+                                                    })
+                                                )
+                                                .hover_style(|s, theme|
+                                                    s
+                                                        .background(theme.hover)
+                                                        .border(
+                                                            Border::new(
+                                                                1,
+                                                                theme.border,
+                                                                Length::px(8.0)
+                                                            )
+                                                        )
+                                                        .color(theme.foreground)
+                                                )
+                                                .pressed_style(|s, theme|
+                                                    s
+                                                        .background(theme.pressed)
+                                                        .border(
+                                                            Border::new(
+                                                                1,
+                                                                theme.pressed,
+                                                                Length::px(8.0)
+                                                            )
+                                                        )
+                                                        .color(theme.foreground)
+                                                )
                                         )
                                 )
-                        )
-                        .child(
-                            Image::new()
-                                .bytes(
-                                    include_bytes!(
-                                        concat!(env!("CARGO_MANIFEST_DIR"), "/assets/ferris.png")
-                                    )
+                                .child(
+                                    Image::new()
+                                        .bytes(
+                                            include_bytes!(
+                                                concat!(
+                                                    env!("CARGO_MANIFEST_DIR"),
+                                                    "/assets/ferris.png"
+                                                )
+                                            )
+                                        )
+                                        .object_fit(ObjectFit::Fill)
+                                        .width(160)
+                                        .height(105)
                                 )
-                                .object_fit(ObjectFit::Fill)
-                                .width(160)
-                                .height(105)
                         )
                 )
         )

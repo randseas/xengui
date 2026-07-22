@@ -6,6 +6,7 @@ pub mod link;
 pub mod textbox;
 pub mod image;
 pub mod svg;
+pub mod context_menu;
 
 pub use view::View;
 pub use label::Label;
@@ -21,6 +22,7 @@ pub use svg::{
     SvgPathBuilder,
     SvgRectBuilder,
 };
+pub use context_menu::{ ContextMenu, ContextMenuItem };
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use image::image_source_from_path;

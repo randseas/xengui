@@ -71,6 +71,8 @@ pub use style::{
 pub use widgets::{
     image_source_from_bytes,
     Button,
+    ContextMenu,
+    ContextMenuItem,
     Image,
     ImageSource,
     Label,
