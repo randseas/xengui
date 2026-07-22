@@ -107,9 +107,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         })
                 )
                 .item(
-                    ContextMenuItem::new("Reload").on_click(|_ctx| {
-                        log::info!("context menu -> reload");
-                    })
+                    ContextMenuItem::new("Reload")
+                        .shortcut("Ctrl+R")
+                        .on_click(|_ctx| {
+                            log::info!("context menu -> reload");
+                        })
                 )
                 .divider()
                 .item(

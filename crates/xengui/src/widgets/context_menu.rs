@@ -1,3 +1,4 @@
+// crates/xengui/src/widgets/context_menu.rs (full file)
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     AnimKey,
@@ -30,25 +31,34 @@ use crate::{
     StyleBuilder,
     TextCommand,
     Transition,
+    TriangleCommand,
     Widget,
     WidgetBase,
     WidgetId,
     properties::{ DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT_RATIO },
 };
 use smol_str::SmolStr;
-use std::cell::Cell;
+use std::cell::{ Cell, RefCell };
 use std::time::Duration;
 
 pub struct ContextMenuItem {
     label: SmolStr,
+    shortcut: Option<SmolStr>,
     #[allow(clippy::type_complexity)]
     on_click: Option<Box<dyn FnMut(&mut EventCtx)>>,
     enabled: bool,
+    submenu: Vec<ContextMenuEntry>,
 }
 
 impl ContextMenuItem {
     pub fn new(label: impl Into<SmolStr>) -> Self {
-        Self { label: label.into(), on_click: None, enabled: true }
+        Self {
+            label: label.into(),
+            shortcut: None,
+            on_click: None,
+            enabled: true,
+            submenu: Vec::new(),
+        }
     }
 
     pub fn on_click(mut self, f: impl FnMut(&mut EventCtx) + 'static) -> Self {
@@ -60,11 +70,41 @@ impl ContextMenuItem {
         self.enabled = enabled;
         self
     }
+
+    /// Purely visual shortcut label drawn at the item's right edge (e.g. "Ctrl+C").
+    /// Does not register or handle the actual key combination.
+    pub fn shortcut(mut self, text: impl Into<SmolStr>) -> Self {
+        self.shortcut = Some(text.into());
+        self
+    }
+
+    pub fn submenu_item(mut self, item: ContextMenuItem) -> Self {
+        self.submenu.push(ContextMenuEntry::Item(item));
+        self
+    }
+
+    pub fn submenu_divider(mut self) -> Self {
+        self.submenu.push(ContextMenuEntry::Divider);
+        self
+    }
+
+    fn has_submenu(&self) -> bool {
+        !self.submenu.is_empty()
+    }
 }
 
 enum ContextMenuEntry {
     Item(ContextMenuItem),
     Divider,
+}
+
+#[derive(Clone)]
+struct OpenSubmenu {
+    path: Vec<usize>,
+    pos: Cell<(f32, f32)>,
+    size: Cell<(f32, f32)>,
+    hovered_index: Cell<Option<usize>>,
+    pressed_index: Cell<Option<usize>>,
 }
 
 const ITEM_HEIGHT: f32 = 32.0;
@@ -73,6 +113,7 @@ const MENU_PADDING: f32 = 4.0;
 const MENU_WIDTH: f32 = 160.0;
 const DIVIDER_HEIGHT: f32 = 9.0;
 const DIVIDER_LINE_THICKNESS: f32 = 1.0;
+const ARROW_SIZE: f32 = 4.0;
 
 const OPACITY_TRANSITION: Transition = Transition::new(Duration::from_millis(150)).easing(
     Easing::EaseOut
@@ -84,14 +125,85 @@ fn faded_background(bg: Background, opacity: f32) -> Background {
     }
 }
 
+fn point_in_rect(point: (f32, f32), rect: (f32, f32, f32, f32)) -> bool {
+    let (px, py) = point;
+    let (rx, ry, rw, rh) = rect;
+    px >= rx && px <= rx + rw && py >= ry && py <= ry + rh
+}
+
+fn menu_height(entries: &[ContextMenuEntry], padding: f32) -> f32 {
+    let sum: f32 = entries
+        .iter()
+        .map(|e| {
+            match e {
+                ContextMenuEntry::Item(_) => ITEM_HEIGHT,
+                ContextMenuEntry::Divider => DIVIDER_HEIGHT,
+            }
+        })
+        .sum();
+    sum + padding * 2.0
+}
+
+fn entry_rect_at(
+    entries: &[ContextMenuEntry],
+    pos: (f32, f32),
+    size: (f32, f32),
+    padding: f32,
+    index: usize
+) -> (f32, f32, f32, f32) {
+    let (mx, my) = pos;
+    let (mw, _) = size;
+
+    let y_offset: f32 = entries[..index]
+        .iter()
+        .map(|e| {
+            match e {
+                ContextMenuEntry::Item(_) => ITEM_HEIGHT,
+                ContextMenuEntry::Divider => DIVIDER_HEIGHT,
+            }
+        })
+        .sum();
+
+    match entries[index] {
+        ContextMenuEntry::Item(_) =>
+            (mx + padding, my + padding + y_offset, mw - padding * 2.0, ITEM_HEIGHT),
+        ContextMenuEntry::Divider => {
+            let line_y = my + padding + y_offset + DIVIDER_HEIGHT * 0.5;
+            (mx + padding, line_y, mw - padding * 2.0, DIVIDER_LINE_THICKNESS)
+        }
+    }
+}
+
+fn index_at(
+    entries: &[ContextMenuEntry],
+    pos: (f32, f32),
+    size: (f32, f32),
+    padding: f32,
+    point: (f32, f32)
+) -> Option<usize> {
+    if !point_in_rect(point, (pos.0, pos.1, size.0, size.1)) {
+        return None;
+    }
+    (0..entries.len()).find(|&i| {
+        if !matches!(entries[i], ContextMenuEntry::Item(_)) {
+            return false;
+        }
+        let (x, y, w, h) = entry_rect_at(entries, pos, size, padding, i);
+        point.0 >= x && point.0 <= x + w && point.1 >= y && point.1 <= y + h
+    })
+}
+
+fn submenu_arrow(rect: (f32, f32, f32, f32)) -> ((f32, f32), (f32, f32), (f32, f32)) {
+    let (x, y, w, h) = rect;
+    let cy = y + h * 0.5;
+    let right = x + w - 6.0;
+    ((right - ARROW_SIZE, cy - ARROW_SIZE), (right - ARROW_SIZE, cy + ARROW_SIZE), (right, cy))
+}
+
 /// A page-wide right-click popup menu. Wraps arbitrary content (like
-/// `View`) and should sit near the root of the tree so `paint_overlay`
+/// `View`) and should sit near the root of the tree so `paint_top`
 /// runs after every other widget's own paint pass, guaranteeing the
 /// popup always renders on top regardless of sibling paint order.
-///
-/// Colors left unset (`menu_background`, `item_hover_background`,
-/// `item_text_color` never called) automatically follow the active
-/// theme via `current_theme()` instead of a fixed light/dark value.
 pub struct ContextMenu {
     base: WidgetBase,
     anim_id: WidgetId,
@@ -106,6 +218,7 @@ pub struct ContextMenu {
     hovered_index: Cell<Option<usize>>,
     pending_reopen: Cell<Option<(f32, f32)>>,
     pressed_index: Cell<Option<usize>>,
+    submenu_stack: RefCell<Vec<OpenSubmenu>>,
 
     item_background: Option<Background>,
     item_hover_background: Option<Background>,
@@ -144,6 +257,7 @@ impl ContextMenu {
             hovered_index: Cell::new(None),
             pending_reopen: Cell::new(None),
             pressed_index: Cell::new(None),
+            submenu_stack: RefCell::new(Vec::new()),
             item_background: None,
             item_hover_background: None,
             item_pressed_background: None,
@@ -176,6 +290,12 @@ impl ContextMenu {
         self
     }
 
+    pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
+        self.base.style.font = Some(font.into());
+        self.recompute_style();
+        self
+    }
+
     pub fn child(mut self, child: impl Widget + 'static) -> Self {
         self.children.push(Box::new(child));
         self
@@ -198,24 +318,14 @@ impl ContextMenu {
 
     pub fn menu_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
         self.background = Some(background.resolve_themed());
-        self.base.dirty = true;
         self
     }
 
     pub fn border<M>(mut self, border: impl IntoThemed<Border, M>) -> Self {
         self.border = Some(border.resolve_themed());
-        self.base.dirty = true;
         self
     }
 
-    pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
-        self.base.style.font = Some(font.into());
-        self.mark_dirty();
-        self
-    }
-
-    /// Overrides the menu's own inner padding; falls back to a sensible
-    /// default when never called.
     pub fn padding(mut self, value: f32) -> Self {
         self.menu_padding = Some(value);
         self
@@ -315,22 +425,56 @@ impl ContextMenu {
         if !self.open.get() {
             return false;
         }
-        let (mx, my) = self.menu_pos.get();
-        let (mw, mh) = self.menu_size.get();
-        point.0 >= mx && point.0 <= mx + mw && point.1 >= my && point.1 <= my + mh
+        point_in_rect(point, (
+            self.menu_pos.get().0,
+            self.menu_pos.get().1,
+            self.menu_size.get().0,
+            self.menu_size.get().1,
+        ))
     }
 
-    fn total_menu_height(&self) -> f32 {
-        let sum: f32 = self.entries
+    fn point_in_any_menu(&self, point: (f32, f32)) -> bool {
+        if self.point_in_menu(point) {
+            return true;
+        }
+        self.submenu_stack
+            .borrow()
             .iter()
-            .map(|e| {
-                match e {
-                    ContextMenuEntry::Item(_) => ITEM_HEIGHT,
-                    ContextMenuEntry::Divider => DIVIDER_HEIGHT,
-                }
+            .any(|l| {
+                let (x, y) = l.pos.get();
+                let (w, h) = l.size.get();
+                point_in_rect(point, (x, y, w, h))
             })
-            .sum();
-        sum + self.effective_padding() * 2.0
+    }
+
+    fn entries_at<'a>(&'a self, path: &[usize]) -> &'a [ContextMenuEntry] {
+        let mut current: &[ContextMenuEntry] = &self.entries;
+        for &idx in path {
+            match current.get(idx) {
+                Some(ContextMenuEntry::Item(item)) => {
+                    current = &item.submenu;
+                }
+                _ => {
+                    return &[];
+                }
+            }
+        }
+        current
+    }
+
+    fn entries_at_mut<'a>(&'a mut self, path: &[usize]) -> &'a mut Vec<ContextMenuEntry> {
+        let mut current = &mut self.entries;
+        for &idx in path {
+            match current.get_mut(idx) {
+                Some(ContextMenuEntry::Item(item)) => {
+                    current = &mut item.submenu;
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+        current
     }
 
     fn close(&self, ctx: &mut EventCtx) {
@@ -338,13 +482,19 @@ impl ContextMenu {
             self.open.set(false);
             self.hovered_index.set(None);
             self.pressed_index.set(None);
+            self.submenu_stack.borrow_mut().clear();
             ctx.request_redraw();
         }
     }
 
-    // open_at_impl değişti
+    // Truncates the open-submenu chain, discarding every level at or
+    // beyond `depth` (1-based: depth 0 keeps nothing open).
+    fn close_from(&self, depth: usize) {
+        self.submenu_stack.borrow_mut().truncate(depth);
+    }
+
     fn open_at_impl(&self, position: (f32, f32)) {
-        let height = self.total_menu_height();
+        let height = menu_height(&self.entries, self.effective_padding());
         let width = MENU_WIDTH;
 
         let bounds_x = self.layout_box.x;
@@ -352,9 +502,8 @@ impl ContextMenu {
         let bounds_right = self.layout_box.x + self.layout_box.width;
         let bounds_bottom = self.layout_box.y + self.layout_box.height;
 
-        // Flips to the opposite side when there isn't enough room instead
-        // of only clamping, so the menu anchors from whichever corner
-        // keeps it fully on screen.
+        // Anchors from whichever corner keeps the menu fully on screen
+        // instead of only clamping, matching web context-menu behavior.
         let x = if position.0 + width > bounds_right {
             (position.0 - width).max(bounds_x)
         } else {
@@ -366,13 +515,14 @@ impl ContextMenu {
             position.1
         };
 
-        let x = x.min(bounds_right - width).max(bounds_x);
-        let y = y.min(bounds_bottom - height).max(bounds_y);
-
-        self.menu_pos.set((x, y));
+        self.menu_pos.set((
+            x.min(bounds_right - width).max(bounds_x),
+            y.min(bounds_bottom - height).max(bounds_y),
+        ));
         self.menu_size.set((width, height));
         self.open.set(true);
         self.hovered_index.set(None);
+        self.submenu_stack.borrow_mut().clear();
     }
 
     fn open_at(&self, position: (f32, f32), ctx: &mut EventCtx) {
@@ -380,52 +530,117 @@ impl ContextMenu {
         ctx.request_redraw();
     }
 
-    // Rect (or, for a divider, the thin line's rect) for the entry at
-    // `index` within `entries`.
-    fn entry_rect(&self, index: usize) -> (f32, f32, f32, f32) {
-        let (mx, my) = self.menu_pos.get();
-        let (mw, _) = self.menu_size.get();
+    // Positions a submenu relative to the parent item's rect, opening to
+    // the right by default and flipping to whichever side/edge keeps it
+    // fully inside `self.layout_box`.
+    fn position_submenu(
+        &self,
+        parent_rect: (f32, f32, f32, f32),
+        width: f32,
+        height: f32
+    ) -> (f32, f32) {
+        let (px, py, pw, _ph) = parent_rect;
+        let bounds_x = self.layout_box.x;
+        let bounds_y = self.layout_box.y;
+        let bounds_right = self.layout_box.x + self.layout_box.width;
+        let bounds_bottom = self.layout_box.y + self.layout_box.height;
+
+        let x = if px + pw + width > bounds_right { (px - width).max(bounds_x) } else { px + pw };
+        let y = if py + height > bounds_bottom {
+            (bounds_bottom - height).max(bounds_y)
+        } else {
+            py
+        };
+
+        (x, y)
+    }
+
+    fn hit_level_index(&self, point: (f32, f32)) -> Option<(usize, usize)> {
+        let depth = self.submenu_stack.borrow().len();
         let padding = self.effective_padding();
 
-        let y_offset: f32 = self.entries[..index]
-            .iter()
-            .map(|e| {
-                match e {
-                    ContextMenuEntry::Item(_) => ITEM_HEIGHT,
-                    ContextMenuEntry::Divider => DIVIDER_HEIGHT,
+        for level in (0..=depth).rev() {
+            let (path, pos, size) = if level == 0 {
+                (Vec::new(), self.menu_pos.get(), self.menu_size.get())
+            } else {
+                let stack = self.submenu_stack.borrow();
+                let l = &stack[level - 1];
+                (l.path.clone(), l.pos.get(), l.size.get())
+            };
+
+            if !point_in_rect(point, (pos.0, pos.1, size.0, size.1)) {
+                continue;
+            }
+
+            let entries = self.entries_at(&path);
+            return index_at(entries, pos, size, padding, point).map(|idx| (level, idx));
+        }
+        None
+    }
+
+    fn update_hover(&self, point: (f32, f32), ctx: &mut EventCtx) {
+        let depth = self.submenu_stack.borrow().len();
+        let padding = self.effective_padding();
+
+        for level in (0..=depth).rev() {
+            let (path, pos, size) = if level == 0 {
+                (Vec::new(), self.menu_pos.get(), self.menu_size.get())
+            } else {
+                let stack = self.submenu_stack.borrow();
+                let l = &stack[level - 1];
+                (l.path.clone(), l.pos.get(), l.size.get())
+            };
+
+            if !point_in_rect(point, (pos.0, pos.1, size.0, size.1)) {
+                continue;
+            }
+
+            let entries = self.entries_at(&path);
+            let idx = index_at(entries, pos, size, padding, point);
+
+            let current = if level == 0 {
+                self.hovered_index.get()
+            } else {
+                self.submenu_stack.borrow()[level - 1].hovered_index.get()
+            };
+
+            if idx != current {
+                if level == 0 {
+                    self.hovered_index.set(idx);
+                } else {
+                    self.submenu_stack.borrow()[level - 1].hovered_index.set(idx);
                 }
-            })
-            .sum();
 
-        match self.entries[index] {
-            ContextMenuEntry::Item(_) =>
-                (mx + padding, my + padding + y_offset, mw - padding * 2.0, ITEM_HEIGHT),
-            ContextMenuEntry::Divider => {
-                let line_y = my + padding + y_offset + DIVIDER_HEIGHT * 0.5;
-                (mx + padding, line_y, mw - padding * 2.0, DIVIDER_LINE_THICKNESS)
+                self.close_from(level);
+
+                if
+                    let Some(i) = idx &&
+                    let Some(ContextMenuEntry::Item(item)) = entries.get(i) &&
+                    item.enabled &&
+                    item.has_submenu()
+                {
+                    let rect = entry_rect_at(entries, pos, size, padding, i);
+                    let mut child_path = path.clone();
+                    child_path.push(i);
+                    let child_entries = self.entries_at(&child_path);
+                    let child_h = menu_height(child_entries, padding);
+                    let child_pos = self.position_submenu(rect, MENU_WIDTH, child_h);
+
+                    self.submenu_stack.borrow_mut().push(OpenSubmenu {
+                        path: child_path,
+                        pos: Cell::new(child_pos),
+                        size: Cell::new((MENU_WIDTH, child_h)),
+                        hovered_index: Cell::new(None),
+                        pressed_index: Cell::new(None),
+                    });
+                }
+
+                ctx.request_redraw();
             }
+            return;
         }
     }
 
-    // Entry index under `point`, or `None` if outside the menu or over a
-    // divider (dividers aren't clickable).
-    fn index_at(&self, point: (f32, f32)) -> Option<usize> {
-        let (mx, my) = self.menu_pos.get();
-        let (mw, mh) = self.menu_size.get();
-        if point.0 < mx || point.0 > mx + mw || point.1 < my || point.1 > my + mh {
-            return None;
-        }
-        (0..self.entries.len()).find(|&i| {
-            if !matches!(self.entries[i], ContextMenuEntry::Item(_)) {
-                return false;
-            }
-            let (x, y, w, h) = self.entry_rect(i);
-            point.0 >= x && point.0 <= x + w && point.1 >= y && point.1 <= y + h
-        })
-    }
-
-    // Pulls opacity toward 1 (open) or 0 (closed) through the shared
-    // AnimationManager, called once per frame from cascade_style.
     fn animate_opacity(&mut self, anim: &mut AnimationManager) {
         let target = if self.open.get() { 1.0 } else { 0.0 };
         let key = AnimKey {
@@ -437,10 +652,175 @@ impl ContextMenu {
         anim.set_target(key, AnimValue([target, 0.0, 0.0, 0.0]), Some(OPACITY_TRANSITION));
 
         match anim.value(key) {
-            Some(v) => {
-                self.opacity_anim.set(v.0[0]);
-            }
+            Some(v) => self.opacity_anim.set(v.0[0]),
             None => self.opacity_anim.set(target),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn paint_level(
+        &self,
+        ctx: &mut PaintContext,
+        theme: &crate::Theme,
+        opacity: f32,
+        entries: &[ContextMenuEntry],
+        pos: (f32, f32),
+        size: (f32, f32),
+        hovered_index: Option<usize>,
+        pressed_index: Option<usize>,
+        padding: f32
+    ) {
+        let (mx, my) = pos;
+        let (mw, mh) = size;
+
+        let bg = self.background.clone().unwrap_or(Background::Color(theme.surface));
+        let border = self.border.as_ref();
+        let border_color = border.map(|b| b.color).unwrap_or(theme.border);
+
+        ctx.draw_rect(RectCommand {
+            position: (mx, my),
+            size: (mw, mh),
+            background: Some(faded_background(bg, opacity)),
+            border_radius: border.map(|b| b.radius),
+            border_width: border.map(|b| b.width),
+            border_color: Some(border_color.with_alpha_f32(border_color.a() * opacity)),
+            clip_rect: None,
+        });
+
+        let divider_color = self.divider_color.unwrap_or(theme.border);
+        let sf = ctx.scale_factor;
+        let pad = self.effective_item_padding();
+        let (pad_l, pad_r, pad_t, pad_b) = (
+            pad.left.value(),
+            pad.right.value(),
+            pad.top.value(),
+            pad.bottom.value(),
+        );
+
+        for (i, entry) in entries.iter().enumerate() {
+            let item = match entry {
+                ContextMenuEntry::Divider => {
+                    let (x, y, w, h) = entry_rect_at(entries, pos, size, padding, i);
+                    ctx.draw_rect(RectCommand {
+                        position: (x, y),
+                        size: (w, h),
+                        background: Some(
+                            Background::Color(
+                                divider_color.with_alpha_f32(divider_color.a() * opacity)
+                            )
+                        ),
+                        border_radius: None,
+                        border_width: None,
+                        border_color: None,
+                        clip_rect: None,
+                    });
+                    continue;
+                }
+                ContextMenuEntry::Item(item) => item,
+            };
+
+            let (x, y, w, h) = entry_rect_at(entries, pos, size, padding, i);
+            let is_hovered = item.enabled && hovered_index == Some(i);
+            let is_pressed = is_hovered && pressed_index == Some(i);
+
+            let (bg, border, text_color) = if is_pressed {
+                (
+                    Some(
+                        self.item_pressed_background
+                            .clone()
+                            .or_else(|| self.item_hover_background.clone())
+                            .unwrap_or(Background::Color(theme.pressed))
+                    ),
+                    self.item_pressed_border.or(self.item_hover_border).or(self.item_border),
+                    self.item_pressed_text_color
+                        .or(self.item_hover_text_color)
+                        .or(self.item_text_color),
+                )
+            } else if is_hovered {
+                (
+                    Some(
+                        self.item_hover_background.clone().unwrap_or(Background::Color(theme.hover))
+                    ),
+                    self.item_hover_border.or(self.item_border),
+                    self.item_hover_text_color.or(self.item_text_color),
+                )
+            } else {
+                (self.item_background.clone(), self.item_border, self.item_text_color)
+            };
+
+            if let Some(bg) = bg {
+                ctx.draw_rect(RectCommand {
+                    position: (x, y),
+                    size: (w, h),
+                    background: Some(faded_background(bg, opacity)),
+                    border_radius: border.map(|b| b.radius).or(Some(Length::px(4.0))),
+                    border_width: border.map(|b| b.width),
+                    border_color: border.map(|b| b.color.with_alpha_f32(b.color.a() * opacity)),
+                    clip_rect: None,
+                });
+            }
+
+            let base_color = if item.enabled {
+                text_color.unwrap_or(theme.foreground)
+            } else {
+                text_color.unwrap_or(theme.foreground_muted)
+            };
+            let alpha_scale = if item.enabled { 1.0 } else { 0.6 };
+
+            let mut text_style = self.base.computed_style.clone();
+            text_style.font_size.get_or_insert(DEFAULT_FONT_SIZE);
+            text_style.color = Some(
+                base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale)
+            );
+
+            let font_size = text_style.font_size
+                .map(|f| f.to_physical(sf))
+                .unwrap_or(DEFAULT_FONT_SIZE.to_physical(sf));
+            let text_h = text_style.line_height
+                .map(|lh| lh.value().to_physical(sf))
+                .filter(|lh| *lh > 0.0)
+                .unwrap_or(font_size * DEFAULT_LINE_HEIGHT_RATIO);
+
+            let inner_h = (h - pad_t - pad_b).max(0.0);
+            let text_y = y + pad_t + (inner_h - text_h).max(0.0) * 0.5;
+
+            // Right side of the row shows either a submenu arrow or a
+            // shortcut label, never both.
+            let right_reserved = if item.has_submenu() {
+                let (p0, p1, p2) = submenu_arrow((x, y, w, h));
+                ctx.draw_triangle(TriangleCommand {
+                    p0,
+                    p1,
+                    p2,
+                    color: base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale),
+                    clip_rect: None,
+                });
+                16.0
+            } else if let Some(shortcut) = &item.shortcut {
+                let mut shortcut_style = text_style.clone();
+                shortcut_style.color = Some(
+                    base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale * 0.6)
+                );
+                let shortcut_w = (w - pad_l - pad_r) * 0.5;
+                ctx.draw_text(TextCommand {
+                    text: shortcut.clone(),
+                    position: (x + w - pad_r - shortcut_w, text_y),
+                    style: shortcut_style,
+                    max_width: Some(shortcut_w),
+                    clip_rect: None,
+                });
+                shortcut_w + 6.0
+            } else {
+                0.0
+            };
+
+            ctx.draw_text(TextCommand {
+                text: item.label.clone(),
+                position: (x + pad_l, text_y),
+                style: text_style,
+                max_width: Some((w - pad_l - pad_r - right_reserved).max(0.0)),
+                clip_rect: None,
+            });
         }
     }
 }
@@ -527,137 +907,47 @@ impl Widget for ContextMenu {
             return;
         }
 
-        let (mx, my) = self.menu_pos.get();
-        let (mw, mh) = self.menu_size.get();
         let theme = crate::current_theme();
+        let padding = self.effective_padding();
 
-        let bg = self.background.clone().unwrap_or(Background::Color(theme.surface));
-        let border = self.border.as_ref();
-        let border_color = border.map(|b| b.color).unwrap_or(theme.border);
-
-        ctx.draw_rect(RectCommand {
-            position: (mx, my),
-            size: (mw, mh),
-            background: Some(faded_background(bg, opacity)),
-            border_radius: border.map(|b| b.radius),
-            border_width: border.map(|b| b.width),
-            border_color: Some(border_color.with_alpha_f32(border_color.a() * opacity)),
-            clip_rect: None,
-        });
-
-        let divider_color = self.divider_color.unwrap_or(theme.border);
-        let sf = ctx.scale_factor;
-        let pad = self.effective_item_padding();
-        let (pad_l, pad_r, pad_t, pad_b) = (
-            pad.left.value(),
-            pad.right.value(),
-            pad.top.value(),
-            pad.bottom.value(),
+        self.paint_level(
+            ctx,
+            &theme,
+            opacity,
+            &self.entries,
+            self.menu_pos.get(),
+            self.menu_size.get(),
+            self.hovered_index.get(),
+            self.pressed_index.get(),
+            padding
         );
 
-        for (i, entry) in self.entries.iter().enumerate() {
-            let item = match entry {
-                ContextMenuEntry::Divider => {
-                    let (x, y, w, h) = self.entry_rect(i);
-                    ctx.draw_rect(RectCommand {
-                        position: (x, y),
-                        size: (w, h),
-                        background: Some(
-                            Background::Color(
-                                divider_color.with_alpha_f32(divider_color.a() * opacity)
-                            )
-                        ),
-                        border_radius: None,
-                        border_width: None,
-                        border_color: None,
-                        clip_rect: None,
-                    });
-                    continue;
-                }
-                ContextMenuEntry::Item(item) => item,
-            };
+        let levels: Vec<
+            (Vec<usize>, (f32, f32), (f32, f32), Option<usize>, Option<usize>)
+        > = self.submenu_stack
+            .borrow()
+            .iter()
+            .map(|l| (
+                l.path.clone(),
+                l.pos.get(),
+                l.size.get(),
+                l.hovered_index.get(),
+                l.pressed_index.get(),
+            ))
+            .collect();
 
-            let (x, y, w, h) = self.entry_rect(i);
-            let is_hovered = item.enabled && self.hovered_index.get() == Some(i);
-            let is_pressed = is_hovered && self.pressed_index.get() == Some(i);
-
-            let (bg, border, text_color) = if is_pressed {
-                (
-                    Some(
-                        self.item_pressed_background
-                            .clone()
-                            .or_else(|| self.item_hover_background.clone())
-                            .unwrap_or(Background::Color(theme.pressed))
-                    ),
-                    self.item_pressed_border.or(self.item_hover_border).or(self.item_border),
-                    self.item_pressed_text_color
-                        .or(self.item_hover_text_color)
-                        .or(self.item_text_color),
-                )
-            } else if is_hovered {
-                (
-                    Some(
-                        self.item_hover_background.clone().unwrap_or(Background::Color(theme.hover))
-                    ),
-                    self.item_hover_border.or(self.item_border),
-                    self.item_hover_text_color.or(self.item_text_color),
-                )
-            } else {
-                (self.item_background.clone(), self.item_border, self.item_text_color)
-            };
-
-            if let Some(bg) = bg {
-                ctx.draw_rect(RectCommand {
-                    position: (x, y),
-                    size: (w, h),
-                    background: Some(faded_background(bg, opacity)),
-                    border_radius: border.map(|b| b.radius).or(Some(Length::px(4.0))),
-                    border_width: border.map(|b| b.width),
-                    border_color: border.map(|b| b.color.with_alpha_f32(b.color.a() * opacity)),
-                    clip_rect: None,
-                });
-            }
-
-            let base_color = if item.enabled {
-                text_color.unwrap_or(theme.foreground)
-            } else {
-                text_color.unwrap_or(theme.foreground_muted)
-            };
-            let alpha_scale = if item.enabled { 1.0 } else { 0.6 };
-
-            let mut text_style = self.base.computed_style.clone();
-            text_style.font_size.get_or_insert(DEFAULT_FONT_SIZE);
-            text_style.color = Some(
-                base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale)
-            );
-
-            let font_size = text_style.font_size
-                .map(|f| f.to_physical(sf))
-                .unwrap_or(DEFAULT_FONT_SIZE.to_physical(sf));
-            let text_h = text_style.line_height
-                .map(|lh| lh.value().to_physical(sf))
-                .filter(|lh| *lh > 0.0)
-                .unwrap_or(font_size * DEFAULT_LINE_HEIGHT_RATIO);
-
-            let inner_h = (h - pad_t - pad_b).max(0.0);
-            let text_y = y + pad_t + (inner_h - text_h).max(0.0) * 0.5;
-
-            ctx.draw_text(TextCommand {
-                text: item.label.clone(),
-                position: (x + pad_l, text_y),
-                style: text_style,
-                max_width: Some((w - pad_l - pad_r).max(0.0)),
-                clip_rect: None,
-            });
+        for (path, pos, size, hovered, pressed) in levels {
+            let entries = self.entries_at(&path);
+            self.paint_level(ctx, &theme, opacity, entries, pos, size, hovered, pressed, padding);
         }
     }
 
     fn hit_test(&self, point: (f32, f32)) -> bool {
-        self.layout_box.contains_rounded(point, 0.0) || self.point_in_menu(point)
+        self.layout_box.contains_rounded(point, 0.0) || self.point_in_any_menu(point)
     }
 
     fn blocks_children_hit_test(&self, point: (f32, f32)) -> bool {
-        self.point_in_menu(point)
+        self.point_in_any_menu(point)
     }
 
     fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {
@@ -684,16 +974,17 @@ impl Widget for ContextMenu {
                 button: MouseButton::Left,
                 position,
             } if self.open.get() => {
-                if !self.point_in_menu(*position) {
+                if !self.point_in_any_menu(*position) {
                     self.close(ctx);
                     return EventStatus::Handled;
                 }
 
-                if
-                    let Some(idx) = self.index_at(*position) &&
-                    matches!(&self.entries[idx], ContextMenuEntry::Item(item) if item.enabled)
-                {
-                    self.pressed_index.set(Some(idx));
+                if let Some((depth, idx)) = self.hit_level_index(*position) {
+                    if depth == 0 {
+                        self.pressed_index.set(Some(idx));
+                    } else {
+                        self.submenu_stack.borrow()[depth - 1].pressed_index.set(Some(idx));
+                    }
                     ctx.request_redraw();
                 }
 
@@ -705,35 +996,51 @@ impl Widget for ContextMenu {
                 button: MouseButton::Left,
                 position,
             } if self.open.get() => {
-                let pressed = self.pressed_index.take();
-
-                if !self.point_in_menu(*position) {
+                if !self.point_in_any_menu(*position) {
                     self.close(ctx);
                     return EventStatus::Handled;
                 }
 
-                if
-                    let Some(idx) = pressed &&
-                    self.index_at(*position) == Some(idx) &&
-                    let Some(ContextMenuEntry::Item(item)) = self.entries.get_mut(idx) &&
-                    item.enabled &&
-                    let Some(cb) = item.on_click.as_mut()
-                {
-                    cb(ctx);
-                    self.close(ctx);
+                if let Some((depth, idx)) = self.hit_level_index(*position) {
+                    let was_pressed = if depth == 0 {
+                        self.pressed_index.take() == Some(idx)
+                    } else {
+                        self.submenu_stack.borrow()[depth - 1].pressed_index.take() == Some(idx)
+                    };
+
+                    if was_pressed {
+                        let path = if depth == 0 {
+                            Vec::new()
+                        } else {
+                            self.submenu_stack.borrow()[depth - 1].path.clone()
+                        };
+
+                        let entries = self.entries_at_mut(&path);
+                        if
+                            let Some(ContextMenuEntry::Item(item)) = entries.get_mut(idx) &&
+                            item.enabled &&
+                            !item.has_submenu()
+                        {
+                            if let Some(cb) = item.on_click.as_mut() {
+                                cb(ctx);
+                            }
+                            self.close(ctx);
+                            return EventStatus::Handled;
+                        }
+                    }
                 } else {
-                    ctx.request_redraw();
+                    self.pressed_index.set(None);
+                    for l in self.submenu_stack.borrow().iter() {
+                        l.pressed_index.set(None);
+                    }
                 }
 
+                ctx.request_redraw();
                 EventStatus::Handled
             }
 
             InputEvent::MouseMoved { position } if self.open.get() => {
-                let idx = self.index_at(*position);
-                if idx != self.hovered_index.get() {
-                    self.hovered_index.set(idx);
-                    ctx.request_redraw();
-                }
+                self.update_hover(*position, ctx);
                 EventStatus::Handled
             }
 
@@ -785,6 +1092,7 @@ impl Widget for ContextMenu {
             self.hovered_index.set(old.hovered_index.get());
             self.pending_reopen.set(old.pending_reopen.get());
             self.pressed_index.set(old.pressed_index.get());
+            self.submenu_stack.replace(old.submenu_stack.borrow().clone());
             self.anim_id = old.anim_id;
         }
     }
