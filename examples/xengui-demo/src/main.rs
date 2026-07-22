@@ -93,28 +93,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(
             ContextMenu::new()
                 .item(
-                    ContextMenuItem::new("Back").on_click(|_ctx| {
-                        log::info!("context menu -> copy");
-                    })
+                    ContextMenuItem::new("Back")
+                        .enabled(false)
+                        .on_click(|_ctx| {
+                            log::info!("context menu -> back");
+                        })
                 )
                 .item(
-                    ContextMenuItem::new("Forward").on_click(|_ctx| {
-                        log::info!("context menu -> delete");
-                    })
+                    ContextMenuItem::new("Forward")
+                        .enabled(false)
+                        .on_click(|_ctx| {
+                            log::info!("context menu -> forward");
+                        })
                 )
                 .item(
                     ContextMenuItem::new("Reload").on_click(|_ctx| {
-                        log::info!("context menu -> delete");
+                        log::info!("context menu -> reload");
                     })
                 )
                 .divider()
                 .item(
-                    ContextMenuItem::new("DevTools")
+                    ContextMenuItem::new("Inspect")
                         .enabled(false)
                         .on_click(|_ctx| {
-                            log::info!("context menu -> delete");
+                            log::info!("context menu -> inspect");
                         })
                 )
+                .font("Noto_Sans")
                 .item_border(Border::new(0, Color::TRANSPARENT, 6))
                 .padding(6.0)
                 .font_size(13)

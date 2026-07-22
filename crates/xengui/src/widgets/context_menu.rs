@@ -208,6 +208,12 @@ impl ContextMenu {
         self
     }
 
+    pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
+        self.base.style.font = Some(font.into());
+        self.mark_dirty();
+        self
+    }
+
     /// Overrides the menu's own inner padding; falls back to a sensible
     /// default when never called.
     pub fn padding(mut self, value: f32) -> Self {
@@ -336,16 +342,35 @@ impl ContextMenu {
         }
     }
 
+    // open_at_impl değişti
     fn open_at_impl(&self, position: (f32, f32)) {
         let height = self.total_menu_height();
+        let width = MENU_WIDTH;
 
-        let max_x = (self.layout_box.x + self.layout_box.width - MENU_WIDTH).max(self.layout_box.x);
-        let max_y = (self.layout_box.y + self.layout_box.height - height).max(self.layout_box.y);
-        let x = position.0.min(max_x).max(self.layout_box.x);
-        let y = position.1.min(max_y).max(self.layout_box.y);
+        let bounds_x = self.layout_box.x;
+        let bounds_y = self.layout_box.y;
+        let bounds_right = self.layout_box.x + self.layout_box.width;
+        let bounds_bottom = self.layout_box.y + self.layout_box.height;
+
+        // Flips to the opposite side when there isn't enough room instead
+        // of only clamping, so the menu anchors from whichever corner
+        // keeps it fully on screen.
+        let x = if position.0 + width > bounds_right {
+            (position.0 - width).max(bounds_x)
+        } else {
+            position.0
+        };
+        let y = if position.1 + height > bounds_bottom {
+            (position.1 - height).max(bounds_y)
+        } else {
+            position.1
+        };
+
+        let x = x.min(bounds_right - width).max(bounds_x);
+        let y = y.min(bounds_bottom - height).max(bounds_y);
 
         self.menu_pos.set((x, y));
-        self.menu_size.set((MENU_WIDTH, height));
+        self.menu_size.set((width, height));
         self.open.set(true);
         self.hovered_index.set(None);
     }
@@ -414,7 +439,6 @@ impl ContextMenu {
         match anim.value(key) {
             Some(v) => {
                 self.opacity_anim.set(v.0[0]);
-                self.base.dirty = true;
             }
             None => self.opacity_anim.set(target),
         }
@@ -650,7 +674,6 @@ impl Widget for ContextMenu {
                     } else {
                         self.open_at(*position, ctx);
                     }
-                    self.base.dirty = true;
                     return EventStatus::Handled;
                 }
                 EventStatus::Ignored
@@ -671,7 +694,6 @@ impl Widget for ContextMenu {
                     matches!(&self.entries[idx], ContextMenuEntry::Item(item) if item.enabled)
                 {
                     self.pressed_index.set(Some(idx));
-                    self.base.dirty = true;
                     ctx.request_redraw();
                 }
 
@@ -684,7 +706,6 @@ impl Widget for ContextMenu {
                 position,
             } if self.open.get() => {
                 let pressed = self.pressed_index.take();
-                self.base.dirty = true;
 
                 if !self.point_in_menu(*position) {
                     self.close(ctx);
@@ -711,7 +732,6 @@ impl Widget for ContextMenu {
                 let idx = self.index_at(*position);
                 if idx != self.hovered_index.get() {
                     self.hovered_index.set(idx);
-                    self.base.dirty = true;
                     ctx.request_redraw();
                 }
                 EventStatus::Handled
@@ -743,11 +763,13 @@ impl Widget for ContextMenu {
 
         self.animate_opacity(anim);
 
-        if !self.open.get() && self.opacity_anim.get() <= 0.001
-            && let Some(pos) = self.pending_reopen.take() {
-                self.open_at_impl(pos);
-                self.base.dirty = true;
-            }
+        if
+            !self.open.get() &&
+            self.opacity_anim.get() <= 0.001 &&
+            let Some(pos) = self.pending_reopen.take()
+        {
+            self.open_at_impl(pos);
+        }
 
         for child in self.children.iter_mut() {
             child.cascade_style(&self.base.computed_style, anim);

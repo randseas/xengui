@@ -2,8 +2,6 @@
 use crate::Widget;
 use std::fmt::Write;
 
-const ROOT_PATH: &str = "root";
-
 pub(crate) type PathCheckpoint = usize;
 
 pub(crate) struct WidgetPath {
@@ -12,9 +10,7 @@ pub(crate) struct WidgetPath {
 
 impl WidgetPath {
     pub(crate) fn new() -> Self {
-        Self {
-            buf: String::from(ROOT_PATH),
-        }
+        Self { buf: String::new() }
     }
 
     #[inline]
@@ -33,12 +29,14 @@ impl WidgetPath {
     }
 
     pub(crate) fn push(&mut self, widget: &dyn Widget, index: usize) {
-        self.buf.push('.');
+        if !self.buf.is_empty() {
+            self.buf.push('.');
+        }
 
         if let Some(key) = widget.get_key() {
+            self.buf.push('k');
             self.buf.push_str(key);
         } else {
-            self.buf.push('#');
             write!(&mut self.buf, "{index}").unwrap();
         }
     }
