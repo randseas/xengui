@@ -251,12 +251,26 @@ impl<'a> RenderBackend for WgpuFrame<'a> {
                 }
             }
         }
-        // Cleared after every flush (not just once per frame) since
-        // flush_text is now invoked once per text run instead of once
-        // per frame. A retry must only ever redraw the commands that
-        // belong to the run currently being flushed, not glyphs from
-        // an earlier run that already succeeded and was cleared.
         self.text_cmds.clear();
+
+        // glyphon's TextRenderer reuses ONE internal vertex buffer across
+        // prepare() calls (overwrite, not append) — unlike our own shape
+        // pipelines. flush_text() now runs once per text run instead of once
+        // per frame, so a later run's prepare() would clobber an earlier run's
+        // glyph data before the GPU ever executes that earlier run's render()
+        // call, since both were recorded into the same not-yet-submitted
+        // encoder. Submitting right here — and swapping in a fresh encoder for
+        // whatever comes next — forces this run to actually execute before its
+        // buffer can be reused by the next one.
+        let finished = std::mem::replace(
+            &mut *self.encoder,
+            self.device.create_command_encoder(
+                &(wgpu::CommandEncoderDescriptor {
+                    label: Some("xengui frame encoder (continued)"),
+                })
+            )
+        );
+        self.queue.submit(Some(finished.finish()));
     }
 
     fn end_frame(&mut self) {
