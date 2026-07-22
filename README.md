@@ -60,9 +60,23 @@ View::new()
 - **Flexbox & Grid layout** - Layout system via [`taffy`](https://github.com/DioxusLabs/taffy), including flex direction, wrapping, alignment, gaps, and grid tracks.
 - **GPU-accelerated rendering** - Rects, text, and images are batched and drawn through dedicated `wgpu` pipelines.
 - **Declarative styling** - `Style`/`StyleBuilder` API covering colors (including OKLCH), borders, typography, spacing, and more.
-- **Built-in widgets** - `View`, `Label`, `Button`, and `Image`, each with hover/pressed/disabled style variants.
+- **Built-in widgets** - `View`, `Label`, `Button`, `Link`, `TextBox`, `Image`, `Svg`, and `ContextMenu`, each with hover/pressed/focus/disabled style variants.
 - **Interaction system** - Unified handling of hover, click, focus, and keyboard events across widgets.
 - **Cross-platform** - Native targets (Windows, macOS, Linux) and WebAssembly from a single codebase.
+
+## Crates
+
+XenGui is split across several focused crates:
+
+| Crate                                   | Description                                                                              |
+| --------------------------------------- | ---------------------------------------------------------------------------------------- |
+| [`xengui`](crates/xengui)               | The core retained-mode GUI library: widget tree, hooks, layout, styling, and reconciler. |
+| [`xenframe`](crates/xenframe)           | Platform runtime: window creation, event loop, and input integration via `winit`.        |
+| [`xengui-wgpu`](crates/xengui-wgpu)     | The `wgpu` render backend implementing `xengui`'s `RenderBackend` trait.                 |
+| [`xen-animation`](crates/xen-animation) | Framework-agnostic animation and transition library.                                     |
+| [`xen-clipboard`](crates/xen-clipboard) | Cross-platform clipboard library.                                                        |
+| [`xen-svg`](crates/xen-svg)             | Platform-agnostic SVG parser and triangle tessellator.                                   |
+| [`xengui-lucide`](crates/xengui-lucide) | Prebuilt [Lucide](https://lucide.dev) icon widgets for XenGui.                           |
 
 ## Installation
 
@@ -70,13 +84,16 @@ View::new()
 
 ```toml
 [dependencies]
-xengui = "0.2.5"
+xengui = "0.2.6"
+xenframe = "0.1.0"
+xengui-wgpu = "0.1.0"
 ```
 
 ## Quick Start
 
 ```rust
 use xengui::*;
+use xenframe::{App, AppConfig, WindowPosition};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = AppConfig {
@@ -136,6 +153,10 @@ For WebAssembly targets, build and serve with [Trunk](https://github.com/trunk-r
 ```bash
 trunk serve
 ```
+
+## Documentation
+
+Docs are available at: [https://xengui.vercel.app/docs](https://xengui.vercel.app/docs)
 
 ## License
 
