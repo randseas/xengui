@@ -131,7 +131,7 @@ impl FrameRenderer {
         let mut rect_buf: Vec<RectCommand> = Vec::new();
         let mut tri_buf: Vec<TriangleCommand> = Vec::new();
         let mut img_buf: Vec<ImageCommand> = Vec::new();
-        let mut text_cmds: Vec<TextCommand> = Vec::new();
+        let mut text_cmds: Vec<(i32, TextCommand)> = Vec::new();
 
         macro_rules! flush_run {
             () => {
@@ -150,9 +150,9 @@ impl FrameRenderer {
         // Draws each contiguous run of same-type commands in the order
         // z-index (then paint order) puts them in, instead of always
         // drawing every rect, then every triangle, then every image.
-        for (_, command) in commands {
+        for (z, command) in commands {
             match command {
-                DrawCommand::Text(cmd) => text_cmds.push(*cmd),
+                DrawCommand::Text(cmd) => text_cmds.push((z, *cmd)),
                 DrawCommand::Rect(cmd) => {
                     if current_kind != Some(RunKind::Rect) {
                         flush_run!();
@@ -178,25 +178,6 @@ impl FrameRenderer {
         }
         flush_run!();
 
-        for cmd in &text_cmds {
-            backend.draw_text(theme, scale_factor, cmd);
-        }
-
-        // Underline/strike/overline quads produced while queueing text
-        // above; drawn once, after every layer.
-        let decorations = backend.take_text_decorations();
-        if !decorations.is_empty() {
-            backend.draw_rects(&decorations);
-        }
-
-        backend.flush_text();
-
-        // Drawn after text is flushed so the focus ring is always visible
-        // above absolutely everything else in the frame.
-        if !focus_commands.is_empty() {
-            backend.draw_rects(&focus_commands);
-        }
-
         // Top layer: rendered strictly after the main pass and its text
         // flush, so a popup here always sits above every other widget's
         // content, including their own deferred text.
@@ -205,7 +186,6 @@ impl FrameRenderer {
             let mut top_rect_buf: Vec<RectCommand> = Vec::new();
             let mut top_tri_buf: Vec<TriangleCommand> = Vec::new();
             let mut top_img_buf: Vec<ImageCommand> = Vec::new();
-            let mut top_text_cmds: Vec<TextCommand> = Vec::new();
 
             #[derive(PartialEq, Clone, Copy)]
             enum TopRunKind {
@@ -231,7 +211,7 @@ impl FrameRenderer {
 
             for command in top_commands {
                 match command {
-                    DrawCommand::Text(cmd) => top_text_cmds.push(*cmd),
+                    DrawCommand::Text(cmd) => text_cmds.push((i32::MAX, *cmd)),
                     DrawCommand::Rect(cmd) => {
                         if top_kind != Some(TopRunKind::Rect) {
                             flush_top_run!();
@@ -256,17 +236,24 @@ impl FrameRenderer {
                 }
             }
             flush_top_run!();
-
-            for cmd in &top_text_cmds {
-                backend.draw_text(theme, scale_factor, cmd);
-            }
-            let top_decorations = backend.take_text_decorations();
-            if !top_decorations.is_empty() {
-                backend.draw_rects(&top_decorations);
-            }
-            backend.flush_text();
         }
 
+        text_cmds.sort_by_key(|(z, _)| *z);
+
+        for (_, cmd) in &text_cmds {
+            backend.draw_text(theme, scale_factor, cmd);
+        }
+
+        let decorations = backend.take_text_decorations();
+        if !decorations.is_empty() {
+            backend.draw_rects(&decorations);
+        }
+
+        if !focus_commands.is_empty() {
+            backend.draw_rects(&focus_commands);
+        }
+        
+        backend.flush_text();
         backend.end_frame();
     }
 }
