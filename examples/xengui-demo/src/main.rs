@@ -109,6 +109,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .item(
                     ContextMenuItem::new("Reload")
                         .shortcut("Ctrl+R")
+                        .submenu_item(ContextMenuItem::new("Test1"))
+                        .submenu_item(ContextMenuItem::new("Test2"))
+                        .submenu_divider()
+                        .submenu_item(ContextMenuItem::new("Test3"))
                         .on_click(|_ctx| {
                             log::info!("context menu -> reload");
                         })

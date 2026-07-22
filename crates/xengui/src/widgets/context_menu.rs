@@ -462,19 +462,30 @@ impl ContextMenu {
         current
     }
 
-    fn entries_at_mut<'a>(&'a mut self, path: &[usize]) -> &'a mut Vec<ContextMenuEntry> {
-        let mut current = &mut self.entries;
-        for &idx in path {
-            match current.get_mut(idx) {
-                Some(ContextMenuEntry::Item(item)) => {
-                    current = &mut item.submenu;
-                }
-                _ => {
-                    break;
-                }
+    fn item_at_mut(&mut self, path: &[usize], idx: usize) -> Option<&mut ContextMenuItem> {
+        // Returns the item directly instead of the parent Vec, since every
+        // failure path here can just bail with None - no branch ever needs
+        // to hand back the un-navigated container, which is what breaks
+        // the borrow checker in the Vec-returning version.
+        fn walk<'a>(
+            entries: &'a mut Vec<ContextMenuEntry>,
+            path: &[usize],
+            idx: usize
+        ) -> Option<&'a mut ContextMenuItem> {
+            match path.split_first() {
+                Some((&next, rest)) =>
+                    match entries.get_mut(next)? {
+                        ContextMenuEntry::Item(item) => walk(&mut item.submenu, rest, idx),
+                        ContextMenuEntry::Divider => None,
+                    }
+                None =>
+                    match entries.get_mut(idx)? {
+                        ContextMenuEntry::Item(item) => Some(item),
+                        ContextMenuEntry::Divider => None,
+                    }
             }
         }
-        current
+        walk(&mut self.entries, path, idx)
     }
 
     fn close(&self, ctx: &mut EventCtx) {
@@ -922,6 +933,7 @@ impl Widget for ContextMenu {
             padding
         );
 
+        #[allow(clippy::type_complexity)]
         let levels: Vec<
             (Vec<usize>, (f32, f32), (f32, f32), Option<usize>, Option<usize>)
         > = self.submenu_stack
@@ -1015,9 +1027,8 @@ impl Widget for ContextMenu {
                             self.submenu_stack.borrow()[depth - 1].path.clone()
                         };
 
-                        let entries = self.entries_at_mut(&path);
                         if
-                            let Some(ContextMenuEntry::Item(item)) = entries.get_mut(idx) &&
+                            let Some(item) = self.item_at_mut(&path, idx) &&
                             item.enabled &&
                             !item.has_submenu()
                         {
