@@ -930,6 +930,10 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 if std::mem::take(&mut self.suppress_next_focus_loss) {
                     return;
                 }
+                // Held modifier keys never get a matching release event once
+                // this window loses OS focus, so their state must be reset
+                // here or they stay stuck (e.g. ctrl) for future key presses.
+                self.input.modifiers = ModifiersState::default();
                 // Window losing focus mid-drag (e.g. alt-tab while holding the
                 // scrollbar thumb) never delivers a real mouse-up, so synthesize
                 // one to the captured widget before clearing capture - otherwise

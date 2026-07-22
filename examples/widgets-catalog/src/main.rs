@@ -52,7 +52,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(
             View::new()
                 .font("Noto_Sans")
-                .font_size(14)
                 .display(Display::Flex)
                 .flex_direction(FlexDirection::Column)
                 .width(Length::Percent(100.0))
