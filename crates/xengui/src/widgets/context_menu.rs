@@ -174,9 +174,12 @@ const MENU_PADDING: f32 = 4.0;
 const DEFAULT_MENU_MIN_WIDTH: f32 = 120.0;
 const SUBMENU_ARROW_RESERVED: f32 = 16.0;
 const SHORTCUT_GAP: f32 = 6.0;
-const DIVIDER_HEIGHT: f32 = 9.0;
+const DIVIDER_HEIGHT: f32 = 12.0;
 const DIVIDER_LINE_THICKNESS: f32 = 1.0;
 const ARROW_SIZE: f32 = 4.0;
+const SHORTCUT_RIGHT_PADDING: f32 = 8.0;
+const ARROW_THICKNESS: f32 = 1.6;
+const ARROW_CAP_SEGMENTS: usize = 8;
 
 const OPACITY_TRANSITION: Transition = Transition::new(Duration::from_millis(150)).easing(
     Easing::EaseOut
@@ -272,8 +275,15 @@ fn measure_entries_width(
 
         let arrow_w = if item.has_submenu() { SUBMENU_ARROW_RESERVED } else { 0.0 };
         let shortcut_gap = if shortcut_w > 0.0 { SHORTCUT_GAP } else { 0.0 };
+        // Submenu items already keep the shortcut clear of the edge via
+        // the arrow's own reserved space, so only bare shortcuts get this.
+        let shortcut_padding = if shortcut_w > 0.0 && !item.has_submenu() {
+            SHORTCUT_RIGHT_PADDING
+        } else {
+            0.0
+        };
 
-        let row_w = label_w + shortcut_gap + shortcut_w + arrow_w + pad_lr;
+        let row_w = label_w + shortcut_gap + shortcut_w + shortcut_padding + arrow_w + pad_lr;
         max_w = max_w.max(row_w);
 
         if item.has_submenu() {
@@ -344,11 +354,54 @@ fn index_at(
     })
 }
 
-fn submenu_arrow(rect: (f32, f32, f32, f32)) -> ((f32, f32), (f32, f32), (f32, f32)) {
+// Builds a rounded-corner chevron ("›") as a set of filled triangles:
+// two thick line segments plus round caps at the joints, so the arrow
+// reads as a smooth stroke instead of a sharp mitered triangle.
+fn submenu_arrow_triangles(
+    rect: (f32, f32, f32, f32)
+) -> Vec<((f32, f32), (f32, f32), (f32, f32))> {
     let (x, y, w, h) = rect;
     let cy = y + h * 0.5;
     let right = x + w - 6.0;
-    ((right - ARROW_SIZE, cy - ARROW_SIZE), (right - ARROW_SIZE, cy + ARROW_SIZE), (right, cy))
+
+    let top = (right - ARROW_SIZE, cy - ARROW_SIZE);
+    let tip = (right, cy);
+    let bottom = (right - ARROW_SIZE, cy + ARROW_SIZE);
+
+    let mut tris = arrow_segment(top, tip);
+    tris.extend(arrow_segment(tip, bottom));
+    tris.extend(arrow_cap(top));
+    tris.extend(arrow_cap(tip));
+    tris.extend(arrow_cap(bottom));
+    tris
+}
+
+fn arrow_segment(a: (f32, f32), b: (f32, f32)) -> Vec<((f32, f32), (f32, f32), (f32, f32))> {
+    let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+    let len = (dx * dx + dy * dy).sqrt().max(0.0001);
+    let (nx, ny) = ((-dy / len) * ARROW_THICKNESS * 0.5, (dx / len) * ARROW_THICKNESS * 0.5);
+    let p0 = (a.0 + nx, a.1 + ny);
+    let p1 = (a.0 - nx, a.1 - ny);
+    let p2 = (b.0 + nx, b.1 + ny);
+    let p3 = (b.0 - nx, b.1 - ny);
+    vec![(p0, p1, p2), (p1, p3, p2)]
+}
+
+// Small filled fan approximating a circle, rounding off a joint or line
+// end that would otherwise show as a sharp corner.
+fn arrow_cap(center: (f32, f32)) -> Vec<((f32, f32), (f32, f32), (f32, f32))> {
+    let r = ARROW_THICKNESS * 0.5;
+    (0..ARROW_CAP_SEGMENTS)
+        .map(|i| {
+            let a0 = ((i as f32) / (ARROW_CAP_SEGMENTS as f32)) * std::f32::consts::TAU;
+            let a1 = (((i + 1) as f32) / (ARROW_CAP_SEGMENTS as f32)) * std::f32::consts::TAU;
+            (
+                center,
+                (center.0 + a0.cos() * r, center.1 + a0.sin() * r),
+                (center.0 + a1.cos() * r, center.1 + a1.sin() * r),
+            )
+        })
+        .collect()
 }
 
 /// A page-wide right-click popup menu. Wraps arbitrary content (like
@@ -374,6 +427,9 @@ pub struct ContextMenu {
     pending_reopen: Cell<Option<(f32, f32)>>,
     pressed_index: Cell<Option<usize>>,
     submenu_stack: RefCell<Vec<OpenSubmenu>>,
+    // Levels that just closed; kept here so they can fade out instead of
+    // disappearing the instant hover moves away.
+    closing_submenus: RefCell<Vec<OpenSubmenu>>,
 
     natural_width: Cell<f32>,
     external_open: ContextMenuHandle,
@@ -409,8 +465,10 @@ impl ContextMenu {
         let mut menu = Self {
             base: WidgetBase::new(Interaction::new()),
             anim_id: WidgetId::new_unique(),
+
             children: Vec::new(),
             entries: Vec::new(),
+
             open: Cell::new(false),
             opacity_anim: Cell::new(0.0),
             menu_pos: Cell::new((0.0, 0.0)),
@@ -419,8 +477,11 @@ impl ContextMenu {
             pending_reopen: Cell::new(None),
             pressed_index: Cell::new(None),
             submenu_stack: RefCell::new(Vec::new()),
+            closing_submenus: RefCell::new(Vec::new()),
+
             natural_width: Cell::new(0.0),
             external_open: ContextMenuHandle::new(),
+
             item_background: None,
             item_hover_background: None,
             item_pressed_background: None,
@@ -433,6 +494,7 @@ impl ContextMenu {
             item_pressed_text_color: None,
             divider_color: None,
             background: None,
+
             border: None,
             menu_padding: None,
             menu_width: None,
@@ -442,6 +504,7 @@ impl ContextMenu {
             menu_max_height: None,
             menu_transition: None,
             item_transition: None,
+
             layout_box: LayoutBox::default(),
         };
         menu.base.style.size = Some(
@@ -766,14 +829,22 @@ impl ContextMenu {
             self.hovered_index.set(None);
             self.pressed_index.set(None);
             self.submenu_stack.borrow_mut().clear();
+            self.closing_submenus.borrow_mut().clear();
             ctx.request_redraw();
         }
     }
 
-    // Truncates the open-submenu chain, discarding every level at or
-    // beyond `depth` (1-based: depth 0 keeps nothing open).
+    // Moves every level at or beyond `depth` into the closing list
+    // instead of dropping them immediately, so they can fade out.
     fn close_from(&self, depth: usize) {
-        self.submenu_stack.borrow_mut().truncate(depth);
+        let removed: Vec<OpenSubmenu> = {
+            let mut stack = self.submenu_stack.borrow_mut();
+            if depth >= stack.len() {
+                return;
+            }
+            stack.split_off(depth)
+        };
+        self.closing_submenus.borrow_mut().extend(removed);
     }
 
     fn open_at_impl(&self, position: (f32, f32)) {
@@ -806,6 +877,7 @@ impl ContextMenu {
         self.open.set(true);
         self.hovered_index.set(None);
         self.submenu_stack.borrow_mut().clear();
+        self.closing_submenus.borrow_mut().clear();
     }
 
     fn open_at(&self, position: (f32, f32), ctx: &mut EventCtx) {
@@ -909,6 +981,10 @@ impl ContextMenu {
                     let child_w = self.resolve_width(item.submenu_width.get());
                     let child_h = self.resolve_height(menu_height(child_entries, padding));
                     let child_pos = self.position_submenu(rect, child_w, child_h);
+
+                    // Cancels any in-progress close fade for this submenu so
+                    // reopening it doesn't fight the closing animation for the same key.
+                    self.closing_submenus.borrow_mut().retain(|c| c.anim_id != item.anim_id);
 
                     self.submenu_stack.borrow_mut().push(OpenSubmenu {
                         path: child_path,
@@ -1106,14 +1182,16 @@ impl ContextMenu {
             let mut right_reserved = 0.0;
 
             if item.has_submenu() {
-                let (p0, p1, p2) = submenu_arrow((x, y, w, h));
-                ctx.draw_triangle(TriangleCommand {
-                    p0,
-                    p1,
-                    p2,
-                    color: base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale),
-                    clip_rect: None,
-                });
+                let arrow_color = base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale);
+                for (p0, p1, p2) in submenu_arrow_triangles((x, y, w, h)) {
+                    ctx.draw_triangle(TriangleCommand {
+                        p0,
+                        p1,
+                        p2,
+                        color: arrow_color,
+                        clip_rect: None,
+                    });
+                }
                 right_reserved += SUBMENU_ARROW_RESERVED;
             }
 
@@ -1123,14 +1201,19 @@ impl ContextMenu {
                     base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale * 0.6)
                 );
                 let shortcut_w = item.shortcut_width.get();
+                let shortcut_padding = if item.has_submenu() {
+                    0.0
+                } else {
+                    SHORTCUT_RIGHT_PADDING
+                };
                 ctx.draw_text(TextCommand {
                     text: shortcut.clone(),
-                    position: (x + w - right_reserved - shortcut_w, text_y),
+                    position: (x + w - right_reserved - shortcut_padding - shortcut_w, text_y),
                     style: shortcut_style,
                     max_width: Some(shortcut_w),
                     clip_rect: None,
                 });
-                right_reserved += shortcut_w + SHORTCUT_GAP;
+                right_reserved += shortcut_w + SHORTCUT_GAP + shortcut_padding;
             }
 
             ctx.draw_text(TextCommand {
@@ -1272,7 +1355,7 @@ impl Widget for ContextMenu {
         );
 
         #[allow(clippy::type_complexity)]
-        let levels: Vec<
+        let closing_levels: Vec<
             (Vec<usize>, (f32, f32), (f32, f32), Option<usize>, Option<usize>, f32)
         > = self.submenu_stack
             .borrow()
@@ -1287,7 +1370,7 @@ impl Widget for ContextMenu {
             ))
             .collect();
 
-        for (path, pos, size, hovered, pressed, level_opacity) in levels {
+        for (path, pos, size, hovered, pressed, level_opacity) in closing_levels {
             let entries = self.entries_at(&path);
             self.paint_level(
                 ctx,
@@ -1444,6 +1527,20 @@ impl Widget for ContextMenu {
             level.opacity.set(anim.value(key).map_or(1.0, |v| v.0[0]));
         }
 
+        // Fades out submenu levels that were just closed, dropping each
+        // one once its opacity animation actually settles at zero.
+        self.closing_submenus.borrow_mut().retain(|level| {
+            let key = AnimKey {
+                widget: level.anim_id,
+                layer: AnimLayer::Content,
+                property: AnimProperty::Opacity,
+            };
+            anim.set_target(key, AnimValue([0.0, 0.0, 0.0, 0.0]), Some(menu_transition));
+            let value = anim.value(key).map_or(0.0, |v| v.0[0]);
+            level.opacity.set(value);
+            value > 0.001
+        });
+
         let item_transition = self.item_transition.unwrap_or(ITEM_HOVER_TRANSITION);
 
         Self::animate_entries(&self.entries, self.hovered_index.get(), item_transition, anim);
@@ -1481,6 +1578,7 @@ impl Widget for ContextMenu {
             self.pending_reopen.set(old.pending_reopen.get());
             self.pressed_index.set(old.pressed_index.get());
             self.submenu_stack.replace(old.submenu_stack.borrow().clone());
+            self.closing_submenus.replace(old.closing_submenus.borrow().clone());
             self.anim_id = old.anim_id;
             transfer_entry_anim_state(&mut self.entries, &old.entries);
         }
