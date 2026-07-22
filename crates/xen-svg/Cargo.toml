@@ -6,7 +6,7 @@ rust-version = { workspace = true }
 authors = ["randseas <waultbank@gmail.com>"]
 description = "a minimal svg parser and tessellator in rust"
 license = "Apache-2.0"
-repository = "https://github.com/randseas/xengui"
+repository = "https://github.com/randseas/xengui/tree/main/crates/xen-svg"
 readme = "README.md"
 keywords = ["svg", "vector", "icons", "parser"]
 categories = ["graphics", "rendering"]

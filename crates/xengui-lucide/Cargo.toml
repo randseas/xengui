@@ -6,8 +6,8 @@ rust-version = { workspace = true }
 authors = ["randseas <waultbank@gmail.com>"]
 description = "xengui lucide integration"
 license = "Apache-2.0"
-repository = "https://github.com/randseas/xengui"
-readme = "../../README.md"
+repository = "https://github.com/randseas/xengui/tree/main/crates/xengui-lucide"
+readme = "README.md"
 keywords = ["gui", "icons", "svg", "lucide"]
 categories = ["gui"]
 

@@ -5,6 +5,8 @@ edition = { workspace = true }
 rust-version = { workspace = true }
 authors = ["randseas <waultbank@gmail.com>"]
 description = "wgpu render backend for xengui"
+repository = "https://github.com/randseas/xengui/tree/main/crates/xengui-wgpu"
+readme = "README.md"
 license = "Apache-2.0"
 
 [dependencies]

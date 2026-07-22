@@ -6,6 +6,8 @@ rust-version = { workspace = true }
 authors = ["randseas <waultbank@gmail.com>"]
 description = "platform runtime (windowing, event loop, IME, clipboard) for xengui"
 license = "Apache-2.0"
+repository = "https://github.com/randseas/xengui/tree/main/crates/xenframe"
+readme = "README.md"
 
 [dependencies]
 xengui = { workspace = true }
