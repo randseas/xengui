@@ -182,8 +182,8 @@ const OPACITY_TRANSITION: Transition = Transition::new(Duration::from_millis(150
     Easing::EaseOut
 );
 
-const ITEM_HOVER_TRANSITION: Transition = Transition::new(Duration::from_millis(150)).easing(
-    Easing::EaseOut
+const ITEM_HOVER_TRANSITION: Transition = Transition::new(Duration::from_millis(200)).easing(
+    Easing::EaseInOut
 );
 
 fn lerp_color(a: Color, b: Color, t: f32) -> Color {
