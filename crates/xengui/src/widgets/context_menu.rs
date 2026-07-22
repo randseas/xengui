@@ -48,6 +48,11 @@ pub struct ContextMenuItem {
     on_click: Option<Box<dyn FnMut(&mut EventCtx)>>,
     enabled: bool,
     submenu: Vec<ContextMenuEntry>,
+    anim_id: WidgetId,
+    hover_transition: Option<Transition>,
+    hover_scale: Option<f32>,
+    hover_progress: Cell<f32>,
+    scale_progress: Cell<f32>,
 }
 
 impl ContextMenuItem {
@@ -58,6 +63,11 @@ impl ContextMenuItem {
             on_click: None,
             enabled: true,
             submenu: Vec::new(),
+            anim_id: WidgetId::new_unique(),
+            hover_transition: None,
+            hover_scale: None,
+            hover_progress: Cell::new(0.0),
+            scale_progress: Cell::new(1.0),
         }
     }
 
@@ -69,6 +79,24 @@ impl ContextMenuItem {
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
+    }
+
+    /// Overrides the default hover transition for this item's color (and,
+    /// if `hover_scale` is set, scale) animation.
+    pub fn transition(mut self, transition: Transition) -> Self {
+        self.hover_transition = Some(transition);
+        self
+    }
+
+    /// Scales the item up (or down) while hovered, animated with the same
+    /// transition used for the hover color change unless overridden above.
+    pub fn hover_scale(mut self, scale: f32) -> Self {
+        self.hover_scale = Some(scale);
+        self
+    }
+
+    fn has_submenu(&self) -> bool {
+        !self.submenu.is_empty()
     }
 
     /// Purely visual shortcut label drawn at the item's right edge (e.g. "Ctrl+C").
@@ -86,10 +114,6 @@ impl ContextMenuItem {
     pub fn submenu_divider(mut self) -> Self {
         self.submenu.push(ContextMenuEntry::Divider);
         self
-    }
-
-    fn has_submenu(&self) -> bool {
-        !self.submenu.is_empty()
     }
 }
 
@@ -118,6 +142,19 @@ const ARROW_SIZE: f32 = 4.0;
 const OPACITY_TRANSITION: Transition = Transition::new(Duration::from_millis(150)).easing(
     Easing::EaseOut
 );
+
+const ITEM_HOVER_TRANSITION: Transition = Transition::new(Duration::from_millis(150)).easing(
+    Easing::EaseOut
+);
+
+fn lerp_color(a: Color, b: Color, t: f32) -> Color {
+    Color::rgba_f32(
+        a.r() + (b.r() - a.r()) * t,
+        a.g() + (b.g() - a.g()) * t,
+        a.b() + (b.b() - a.b()) * t,
+        a.a() + (b.a() - a.a()) * t
+    )
+}
 
 fn faded_background(bg: Background, opacity: f32) -> Background {
     match bg {
@@ -462,13 +499,50 @@ impl ContextMenu {
         current
     }
 
+    fn animate_entries(
+        entries: &[ContextMenuEntry],
+        hovered: Option<usize>,
+        anim: &mut AnimationManager
+    ) {
+        for (i, entry) in entries.iter().enumerate() {
+            let ContextMenuEntry::Item(item) = entry else {
+                continue;
+            };
+
+            let is_target = item.enabled && hovered == Some(i);
+            let transition = item.hover_transition.unwrap_or(ITEM_HOVER_TRANSITION);
+
+            let hover_key = AnimKey {
+                widget: item.anim_id,
+                layer: AnimLayer::Root,
+                property: AnimProperty::Opacity,
+            };
+            let hover_target = if is_target { 1.0 } else { 0.0 };
+            anim.set_target(hover_key, AnimValue([hover_target, 0.0, 0.0, 0.0]), Some(transition));
+            item.hover_progress.set(anim.value(hover_key).map_or(hover_target, |v| v.0[0]));
+
+            if let Some(hover_scale) = item.hover_scale {
+                let scale_key = AnimKey {
+                    widget: item.anim_id,
+                    layer: AnimLayer::Root,
+                    property: AnimProperty::Scale,
+                };
+                let scale_target = if is_target { hover_scale } else { 1.0 };
+                anim.set_target(
+                    scale_key,
+                    AnimValue([scale_target, 0.0, 0.0, 0.0]),
+                    Some(transition)
+                );
+                item.scale_progress.set(anim.value(scale_key).map_or(scale_target, |v| v.0[0]));
+            } else {
+                item.scale_progress.set(1.0);
+            }
+        }
+    }
+
     fn item_at_mut(&mut self, path: &[usize], idx: usize) -> Option<&mut ContextMenuItem> {
-        // Returns the item directly instead of the parent Vec, since every
-        // failure path here can just bail with None - no branch ever needs
-        // to hand back the un-navigated container, which is what breaks
-        // the borrow checker in the Vec-returning version.
         fn walk<'a>(
-            entries: &'a mut Vec<ContextMenuEntry>,
+            entries: &'a mut [ContextMenuEntry],
             path: &[usize],
             idx: usize
         ) -> Option<&'a mut ContextMenuItem> {
@@ -731,10 +805,24 @@ impl ContextMenu {
             };
 
             let (x, y, w, h) = entry_rect_at(entries, pos, size, padding, i);
+
+            // Scales the row around its own center by the item's animated
+            // hover-scale progress; a no-op unless `.hover_scale(...)` was set.
+            let item_scale = item.scale_progress.get();
+            let (x, y, w, h) = if (item_scale - 1.0).abs() > f32::EPSILON {
+                let scaled = crate::scaled_layout_box(
+                    LayoutBox { x, y, width: w, height: h },
+                    item_scale
+                );
+                (scaled.x, scaled.y, scaled.width, scaled.height)
+            } else {
+                (x, y, w, h)
+            };
+
             let is_hovered = item.enabled && hovered_index == Some(i);
             let is_pressed = is_hovered && pressed_index == Some(i);
 
-            let (bg, border, text_color) = if is_pressed {
+            let (target_bg, border, hover_text_color_opt) = if is_pressed {
                 (
                     Some(
                         self.item_pressed_background
@@ -759,11 +847,25 @@ impl ContextMenu {
                 (self.item_background.clone(), self.item_border, self.item_text_color)
             };
 
-            if let Some(bg) = bg {
+            // A press snaps straight to its color; otherwise the highlight
+            // fades using this item's own animated hover progress.
+            let t = if is_pressed { 1.0 } else { item.hover_progress.get() };
+
+            let idle_bg_color = match &self.item_background {
+                Some(Background::Color(c)) => *c,
+                None => Color::TRANSPARENT,
+            };
+            let target_bg_color = match &target_bg {
+                Some(Background::Color(c)) => *c,
+                None => Color::TRANSPARENT,
+            };
+            let blended_bg = lerp_color(idle_bg_color, target_bg_color, t);
+
+            if blended_bg.a() > 0.0 {
                 ctx.draw_rect(RectCommand {
                     position: (x, y),
                     size: (w, h),
-                    background: Some(faded_background(bg, opacity)),
+                    background: Some(faded_background(Background::Color(blended_bg), opacity)),
                     border_radius: border.map(|b| b.radius).or(Some(Length::px(4.0))),
                     border_width: border.map(|b| b.width),
                     border_color: border.map(|b| b.color.with_alpha_f32(b.color.a() * opacity)),
@@ -771,11 +873,17 @@ impl ContextMenu {
                 });
             }
 
-            let base_color = if item.enabled {
-                text_color.unwrap_or(theme.foreground)
+            let idle_text_color = if item.enabled {
+                self.item_text_color.unwrap_or(theme.foreground)
             } else {
-                text_color.unwrap_or(theme.foreground_muted)
+                theme.foreground_muted
             };
+            let target_text_color = if item.enabled {
+                hover_text_color_opt.unwrap_or(theme.foreground)
+            } else {
+                hover_text_color_opt.unwrap_or(theme.foreground_muted)
+            };
+            let base_color = lerp_color(idle_text_color, target_text_color, t);
             let alpha_scale = if item.enabled { 1.0 } else { 0.6 };
 
             let mut text_style = self.base.computed_style.clone();
@@ -795,9 +903,12 @@ impl ContextMenu {
             let inner_h = (h - pad_t - pad_b).max(0.0);
             let text_y = y + pad_t + (inner_h - text_h).max(0.0) * 0.5;
 
-            // Right side of the row shows either a submenu arrow or a
-            // shortcut label, never both.
-            let right_reserved = if item.has_submenu() {
+            // Submenu arrow and shortcut are independent - an item with
+            // both shows the shortcut just left of the arrow instead of
+            // the arrow silently hiding it.
+            let mut right_reserved = 0.0;
+
+            if item.has_submenu() {
                 let (p0, p1, p2) = submenu_arrow((x, y, w, h));
                 ctx.draw_triangle(TriangleCommand {
                     p0,
@@ -806,24 +917,24 @@ impl ContextMenu {
                     color: base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale),
                     clip_rect: None,
                 });
-                16.0
-            } else if let Some(shortcut) = &item.shortcut {
+                right_reserved += 16.0;
+            }
+
+            if let Some(shortcut) = &item.shortcut {
                 let mut shortcut_style = text_style.clone();
                 shortcut_style.color = Some(
                     base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale * 0.6)
                 );
-                let shortcut_w = (w - pad_l - pad_r) * 0.5;
+                let shortcut_w = ((w - pad_l - pad_r) * 0.5 - right_reserved).max(0.0);
                 ctx.draw_text(TextCommand {
                     text: shortcut.clone(),
-                    position: (x + w - pad_r - shortcut_w, text_y),
+                    position: (x + w - pad_r - right_reserved - shortcut_w, text_y),
                     style: shortcut_style,
                     max_width: Some(shortcut_w),
                     clip_rect: None,
                 });
-                shortcut_w + 6.0
-            } else {
-                0.0
-            };
+                right_reserved += shortcut_w + 6.0;
+            }
 
             ctx.draw_text(TextCommand {
                 text: item.label.clone(),
@@ -1080,6 +1191,18 @@ impl Widget for ContextMenu {
         self.recompute_style();
 
         self.animate_opacity(anim);
+
+        Self::animate_entries(&self.entries, self.hovered_index.get(), anim);
+
+        let submenu_levels: Vec<(Vec<usize>, Option<usize>)> = self.submenu_stack
+            .borrow()
+            .iter()
+            .map(|l| (l.path.clone(), l.hovered_index.get()))
+            .collect();
+        for (path, hovered) in submenu_levels {
+            let entries = self.entries_at(&path);
+            Self::animate_entries(entries, hovered, anim);
+        }
 
         if
             !self.open.get() &&

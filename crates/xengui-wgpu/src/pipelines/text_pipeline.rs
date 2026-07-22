@@ -251,8 +251,8 @@ impl TextPipeline {
                 },
             None =>
                 TextBounds {
-                    left: position.0 as i32,
-                    top: position.1 as i32,
+                    left: i32::MIN,
+                    top: i32::MIN,
                     right: i32::MAX,
                     bottom: i32::MAX,
                 },

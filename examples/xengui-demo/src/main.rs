@@ -101,7 +101,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .item(
                     ContextMenuItem::new("Forward")
-                        .enabled(false)
+                        .shortcut("Ctrl+R")
+                        .enabled(true)
                         .on_click(|_ctx| {
                             log::info!("context menu -> forward");
                         })
@@ -129,7 +130,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .item_border(Border::new(0, Color::TRANSPARENT, 6))
                 .padding(6.0)
                 .font_size(13)
-                .menu_min_width(200.0)
+                .menu_min_width(240.0)
                 .menu_background(|theme: &Theme| theme.surface)
                 .border(|theme: &Theme| Border::new(1, theme.border, Length::px(10.0)))
                 .child(
