@@ -22,7 +22,7 @@ pub use svg::{
     SvgPathBuilder,
     SvgRectBuilder,
 };
-pub use context_menu::{ ContextMenu, ContextMenuItem };
+pub use context_menu::{ ContextMenu, ContextMenuHandle, ContextMenuItem };
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use image::image_source_from_path;

@@ -89,6 +89,12 @@ pub trait Widget: Any {
 
     fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult;
 
+    /// Runs once per full layout pass for every widget, leaf or not,
+    /// purely so a widget can cache intrinsic measurements it needs later
+    /// for painting (e.g. a popup's natural width) without affecting its
+    /// own flex/grid size, which `measure` alone controls.
+    fn on_layout_pass(&self, _ctx: &mut MeasureContext) {}
+
     fn layout(&mut self, rect: LayoutBox);
 
     fn layout_box(&self) -> &LayoutBox;

@@ -82,6 +82,12 @@ fn build_taffy_node(
 ) -> NodeId {
     let mut measure_ctx = MeasureContext::new(ctx.text, ctx.scale_factor);
 
+    // Runs for every widget, independent of whether it ends up in the
+    // leaf/auto-size branch below - lets non-leaf widgets (e.g. a
+    // ContextMenu wrapping content) cache their own intrinsic
+    // measurements too.
+    widget.on_layout_pass(&mut measure_ctx);
+
     let mut style = style_to_taffy(widget.computed_style(), ctx.scale_factor);
     let children = widget.children();
 

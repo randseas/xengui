@@ -6,6 +6,7 @@ use crate::{
     AnimationManager,
     Background,
     Constraints,
+    ContextMenuHandle,
     DEFAULT_SCROLLBAR_HOVER_THICKNESS,
     ElementState,
     EventCtx,
@@ -99,11 +100,9 @@ pub struct View {
     content_size: Cell<(f32, f32)>,
     scrollbar_drag: Cell<Option<ScrollDrag>>,
     scroll_step: f32,
-    // Whether the pointer is over the scrollbar's own track/thumb/buttons,
-    // separate from the widget's general hover state.
     scrollbar_hovered: Cell<bool>,
-    // Animated scrollbar thickness, driven by the shared AnimationManager.
     scrollbar_thickness_anim: Cell<f32>,
+    context_menu: Option<ContextMenuHandle>,
 }
 
 impl View {
@@ -122,6 +121,7 @@ impl View {
             scroll_step: 96.0,
             scrollbar_hovered: Cell::new(false),
             scrollbar_thickness_anim: Cell::new(0.0),
+            context_menu: None,
         };
 
         view = view
@@ -199,6 +199,13 @@ impl View {
 
     pub fn scroll_step(mut self, step: f32) -> Self {
         self.scroll_step = step;
+        self
+    }
+
+    /// Binds a [`ContextMenuHandle`] so right-clicking this view opens the
+    /// bound `ContextMenu`, without needing to wrap this view as its child.
+    pub fn context_menu(mut self, handle: ContextMenuHandle) -> Self {
+        self.context_menu = Some(handle);
         self
     }
 
@@ -973,6 +980,20 @@ impl Widget for View {
     }
 
     fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {
+        if
+            let InputEvent::MouseInput {
+                state: ElementState::Pressed,
+                button: MouseButton::Right,
+                position,
+            } = event &&
+            let Some(handle) = &self.context_menu &&
+            self.hit_test(*position)
+        {
+            handle.open_at(*position);
+            ctx.request_redraw();
+            return EventStatus::Handled;
+        }
+
         if let InputEvent::MouseMoved { position } = event {
             if self.scrollbar_drag.get().is_some() && self.handle_scrollbar_drag(*position, ctx) {
                 return EventStatus::Handled;

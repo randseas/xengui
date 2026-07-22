@@ -102,9 +102,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .item(
                     ContextMenuItem::new("Forward")
-                        .transition(
-                            Transition::new(Duration::from_millis(200)).easing(Easing::EaseInOut)
-                        )
                         .shortcut("Ctrl+F")
                         .enabled(true)
                         .on_click(|_ctx| {
@@ -140,6 +137,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         })
                 )
                 .font("Noto_Sans")
+                .item_transition(
+                    Transition::new(Duration::from_millis(200)).easing(Easing::EaseInOut)
+                )
+                .item_border(Border::new(0, Color::TRANSPARENT, 6))
                 .item_border(Border::new(0, Color::TRANSPARENT, 6))
                 .padding(6.0)
                 .font_size(13)

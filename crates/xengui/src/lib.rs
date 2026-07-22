@@ -72,6 +72,7 @@ pub use widgets::{
     image_source_from_bytes,
     Button,
     ContextMenu,
+    ContextMenuHandle,
     ContextMenuItem,
     Image,
     ImageSource,

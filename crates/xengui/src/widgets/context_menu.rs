@@ -1,4 +1,3 @@
-// crates/xengui/src/widgets/context_menu.rs (full file)
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     AnimKey,
@@ -15,6 +14,8 @@ use crate::{
     ElementState,
     EventCtx,
     EventStatus,
+    FontStyle,
+    FontWeight,
     InputEvent,
     Interaction,
     IntoThemed,
@@ -30,6 +31,7 @@ use crate::{
     Style,
     StyleBuilder,
     TextCommand,
+    TextMeasurer,
     Transition,
     TriangleCommand,
     Widget,
@@ -39,6 +41,7 @@ use crate::{
 };
 use smol_str::SmolStr;
 use std::cell::{ Cell, RefCell };
+use std::rc::Rc;
 use std::time::Duration;
 
 pub struct ContextMenuItem {
@@ -49,10 +52,15 @@ pub struct ContextMenuItem {
     enabled: bool,
     submenu: Vec<ContextMenuEntry>,
     anim_id: WidgetId,
-    hover_transition: Option<Transition>,
     hover_scale: Option<f32>,
     hover_progress: Cell<f32>,
     scale_progress: Cell<f32>,
+    // Natural pixel widths measured once per layout pass; used to
+    // auto-size the menu and to right-align the shortcut exactly.
+    label_width: Cell<f32>,
+    shortcut_width: Cell<f32>,
+    // Natural width of this item's own submenu, if any.
+    submenu_width: Cell<f32>,
 }
 
 impl ContextMenuItem {
@@ -64,10 +72,12 @@ impl ContextMenuItem {
             enabled: true,
             submenu: Vec::new(),
             anim_id: WidgetId::new_unique(),
-            hover_transition: None,
             hover_scale: None,
             hover_progress: Cell::new(0.0),
             scale_progress: Cell::new(1.0),
+            label_width: Cell::new(0.0),
+            shortcut_width: Cell::new(0.0),
+            submenu_width: Cell::new(0.0),
         }
     }
 
@@ -81,15 +91,8 @@ impl ContextMenuItem {
         self
     }
 
-    /// Overrides the default hover transition for this item's color (and,
-    /// if `hover_scale` is set, scale) animation.
-    pub fn transition(mut self, transition: Transition) -> Self {
-        self.hover_transition = Some(transition);
-        self
-    }
-
-    /// Scales the item up (or down) while hovered, animated with the same
-    /// transition used for the hover color change unless overridden above.
+    /// Scales the item up (or down) while hovered, animated with the
+    /// menu's shared item hover transition (see `ContextMenu::item_transition`).
     pub fn hover_scale(mut self, scale: f32) -> Self {
         self.hover_scale = Some(scale);
         self
@@ -131,10 +134,44 @@ struct OpenSubmenu {
     pressed_index: Cell<Option<usize>>,
 }
 
+/// A lightweight, cloneable handle that lets a widget elsewhere in the
+/// tree (e.g. a `View` bound via [`crate::View::context_menu`]) open a
+/// [`ContextMenu`] without wrapping that widget as the menu's child.
+///
+/// Create it once with `ContextMenuHandle::new()` and keep it stable
+/// across rebuilds (e.g. with `use_state`), then pass clones to both
+/// `ContextMenu::bind` and every trigger widget.
+#[derive(Clone)]
+pub struct ContextMenuHandle(Rc<Cell<Option<(f32, f32)>>>);
+
+impl ContextMenuHandle {
+    pub fn new() -> Self {
+        Self(Rc::new(Cell::new(None)))
+    }
+
+    /// Requests the bound `ContextMenu` to open at `position` on its next
+    /// style cascade.
+    pub fn open_at(&self, position: (f32, f32)) {
+        self.0.set(Some(position));
+    }
+
+    fn take_request(&self) -> Option<(f32, f32)> {
+        self.0.take()
+    }
+}
+
+impl Default for ContextMenuHandle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 const ITEM_HEIGHT: f32 = 32.0;
 const ITEM_PADDING_X: f32 = 28.0;
 const MENU_PADDING: f32 = 4.0;
-const MENU_WIDTH: f32 = 160.0;
+const DEFAULT_MENU_MIN_WIDTH: f32 = 120.0;
+const SUBMENU_ARROW_RESERVED: f32 = 16.0;
+const SHORTCUT_GAP: f32 = 6.0;
 const DIVIDER_HEIGHT: f32 = 9.0;
 const DIVIDER_LINE_THICKNESS: f32 = 1.0;
 const ARROW_SIZE: f32 = 4.0;
@@ -179,6 +216,81 @@ fn menu_height(entries: &[ContextMenuEntry], padding: f32) -> f32 {
         })
         .sum();
     sum + padding * 2.0
+}
+
+// Measures each item's label/shortcut natural width in `entries`, caches
+// them on the items themselves, and returns the widest row - used to
+// auto-size a menu level unless the user pins an explicit width.
+#[allow(clippy::too_many_arguments)]
+fn measure_entries_width(
+    entries: &[ContextMenuEntry],
+    text: &mut dyn TextMeasurer,
+    font: Option<&str>,
+    font_size: f32,
+    weight: FontWeight,
+    font_style: FontStyle,
+    letter_spacing: f32,
+    line_height: f32,
+    pad_lr: f32
+) -> f32 {
+    let mut max_w: f32 = 0.0;
+
+    for entry in entries {
+        let ContextMenuEntry::Item(item) = entry else {
+            continue;
+        };
+
+        let label_w = text.measure(
+            &item.label,
+            font,
+            font_size,
+            weight,
+            font_style,
+            letter_spacing,
+            line_height,
+            None
+        ).width;
+        item.label_width.set(label_w);
+
+        let shortcut_w = item.shortcut
+            .as_ref()
+            .map_or(0.0, |s| {
+                text.measure(
+                    s,
+                    font,
+                    font_size,
+                    weight,
+                    font_style,
+                    letter_spacing,
+                    line_height,
+                    None
+                ).width
+            });
+        item.shortcut_width.set(shortcut_w);
+
+        let arrow_w = if item.has_submenu() { SUBMENU_ARROW_RESERVED } else { 0.0 };
+        let shortcut_gap = if shortcut_w > 0.0 { SHORTCUT_GAP } else { 0.0 };
+
+        let row_w = label_w + shortcut_gap + shortcut_w + arrow_w + pad_lr;
+        max_w = max_w.max(row_w);
+
+        if item.has_submenu() {
+            let sub_w = measure_entries_width(
+                &item.submenu,
+                text,
+                font,
+                font_size,
+                weight,
+                font_style,
+                letter_spacing,
+                line_height,
+                pad_lr
+            );
+            item.submenu_width.set(sub_w);
+        }
+    }
+
+    max_w
 }
 
 fn entry_rect_at(
@@ -241,6 +353,10 @@ fn submenu_arrow(rect: (f32, f32, f32, f32)) -> ((f32, f32), (f32, f32), (f32, f
 /// `View`) and should sit near the root of the tree so `paint_top`
 /// runs after every other widget's own paint pass, guaranteeing the
 /// popup always renders on top regardless of sibling paint order.
+///
+/// It can also be triggered from anywhere else in the tree without
+/// wrapping: bind a [`ContextMenuHandle`] with [`ContextMenu::bind`] and
+/// pass clones of it to trigger widgets (e.g. [`crate::View::context_menu`]).
 pub struct ContextMenu {
     base: WidgetBase,
     anim_id: WidgetId,
@@ -257,6 +373,9 @@ pub struct ContextMenu {
     pressed_index: Cell<Option<usize>>,
     submenu_stack: RefCell<Vec<OpenSubmenu>>,
 
+    natural_width: Cell<f32>,
+    external_open: ContextMenuHandle,
+
     item_background: Option<Background>,
     item_hover_background: Option<Background>,
     item_pressed_background: Option<Background>,
@@ -272,10 +391,13 @@ pub struct ContextMenu {
     background: Option<Background>,
     border: Option<Border>,
     menu_padding: Option<f32>,
+    menu_width: Option<f32>,
     menu_min_width: Option<f32>,
     menu_max_width: Option<f32>,
     menu_min_height: Option<f32>,
     menu_max_height: Option<f32>,
+    menu_transition: Option<Transition>,
+    item_transition: Option<Transition>,
 
     layout_box: LayoutBox,
 }
@@ -295,6 +417,8 @@ impl ContextMenu {
             pending_reopen: Cell::new(None),
             pressed_index: Cell::new(None),
             submenu_stack: RefCell::new(Vec::new()),
+            natural_width: Cell::new(0.0),
+            external_open: ContextMenuHandle::new(),
             item_background: None,
             item_hover_background: None,
             item_pressed_background: None,
@@ -309,10 +433,13 @@ impl ContextMenu {
             background: None,
             border: None,
             menu_padding: None,
+            menu_width: None,
             menu_min_width: None,
             menu_max_width: None,
             menu_min_height: None,
             menu_max_height: None,
+            menu_transition: None,
+            item_transition: None,
             layout_box: LayoutBox::default(),
         };
         menu.base.style.size = Some(
@@ -351,6 +478,27 @@ impl ContextMenu {
     pub fn divider(mut self) -> Self {
         self.entries.push(ContextMenuEntry::Divider);
         self
+    }
+
+    /// Binds an externally-created [`ContextMenuHandle`] to this menu, so
+    /// calling [`ContextMenuHandle::open_at`] from anywhere else (e.g. via
+    /// [`crate::View::context_menu`]) opens this menu without wrapping the
+    /// trigger widget as this menu's child.
+    ///
+    /// Create the handle once with `ContextMenuHandle::new()` and keep it
+    /// stable across rebuilds (e.g. with `use_state`), then pass clones of
+    /// it here and to every widget that should trigger this menu.
+    pub fn bind(mut self, handle: ContextMenuHandle) -> Self {
+        self.external_open = handle;
+        self
+    }
+
+    /// Returns this menu's open-request handle. Only meaningful when kept
+    /// stable across rebuilds (e.g. via `use_state`) - otherwise prefer
+    /// creating the handle yourself with `ContextMenuHandle::new()` and
+    /// passing it to [`Self::bind`].
+    pub fn handle(&self) -> ContextMenuHandle {
+        self.external_open.clone()
     }
 
     pub fn menu_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
@@ -426,6 +574,13 @@ impl ContextMenu {
         self
     }
 
+    /// Fixes the menu (and every submenu) to an exact width, overriding
+    /// automatic content-based sizing and `menu_min_width`/`menu_max_width`.
+    pub fn menu_width(mut self, width: f32) -> Self {
+        self.menu_width = Some(width);
+        self
+    }
+
     pub fn menu_min_width(mut self, width: f32) -> Self {
         self.menu_min_width = Some(width);
         self
@@ -446,6 +601,22 @@ impl ContextMenu {
         self
     }
 
+    /// Overrides the fade transition used when the menu opens/closes.
+    /// Defaults to a quick ease-out fade when not set.
+    pub fn menu_transition(mut self, transition: Transition) -> Self {
+        self.menu_transition = Some(transition);
+        self
+    }
+
+    /// Overrides the hover transition applied to every item (color, and
+    /// scale where `ContextMenuItem::hover_scale` is set). One shared
+    /// transition for all items instead of a per-item override. Defaults
+    /// to a quick ease-out transition when not set.
+    pub fn item_transition(mut self, transition: Transition) -> Self {
+        self.item_transition = Some(transition);
+        self
+    }
+
     fn recompute_style(&mut self) {
         self.base.computed_style = self.base.inherited_style.inherit_style(&self.base.style);
     }
@@ -456,6 +627,31 @@ impl ContextMenu {
 
     fn effective_item_padding(&self) -> Edges {
         self.item_padding.unwrap_or_else(|| Edges::symmetric(ITEM_PADDING_X, 0.0))
+    }
+
+    // Resolves the actual width a menu level should open at, given that
+    // level's natural (content-measured) width.
+    fn resolve_width(&self, natural: f32) -> f32 {
+        if let Some(w) = self.menu_width {
+            return w;
+        }
+        let min = self.menu_min_width.unwrap_or(DEFAULT_MENU_MIN_WIDTH);
+        let mut w = natural.max(min);
+        if let Some(max) = self.menu_max_width {
+            w = w.min(max);
+        }
+        w
+    }
+
+    fn resolve_height(&self, natural: f32) -> f32 {
+        let mut h = natural;
+        if let Some(min) = self.menu_min_height {
+            h = h.max(min);
+        }
+        if let Some(max) = self.menu_max_height {
+            h = h.min(max);
+        }
+        h
     }
 
     fn point_in_menu(&self, point: (f32, f32)) -> bool {
@@ -502,6 +698,7 @@ impl ContextMenu {
     fn animate_entries(
         entries: &[ContextMenuEntry],
         hovered: Option<usize>,
+        transition: Transition,
         anim: &mut AnimationManager
     ) {
         for (i, entry) in entries.iter().enumerate() {
@@ -510,7 +707,6 @@ impl ContextMenu {
             };
 
             let is_target = item.enabled && hovered == Some(i);
-            let transition = item.hover_transition.unwrap_or(ITEM_HOVER_TRANSITION);
 
             let hover_key = AnimKey {
                 widget: item.anim_id,
@@ -579,8 +775,8 @@ impl ContextMenu {
     }
 
     fn open_at_impl(&self, position: (f32, f32)) {
-        let height = menu_height(&self.entries, self.effective_padding());
-        let width = MENU_WIDTH;
+        let width = self.resolve_width(self.natural_width.get());
+        let height = self.resolve_height(menu_height(&self.entries, self.effective_padding()));
 
         let bounds_x = self.layout_box.x;
         let bounds_y = self.layout_box.y;
@@ -708,13 +904,14 @@ impl ContextMenu {
                     let mut child_path = path.clone();
                     child_path.push(i);
                     let child_entries = self.entries_at(&child_path);
-                    let child_h = menu_height(child_entries, padding);
-                    let child_pos = self.position_submenu(rect, MENU_WIDTH, child_h);
+                    let child_w = self.resolve_width(item.submenu_width.get());
+                    let child_h = self.resolve_height(menu_height(child_entries, padding));
+                    let child_pos = self.position_submenu(rect, child_w, child_h);
 
                     self.submenu_stack.borrow_mut().push(OpenSubmenu {
                         path: child_path,
                         pos: Cell::new(child_pos),
-                        size: Cell::new((MENU_WIDTH, child_h)),
+                        size: Cell::new((child_w, child_h)),
                         hovered_index: Cell::new(None),
                         pressed_index: Cell::new(None),
                     });
@@ -734,7 +931,8 @@ impl ContextMenu {
             property: AnimProperty::Opacity,
         };
 
-        anim.set_target(key, AnimValue([target, 0.0, 0.0, 0.0]), Some(OPACITY_TRANSITION));
+        let transition = self.menu_transition.unwrap_or(OPACITY_TRANSITION);
+        anim.set_target(key, AnimValue([target, 0.0, 0.0, 0.0]), Some(transition));
 
         match anim.value(key) {
             Some(v) => self.opacity_anim.set(v.0[0]),
@@ -917,7 +1115,7 @@ impl ContextMenu {
                     color: base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale),
                     clip_rect: None,
                 });
-                right_reserved += 16.0;
+                right_reserved += SUBMENU_ARROW_RESERVED;
             }
 
             if let Some(shortcut) = &item.shortcut {
@@ -925,7 +1123,7 @@ impl ContextMenu {
                 shortcut_style.color = Some(
                     base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale * 0.6)
                 );
-                let shortcut_w = ((w - pad_l - pad_r) * 0.5 - right_reserved).max(0.0);
+                let shortcut_w = item.shortcut_width.get();
                 ctx.draw_text(TextCommand {
                     text: shortcut.clone(),
                     position: (x + w - pad_r - right_reserved - shortcut_w, text_y),
@@ -933,7 +1131,7 @@ impl ContextMenu {
                     max_width: Some(shortcut_w),
                     clip_rect: None,
                 });
-                right_reserved += shortcut_w + 6.0;
+                right_reserved += shortcut_w + SHORTCUT_GAP;
             }
 
             ctx.draw_text(TextCommand {
@@ -1011,6 +1209,37 @@ impl Widget for ContextMenu {
 
     fn measure(&self, _ctx: &mut MeasureContext, _constraints: Constraints) -> MeasureResult {
         MeasureResult::new(0.0, 0.0)
+    }
+
+    fn on_layout_pass(&self, ctx: &mut MeasureContext) {
+        let sf = ctx.scale_factor;
+        let style = &self.base.computed_style;
+        let padding = self.effective_item_padding();
+
+        let font = style.font.as_deref();
+        let font_size = style.font_size
+            .map(|s| s.to_physical(sf))
+            .unwrap_or(DEFAULT_FONT_SIZE.to_physical(sf));
+        let weight = style.font_weight.unwrap_or_default();
+        let font_style = style.font_style.unwrap_or_default();
+        let letter_spacing = style.letter_spacing
+            .map(|ls| ls.value().to_physical(sf))
+            .unwrap_or(0.0);
+        let line_height = style.line_height.map(|lh| lh.value().to_physical(sf)).unwrap_or(0.0);
+        let pad_lr = padding.left.to_physical(sf) + padding.right.to_physical(sf);
+
+        let width = measure_entries_width(
+            &self.entries,
+            ctx.text,
+            font,
+            font_size,
+            weight,
+            font_style,
+            letter_spacing,
+            line_height,
+            pad_lr
+        );
+        self.natural_width.set(width);
     }
 
     fn layout(&mut self, rect: LayoutBox) {
@@ -1190,9 +1419,18 @@ impl Widget for ContextMenu {
         self.base.inherited_style = parent.clone();
         self.recompute_style();
 
+        // Opens the menu when a bound `ContextMenuHandle` (e.g. from a
+        // `View::context_menu`) requested it, without needing this widget
+        // to wrap the trigger widget as its own child.
+        if let Some(position) = self.external_open.take_request() {
+            self.open_at_impl(position);
+        }
+
         self.animate_opacity(anim);
 
-        Self::animate_entries(&self.entries, self.hovered_index.get(), anim);
+        let item_transition = self.item_transition.unwrap_or(ITEM_HOVER_TRANSITION);
+
+        Self::animate_entries(&self.entries, self.hovered_index.get(), item_transition, anim);
 
         let submenu_levels: Vec<(Vec<usize>, Option<usize>)> = self.submenu_stack
             .borrow()
@@ -1201,7 +1439,7 @@ impl Widget for ContextMenu {
             .collect();
         for (path, hovered) in submenu_levels {
             let entries = self.entries_at(&path);
-            Self::animate_entries(entries, hovered, anim);
+            Self::animate_entries(entries, hovered, item_transition, anim);
         }
 
         if
