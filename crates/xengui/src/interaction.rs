@@ -123,8 +123,11 @@ impl Interaction {
             }
 
             InputEvent::MouseInput { state, button, .. } => {
+                let mut handled = false;
+
                 if let Some(cb) = self.on_mouse_input.as_mut() {
                     cb(*state, *button, ctx);
+                    handled = true;
                 }
 
                 if *button == MouseButton::Left {
@@ -148,8 +151,14 @@ impl Interaction {
                             }
                         }
                     }
+                    handled = true;
                 }
-                EventStatus::Handled
+
+                if handled {
+                    EventStatus::Handled
+                } else {
+                    EventStatus::Ignored
+                }
             }
 
             InputEvent::KeyInput { event: key_event, .. } => {
@@ -190,7 +199,7 @@ impl Interaction {
                     EventStatus::Ignored
                 }
             }
-            
+
             InputEvent::FocusGained { via_keyboard } => {
                 self.focused = true;
                 self.focus_visible = *via_keyboard;

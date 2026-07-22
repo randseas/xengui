@@ -200,6 +200,13 @@ pub trait Widget: Any {
         });
     }
 
+    /// Painted after every other widget's own content and after all
+    /// deferred text has been flushed - use this instead of
+    /// `paint_overlay` for a popup that must render above everything
+    /// else, including other widgets' text (which is otherwise batched
+    /// and flushed in its own pass after every widget's rects).
+    fn paint_top(&self, _ctx: &mut PaintContext) {}
+
     fn hit_test(&self, point: (f32, f32)) -> bool {
         let b = self.layout_box();
 
@@ -238,6 +245,12 @@ pub trait Widget: Any {
         let dy = local_y - cy;
 
         dx * dx + dy * dy <= r * r
+    }
+
+    /// When true at `point`, hit-testing stops at this widget instead of
+    /// descending into its children.
+    fn blocks_children_hit_test(&self, _point: (f32, f32)) -> bool {
+        false
     }
 
     fn interaction(&self) -> Option<&Interaction> {

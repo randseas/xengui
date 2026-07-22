@@ -93,6 +93,7 @@ impl FrameRenderer {
 
         let mut commands: Vec<(i32, DrawCommand)> = Vec::new();
         let mut focus_commands: Vec<RectCommand> = Vec::new();
+        let mut top_commands: Vec<DrawCommand> = Vec::new();
         let mut live_keys: HashSet<String> = HashSet::new();
 
         for (i, node) in tree.iter().enumerate() {
@@ -103,6 +104,7 @@ impl FrameRenderer {
                 &mut self.render_cache,
                 &mut commands,
                 &mut focus_commands,
+                &mut top_commands,
                 &mut live_keys,
                 None,
                 scale_factor
@@ -195,6 +197,76 @@ impl FrameRenderer {
             backend.draw_rects(&focus_commands);
         }
 
+        // Top layer: rendered strictly after the main pass and its text
+        // flush, so a popup here always sits above every other widget's
+        // content, including their own deferred text.
+        if !top_commands.is_empty() {
+            top_commands.sort_by_key(|_| 0); // stable no-op, keeps paint order
+            let mut top_rect_buf: Vec<RectCommand> = Vec::new();
+            let mut top_tri_buf: Vec<TriangleCommand> = Vec::new();
+            let mut top_img_buf: Vec<ImageCommand> = Vec::new();
+            let mut top_text_cmds: Vec<TextCommand> = Vec::new();
+
+            #[derive(PartialEq, Clone, Copy)]
+            enum TopRunKind {
+                Rect,
+                Triangle,
+                Image,
+            }
+            let mut top_kind: Option<TopRunKind> = None;
+
+            macro_rules! flush_top_run {
+                () => {
+                    match top_kind {
+                        Some(TopRunKind::Rect) => backend.draw_rects(&top_rect_buf),
+                        Some(TopRunKind::Triangle) => backend.draw_triangles(&top_tri_buf),
+                        Some(TopRunKind::Image) => backend.draw_images(&top_img_buf),
+                        None => {}
+                    }
+                    top_rect_buf.clear();
+                    top_tri_buf.clear();
+                    top_img_buf.clear();
+                };
+            }
+
+            for command in top_commands {
+                match command {
+                    DrawCommand::Text(cmd) => top_text_cmds.push(*cmd),
+                    DrawCommand::Rect(cmd) => {
+                        if top_kind != Some(TopRunKind::Rect) {
+                            flush_top_run!();
+                            top_kind = Some(TopRunKind::Rect);
+                        }
+                        top_rect_buf.push(cmd);
+                    }
+                    DrawCommand::Triangle(cmd) => {
+                        if top_kind != Some(TopRunKind::Triangle) {
+                            flush_top_run!();
+                            top_kind = Some(TopRunKind::Triangle);
+                        }
+                        top_tri_buf.push(cmd);
+                    }
+                    DrawCommand::Image(cmd) => {
+                        if top_kind != Some(TopRunKind::Image) {
+                            flush_top_run!();
+                            top_kind = Some(TopRunKind::Image);
+                        }
+                        top_img_buf.push(*cmd);
+                    }
+                }
+            }
+            flush_top_run!();
+
+            for cmd in &top_text_cmds {
+                backend.draw_text(theme, scale_factor, cmd);
+            }
+            let top_decorations = backend.take_text_decorations();
+            if !top_decorations.is_empty() {
+                backend.draw_rects(&top_decorations);
+            }
+            backend.flush_text();
+        }
+
         backend.end_frame();
     }
 }
@@ -212,6 +284,7 @@ fn paint_recursive(
     cache: &mut RenderCache,
     commands: &mut Vec<(i32, DrawCommand)>,
     focus_commands: &mut Vec<RectCommand>,
+    top_commands: &mut Vec<DrawCommand>,
     live_keys: &mut HashSet<String>,
     clip_rect: Option<(f32, f32, f32, f32)>,
     scale_factor: f32
@@ -264,6 +337,7 @@ fn paint_recursive(
             cache,
             commands,
             focus_commands,
+            top_commands,
             live_keys,
             child_clip,
             scale_factor
@@ -278,6 +352,16 @@ fn paint_recursive(
     for mut command in overlay {
         apply_clip(&mut command, clip_rect);
         commands.push((z_index, command));
+    }
+
+    let mut top_local = Vec::new();
+    {
+        let mut paint_ctx = PaintContext::new(&mut top_local, scale_factor);
+        widget.paint_top(&mut paint_ctx);
+    }
+    for mut command in top_local {
+        apply_clip(&mut command, clip_rect);
+        top_commands.push(command);
     }
 
     let mut focus_local = Vec::new();

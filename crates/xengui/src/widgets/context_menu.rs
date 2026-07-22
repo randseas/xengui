@@ -10,6 +10,7 @@ use crate::{
     Color,
     Constraints,
     Easing,
+    Edges,
     ElementState,
     EventCtx,
     EventStatus,
@@ -66,15 +67,15 @@ enum ContextMenuEntry {
     Divider,
 }
 
-const ITEM_HEIGHT: f32 = 30.0;
-const ITEM_PADDING_X: f32 = 12.0;
+const ITEM_HEIGHT: f32 = 32.0;
+const ITEM_PADDING_X: f32 = 28.0;
 const MENU_PADDING: f32 = 4.0;
 const MENU_WIDTH: f32 = 160.0;
 const DIVIDER_HEIGHT: f32 = 9.0;
 const DIVIDER_LINE_THICKNESS: f32 = 1.0;
 
 const OPACITY_TRANSITION: Transition = Transition::new(Duration::from_millis(150)).easing(
-    Easing::EaseInOut
+    Easing::EaseOut
 );
 
 fn faded_background(bg: Background, opacity: f32) -> Background {
@@ -103,14 +104,28 @@ pub struct ContextMenu {
     menu_pos: Cell<(f32, f32)>,
     menu_size: Cell<(f32, f32)>,
     hovered_index: Cell<Option<usize>>,
+    pending_reopen: Cell<Option<(f32, f32)>>,
+    pressed_index: Cell<Option<usize>>,
 
+    item_background: Option<Background>,
     item_hover_background: Option<Background>,
+    item_pressed_background: Option<Background>,
+    item_border: Option<Border>,
+    item_hover_border: Option<Border>,
+    item_pressed_border: Option<Border>,
+    item_padding: Option<Edges>,
     item_text_color: Option<Color>,
+    item_hover_text_color: Option<Color>,
+    item_pressed_text_color: Option<Color>,
     divider_color: Option<Color>,
 
     background: Option<Background>,
     border: Option<Border>,
     menu_padding: Option<f32>,
+    menu_min_width: Option<f32>,
+    menu_max_width: Option<f32>,
+    menu_min_height: Option<f32>,
+    menu_max_height: Option<f32>,
 
     layout_box: LayoutBox,
 }
@@ -127,12 +142,26 @@ impl ContextMenu {
             menu_pos: Cell::new((0.0, 0.0)),
             menu_size: Cell::new((0.0, 0.0)),
             hovered_index: Cell::new(None),
+            pending_reopen: Cell::new(None),
+            pressed_index: Cell::new(None),
+            item_background: None,
             item_hover_background: None,
+            item_pressed_background: None,
+            item_border: None,
+            item_hover_border: None,
+            item_pressed_border: None,
+            item_padding: None,
             item_text_color: None,
+            item_hover_text_color: None,
+            item_pressed_text_color: None,
             divider_color: None,
             background: None,
             border: None,
             menu_padding: None,
+            menu_min_width: None,
+            menu_max_width: None,
+            menu_min_height: None,
+            menu_max_height: None,
             layout_box: LayoutBox::default(),
         };
         menu.base.style.size = Some(
@@ -201,12 +230,88 @@ impl ContextMenu {
         self
     }
 
+    pub fn item_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
+        self.item_background = Some(background.resolve_themed());
+        self
+    }
+
+    pub fn item_pressed_background<M>(
+        mut self,
+        background: impl IntoThemed<Background, M>
+    ) -> Self {
+        self.item_pressed_background = Some(background.resolve_themed());
+        self
+    }
+
+    pub fn item_border<M>(mut self, border: impl IntoThemed<Border, M>) -> Self {
+        self.item_border = Some(border.resolve_themed());
+        self
+    }
+
+    pub fn item_hover_border<M>(mut self, border: impl IntoThemed<Border, M>) -> Self {
+        self.item_hover_border = Some(border.resolve_themed());
+        self
+    }
+
+    pub fn item_pressed_border<M>(mut self, border: impl IntoThemed<Border, M>) -> Self {
+        self.item_pressed_border = Some(border.resolve_themed());
+        self
+    }
+
+    pub fn item_padding<M>(mut self, padding: impl IntoThemed<Edges, M>) -> Self {
+        self.item_padding = Some(padding.resolve_themed());
+        self
+    }
+
+    pub fn item_hover_text_color(mut self, color: Color) -> Self {
+        self.item_hover_text_color = Some(color);
+        self
+    }
+
+    pub fn item_pressed_text_color(mut self, color: Color) -> Self {
+        self.item_pressed_text_color = Some(color);
+        self
+    }
+
+    pub fn menu_min_width(mut self, width: f32) -> Self {
+        self.menu_min_width = Some(width);
+        self
+    }
+
+    pub fn menu_max_width(mut self, width: f32) -> Self {
+        self.menu_max_width = Some(width);
+        self
+    }
+
+    pub fn menu_min_height(mut self, height: f32) -> Self {
+        self.menu_min_height = Some(height);
+        self
+    }
+
+    pub fn menu_max_height(mut self, height: f32) -> Self {
+        self.menu_max_height = Some(height);
+        self
+    }
+
     fn recompute_style(&mut self) {
         self.base.computed_style = self.base.inherited_style.inherit_style(&self.base.style);
     }
 
     fn effective_padding(&self) -> f32 {
         self.menu_padding.unwrap_or(MENU_PADDING)
+    }
+
+    fn effective_item_padding(&self) -> Edges {
+        self.item_padding.unwrap_or_else(|| Edges::symmetric(ITEM_PADDING_X, 0.0))
+    }
+
+    fn point_in_menu(&self, point: (f32, f32)) -> bool {
+        if !self.open.get() {
+            return false;
+        }
+        let (mx, my) = self.menu_pos.get();
+        let (mw, mh) = self.menu_size.get();
+        point.0 >= mx && point.0 <= mx + mw && point.1 >= my && point.1 <= my + mh
     }
 
     fn total_menu_height(&self) -> f32 {
@@ -226,11 +331,12 @@ impl ContextMenu {
         if self.open.get() {
             self.open.set(false);
             self.hovered_index.set(None);
+            self.pressed_index.set(None);
             ctx.request_redraw();
         }
     }
 
-    fn open_at(&self, position: (f32, f32), ctx: &mut EventCtx) {
+    fn open_at_impl(&self, position: (f32, f32)) {
         let height = self.total_menu_height();
 
         let max_x = (self.layout_box.x + self.layout_box.width - MENU_WIDTH).max(self.layout_box.x);
@@ -242,6 +348,10 @@ impl ContextMenu {
         self.menu_size.set((MENU_WIDTH, height));
         self.open.set(true);
         self.hovered_index.set(None);
+    }
+
+    fn open_at(&self, position: (f32, f32), ctx: &mut EventCtx) {
+        self.open_at_impl(position);
         ctx.request_redraw();
     }
 
@@ -387,7 +497,7 @@ impl Widget for ContextMenu {
 
     fn paint(&self, _ctx: &mut PaintContext) {}
 
-    fn paint_overlay(&self, ctx: &mut PaintContext) {
+    fn paint_top(&self, ctx: &mut PaintContext) {
         let opacity = self.opacity_anim.get();
         if opacity <= 0.001 {
             return;
@@ -411,8 +521,15 @@ impl Widget for ContextMenu {
             clip_rect: None,
         });
 
-        let hover_bg = self.item_hover_background.clone().unwrap_or(Background::Color(theme.hover));
         let divider_color = self.divider_color.unwrap_or(theme.border);
+        let sf = ctx.scale_factor;
+        let pad = self.effective_item_padding();
+        let (pad_l, pad_r, pad_t, pad_b) = (
+            pad.left.value(),
+            pad.right.value(),
+            pad.top.value(),
+            pad.bottom.value(),
+        );
 
         for (i, entry) in self.entries.iter().enumerate() {
             let item = match entry {
@@ -437,23 +554,50 @@ impl Widget for ContextMenu {
             };
 
             let (x, y, w, h) = self.entry_rect(i);
+            let is_hovered = item.enabled && self.hovered_index.get() == Some(i);
+            let is_pressed = is_hovered && self.pressed_index.get() == Some(i);
 
-            if item.enabled && self.hovered_index.get() == Some(i) {
+            let (bg, border, text_color) = if is_pressed {
+                (
+                    Some(
+                        self.item_pressed_background
+                            .clone()
+                            .or_else(|| self.item_hover_background.clone())
+                            .unwrap_or(Background::Color(theme.pressed))
+                    ),
+                    self.item_pressed_border.or(self.item_hover_border).or(self.item_border),
+                    self.item_pressed_text_color
+                        .or(self.item_hover_text_color)
+                        .or(self.item_text_color),
+                )
+            } else if is_hovered {
+                (
+                    Some(
+                        self.item_hover_background.clone().unwrap_or(Background::Color(theme.hover))
+                    ),
+                    self.item_hover_border.or(self.item_border),
+                    self.item_hover_text_color.or(self.item_text_color),
+                )
+            } else {
+                (self.item_background.clone(), self.item_border, self.item_text_color)
+            };
+
+            if let Some(bg) = bg {
                 ctx.draw_rect(RectCommand {
                     position: (x, y),
                     size: (w, h),
-                    background: Some(faded_background(hover_bg.clone(), opacity)),
-                    border_radius: Some(Length::px(4.0)),
-                    border_width: None,
-                    border_color: None,
+                    background: Some(faded_background(bg, opacity)),
+                    border_radius: border.map(|b| b.radius).or(Some(Length::px(4.0))),
+                    border_width: border.map(|b| b.width),
+                    border_color: border.map(|b| b.color.with_alpha_f32(b.color.a() * opacity)),
                     clip_rect: None,
                 });
             }
 
             let base_color = if item.enabled {
-                self.item_text_color.unwrap_or(theme.foreground)
+                text_color.unwrap_or(theme.foreground)
             } else {
-                self.item_text_color.unwrap_or(theme.foreground_muted)
+                text_color.unwrap_or(theme.foreground_muted)
             };
             let alpha_scale = if item.enabled { 1.0 } else { 0.6 };
 
@@ -463,21 +607,33 @@ impl Widget for ContextMenu {
                 base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale)
             );
 
-            let text_h = DEFAULT_FONT_SIZE.value() * DEFAULT_LINE_HEIGHT_RATIO;
+            let font_size = text_style.font_size
+                .map(|f| f.to_physical(sf))
+                .unwrap_or(DEFAULT_FONT_SIZE.to_physical(sf));
+            let text_h = text_style.line_height
+                .map(|lh| lh.value().to_physical(sf))
+                .filter(|lh| *lh > 0.0)
+                .unwrap_or(font_size * DEFAULT_LINE_HEIGHT_RATIO);
+
+            let inner_h = (h - pad_t - pad_b).max(0.0);
+            let text_y = y + pad_t + (inner_h - text_h).max(0.0) * 0.5;
 
             ctx.draw_text(TextCommand {
                 text: item.label.clone(),
-                position: (x + ITEM_PADDING_X, y + (h - text_h) * 0.5),
+                position: (x + pad_l, text_y),
                 style: text_style,
-                max_width: Some(w - ITEM_PADDING_X * 2.0),
+                max_width: Some((w - pad_l - pad_r).max(0.0)),
                 clip_rect: None,
             });
         }
     }
 
     fn hit_test(&self, point: (f32, f32)) -> bool {
-        self.layout_box.contains_rounded(point, 0.0) ||
-            (self.open.get() && self.index_at(point).is_some())
+        self.layout_box.contains_rounded(point, 0.0) || self.point_in_menu(point)
+    }
+
+    fn blocks_children_hit_test(&self, point: (f32, f32)) -> bool {
+        self.point_in_menu(point)
     }
 
     fn event(&mut self, event: &InputEvent, ctx: &mut EventCtx) -> EventStatus {
@@ -488,7 +644,12 @@ impl Widget for ContextMenu {
                 position,
             } => {
                 if self.layout_box.contains_rounded(*position, 0.0) {
-                    self.open_at(*position, ctx);
+                    if self.open.get() {
+                        self.pending_reopen.set(Some(*position));
+                        self.close(ctx);
+                    } else {
+                        self.open_at(*position, ctx);
+                    }
                     self.base.dirty = true;
                     return EventStatus::Handled;
                 }
@@ -500,18 +661,49 @@ impl Widget for ContextMenu {
                 button: MouseButton::Left,
                 position,
             } if self.open.get() => {
-                let Some(idx) = self.index_at(*position) else {
+                if !self.point_in_menu(*position) {
                     self.close(ctx);
                     return EventStatus::Handled;
-                };
+                }
+
                 if
+                    let Some(idx) = self.index_at(*position) &&
+                    matches!(&self.entries[idx], ContextMenuEntry::Item(item) if item.enabled)
+                {
+                    self.pressed_index.set(Some(idx));
+                    self.base.dirty = true;
+                    ctx.request_redraw();
+                }
+
+                EventStatus::Handled
+            }
+
+            InputEvent::MouseInput {
+                state: ElementState::Released,
+                button: MouseButton::Left,
+                position,
+            } if self.open.get() => {
+                let pressed = self.pressed_index.take();
+                self.base.dirty = true;
+
+                if !self.point_in_menu(*position) {
+                    self.close(ctx);
+                    return EventStatus::Handled;
+                }
+
+                if
+                    let Some(idx) = pressed &&
+                    self.index_at(*position) == Some(idx) &&
                     let Some(ContextMenuEntry::Item(item)) = self.entries.get_mut(idx) &&
                     item.enabled &&
                     let Some(cb) = item.on_click.as_mut()
                 {
                     cb(ctx);
+                    self.close(ctx);
+                } else {
+                    ctx.request_redraw();
                 }
-                self.close(ctx);
+
                 EventStatus::Handled
             }
 
@@ -551,6 +743,12 @@ impl Widget for ContextMenu {
 
         self.animate_opacity(anim);
 
+        if !self.open.get() && self.opacity_anim.get() <= 0.001
+            && let Some(pos) = self.pending_reopen.take() {
+                self.open_at_impl(pos);
+                self.base.dirty = true;
+            }
+
         for child in self.children.iter_mut() {
             child.cascade_style(&self.base.computed_style, anim);
         }
@@ -563,6 +761,8 @@ impl Widget for ContextMenu {
             self.menu_pos.set(old.menu_pos.get());
             self.menu_size.set(old.menu_size.get());
             self.hovered_index.set(old.hovered_index.get());
+            self.pending_reopen.set(old.pending_reopen.get());
+            self.pressed_index.set(old.pressed_index.get());
             self.anim_id = old.anim_id;
         }
     }

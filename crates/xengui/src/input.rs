@@ -292,11 +292,13 @@ fn hit_test_recursive(widget: &dyn Widget, path: &str, point: (f32, f32)) -> Opt
         return None;
     }
 
-    for (i, child) in widget.children().iter().enumerate().rev() {
-        let segment = path_segment(child.as_ref(), i);
-        let child_path = format!("{path}.{segment}");
-        if let Some(hit) = hit_test_recursive(child.as_ref(), &child_path, point) {
-            return Some(hit);
+    if !widget.blocks_children_hit_test(point) {
+        for (i, child) in widget.children().iter().enumerate().rev() {
+            let segment = path_segment(child.as_ref(), i);
+            let child_path = format!("{path}.{segment}");
+            if let Some(hit) = hit_test_recursive(child.as_ref(), &child_path, point) {
+                return Some(hit);
+            }
         }
     }
 

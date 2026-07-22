@@ -109,11 +109,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .divider()
                 .item(
-                    ContextMenuItem::new("DevTools").enabled(false).on_click(|_ctx| {
-                        log::info!("context menu -> delete");
-                    })
+                    ContextMenuItem::new("DevTools")
+                        .enabled(false)
+                        .on_click(|_ctx| {
+                            log::info!("context menu -> delete");
+                        })
                 )
-                .padding(8.0)
+                .item_border(Border::new(0, Color::TRANSPARENT, 6))
+                .padding(6.0)
+                .font_size(13)
+                .menu_min_width(200.0)
                 .menu_background(|theme: &Theme| theme.surface)
                 .border(|theme: &Theme| Border::new(1, theme.border, Length::px(10.0)))
                 .child(
