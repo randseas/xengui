@@ -53,7 +53,7 @@ The generated triangle list can then be uploaded to any graphics API such as WGP
 
 ```toml
 [dependencies]
-xen-svg = "0.1.0"
+xen-svg = "0.1.1"
 ```
 
 ## License
