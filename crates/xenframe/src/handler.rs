@@ -590,7 +590,11 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             WindowEvent::RedrawRequested => {
                 log::info!("RedrawRequested fired, is_visible={}", self.is_visible);
                 if hooks::take_dirty() {
-                    self.schedule_render();
+                    if crate::app::take_reload_requested() {
+                        self.reload();
+                    } else {
+                        self.schedule_render();
+                    }
                 }
                 if let Some(renderer) = &mut self.renderer {
                     let theme = crate::window::system_theme(self.config.theme);
@@ -881,6 +885,9 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                             }
                         }
                         Key::Character('c' | 'C') => self.copy_selected_text(),
+                        Key::Character('r' | 'R') if self.config.reload_shortcut => {
+                            self.reload();
+                        }
                         _ => {}
                     }
                 }

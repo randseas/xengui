@@ -25,6 +25,7 @@ use crate::{
     MouseScrollDelta,
     Overflow,
     PaintContext,
+    Rect,
     RectCommand,
     ResolvedScrollbar,
     Style,
@@ -448,8 +449,7 @@ impl View {
         Some((thumb_x, b.y + b.height - sb.thickness, thumb_w, sb.thickness))
     }
 
-    #[allow(clippy::type_complexity)]
-    fn vertical_buttons(&self) -> Option<((f32, f32, f32, f32), (f32, f32, f32, f32))> {
+    fn vertical_buttons(&self) -> Option<(Rect, Rect)> {
         let (_, has_y) = self.scrollbar_visibility();
         if !has_y {
             return None;
@@ -461,8 +461,7 @@ impl View {
         Some(((b.x + b.width - t, b.y, t, t), (b.x + b.width - t, bottom - t, t, t)))
     }
 
-    #[allow(clippy::type_complexity)]
-    fn horizontal_buttons(&self) -> Option<((f32, f32, f32, f32), (f32, f32, f32, f32))> {
+    fn horizontal_buttons(&self) -> Option<(Rect, Rect)> {
         let (has_x, _) = self.scrollbar_visibility();
         if !has_x {
             return None;

@@ -39,7 +39,7 @@ fn animate_color(
     value: Color,
     animating: &mut bool
 ) -> Color {
-    anim.set_target(key, AnimValue(value.to_f32_array()), transition);
+    anim.set_color_target(key, AnimValue(value.to_f32_array()), transition);
     match anim.value(key) {
         Some(v) => {
             *animating = true;

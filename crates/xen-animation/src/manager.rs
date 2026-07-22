@@ -11,6 +11,7 @@ struct Anim {
     to: AnimValue,
     transition: Transition,
     elapsed: Duration,
+    premultiplied: bool,
 }
 
 impl Anim {
@@ -23,7 +24,12 @@ impl Anim {
         } else {
             past_delay.as_secs_f32() / self.transition.duration.as_secs_f32()
         };
-        self.from.lerp(self.to, self.transition.easing.apply(t))
+        let eased = self.transition.easing.apply(t);
+        if self.premultiplied {
+            self.from.lerp_premultiplied(self.to, eased)
+        } else {
+            self.from.lerp(self.to, eased)
+        }
     }
 
     // Whether delay + duration has fully elapsed.
@@ -57,16 +63,25 @@ impl<K: Eq + Hash + Copy> AnimationManager<K> {
         Self::default()
     }
 
-    /// Starts or retargets a transition towards `target`.
-    ///
-    /// - Passing `None` for `transition` snaps `key` to `target` instantly
-    ///   and clears any in-flight animation for it.
-    /// - If `key` is already mid-transition, it smoothly retargets from its
-    ///   current (possibly mid-flight) value instead of jumping.
-    /// - If `key` has no prior recorded value, `target` itself is used as
-    ///   the starting point, so the first call for a given key never
-    ///   animates - it just establishes the resting value.
     pub fn set_target(&mut self, key: K, target: AnimValue, transition: Option<Transition>) {
+        self.set_target_impl(key, target, transition, false);
+    }
+
+    /// Like `set_target`, but blends the transition using premultiplied
+    /// alpha - use this when `target` packs an RGBA color, so a
+    /// transparent endpoint's meaningless RGB doesn't leak into the blend
+    /// as a visible flash partway through the fade.
+    pub fn set_color_target(&mut self, key: K, target: AnimValue, transition: Option<Transition>) {
+        self.set_target_impl(key, target, transition, true);
+    }
+
+    fn set_target_impl(
+        &mut self,
+        key: K,
+        target: AnimValue,
+        transition: Option<Transition>,
+        premultiplied: bool
+    ) {
         let Some(transition) = transition else {
             self.active.remove(&key);
             self.resting.insert(key, target);
@@ -80,6 +95,7 @@ impl<K: Eq + Hash + Copy> AnimationManager<K> {
                 anim.to = target;
                 anim.transition = transition;
                 anim.elapsed = Duration::ZERO;
+                anim.premultiplied = premultiplied;
             }
             None => {
                 let from = self.resting.get(&key).copied().unwrap_or(target);
@@ -94,6 +110,7 @@ impl<K: Eq + Hash + Copy> AnimationManager<K> {
                     to: target,
                     transition,
                     elapsed: Duration::ZERO,
+                    premultiplied,
                 });
             }
         }

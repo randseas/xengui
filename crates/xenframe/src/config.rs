@@ -5,54 +5,79 @@ use crate::WindowPosition;
 use crate::window::Fullscreen;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+/// Controls how the active theme is selected.
 pub enum AppThemeMode {
-    /// `active_theme` only changes via explicit calls to
-    /// `set_active_theme`/`set_active_theme_by_name`.
+    /// Uses the currently selected theme.
+    ///
+    /// The active theme only changes when explicitly updated through
+    /// `set_active_theme` or `set_active_theme_by_name`.
     #[default]
     Fixed,
-    /// `active_theme` automatically follows the OS light/dark appearance,
-    /// switching between `dark_theme` and `light_theme`.
+
+    /// Automatically switches between the configured light and dark themes
+    /// based on the operating system appearance preference.
     System,
 }
 
 pub struct AppConfig {
-    #[cfg(not(target_arch = "wasm32"))]
     pub title: String,
 
+    /// Initial window width in pixels.
     #[cfg(not(target_arch = "wasm32"))]
     pub width: u32,
+
+    /// Initial window height in pixels.
     #[cfg(not(target_arch = "wasm32"))]
     pub height: u32,
 
-    pub theme: Option<winit::window::Theme>,
-
+    /// Whether the window can be resized by the user.
     #[cfg(not(target_arch = "wasm32"))]
     pub resizable: bool,
 
-    pub fullscreen: Option<Fullscreen>,
-
+    /// Initial position of the window on the screen.
     #[cfg(not(target_arch = "wasm32"))]
     pub position: WindowPosition,
 
+    /// Native window theme hint used by the operating system.
+    pub theme: Option<winit::window::Theme>,
+
+    /// Initial fullscreen state of the application window.
+    pub fullscreen: Option<Fullscreen>,
+
+    /// Fonts available to the application.
+    ///
+    /// Each entry contains a font name and its binary font data.
     pub fonts: Vec<(String, Vec<u8>)>,
 
-    /// Every theme registered for this app; switch between them at
-    /// runtime with `set_active_theme`/`set_active_theme_by_name`.
+    /// Themes registered for this application.
+    ///
+    /// Themes can be switched at runtime using `set_active_theme`
+    /// or `set_active_theme_by_name`.
     pub themes: Vec<Theme>,
-    /// Index into `themes` currently in effect.
+
+    /// Index of the theme currently applied to the application.
     pub active_theme: usize,
-    /// Index into `themes` used when the resolved OS appearance is dark.
+
+    /// Index of the theme used when the system appearance is dark.
     pub dark_theme: usize,
-    /// Index into `themes` used when the resolved OS appearance is light.
+
+    /// Index of the theme used when the system appearance is light.
     pub light_theme: usize,
-    /// Whether `active_theme` is picked manually or follows the OS appearance.
+
+    /// Determines whether the application theme is manually controlled
+    /// or synchronized with the system appearance.
     pub theme_mode: AppThemeMode,
+
+    /// Enables Ctrl+R / Cmd+R keyboard shortcut support for triggering
+    /// `App::reload`.
+    ///
+    /// Disabled by default. Applications must explicitly opt in.
+    pub reload_shortcut: bool,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            #[cfg(not(target_arch = "wasm32"))]
             title: "XenGui App".to_string(),
 
             #[cfg(not(target_arch = "wasm32"))]
@@ -77,6 +102,8 @@ impl Default for AppConfig {
             dark_theme: 1,
             light_theme: 0,
             theme_mode: AppThemeMode::System,
+
+            reload_shortcut: false,
         }
     }
 }

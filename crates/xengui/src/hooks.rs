@@ -286,7 +286,7 @@ impl<T: 'static> SetState<T> {
     }
 }
 
-pub(crate) fn mark_dirty_and_redraw() {
+pub fn mark_dirty_and_redraw() {
     DIRTY.with(|d| d.set(true));
     request_redraw();
 }

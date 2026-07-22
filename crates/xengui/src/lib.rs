@@ -15,6 +15,7 @@ pub mod animation;
 pub mod constants;
 pub mod reconciler;
 pub mod redraw;
+pub mod types;
 
 pub use layout::*;
 pub use macros::WidgetContent;
@@ -90,6 +91,7 @@ pub use widgets::{
 pub use redraw::RedrawRequester;
 pub use xen_svg::{ SvgColor, SvgDocument, SvgElement, Transform2D };
 pub use svg_compat::IntoSvgColor;
+pub use types::*;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use widgets::image_source_from_path;

@@ -27,12 +27,15 @@ use crate::{
     MeasureResult,
     MouseButton,
     PaintContext,
+    Point,
+    Rect,
     RectCommand,
     Style,
     StyleBuilder,
     TextCommand,
     TextMeasurer,
     Transition,
+    Triangle,
     TriangleCommand,
     Widget,
     WidgetBase,
@@ -44,11 +47,12 @@ use std::cell::{ Cell, RefCell };
 use std::rc::Rc;
 use std::time::Duration;
 
+type ClickCallback = Box<dyn FnMut(&mut EventCtx)>;
+
 pub struct ContextMenuItem {
     label: SmolStr,
     shortcut: Option<SmolStr>,
-    #[allow(clippy::type_complexity)]
-    on_click: Option<Box<dyn FnMut(&mut EventCtx)>>,
+    on_click: Option<ClickCallback>,
     enabled: bool,
     submenu: Vec<ContextMenuEntry>,
     anim_id: WidgetId,
@@ -136,6 +140,15 @@ struct OpenSubmenu {
     opacity: Cell<f32>,
 }
 
+struct ClosingLevelSnapshot {
+    path: Vec<usize>,
+    pos: Point,
+    size: (f32, f32),
+    hovered: Option<usize>,
+    pressed: Option<usize>,
+    opacity: f32,
+}
+
 /// A lightweight, cloneable handle that lets a widget elsewhere in the
 /// tree (e.g. a `View` bound via [`crate::View::context_menu`]) open a
 /// [`ContextMenu`] without wrapping that widget as the menu's child.
@@ -181,21 +194,24 @@ const SHORTCUT_RIGHT_PADDING: f32 = 8.0;
 const ARROW_THICKNESS: f32 = 1.6;
 const ARROW_CAP_SEGMENTS: usize = 8;
 
-const OPACITY_TRANSITION: Transition = Transition::new(Duration::from_millis(150)).easing(
+const OPACITY_TRANSITION: Transition = Transition::new(Duration::from_millis(120)).easing(
     Easing::EaseOut
 );
 
-const ITEM_HOVER_TRANSITION: Transition = Transition::new(Duration::from_millis(200)).easing(
+const SUBMENU_OPACITY_TRANSITION: Transition = Transition::new(Duration::from_millis(200)).easing(
+    Easing::EaseInOut
+);
+
+const ITEM_HOVER_TRANSITION: Transition = Transition::new(Duration::from_millis(150)).easing(
     Easing::EaseInOut
 );
 
 fn lerp_color(a: Color, b: Color, t: f32) -> Color {
-    Color::rgba_f32(
-        a.r() + (b.r() - a.r()) * t,
-        a.g() + (b.g() - a.g()) * t,
-        a.b() + (b.b() - a.b()) * t,
-        a.a() + (b.a() - a.a()) * t
-    )
+    // Delegates to the same premultiplied-alpha blend xen-animation uses
+    // for animated colors, so this paint-time blend doesn't flash dark
+    // mid-fade either.
+    let blended = AnimValue(a.to_f32_array()).lerp_premultiplied(AnimValue(b.to_f32_array()), t);
+    Color::rgba_f32(blended.0[0], blended.0[1], blended.0[2], blended.0[3])
 }
 
 fn faded_background(bg: Background, opacity: f32) -> Background {
@@ -351,10 +367,8 @@ fn index_at(
 // Builds a rounded-corner chevron ("›") as a set of filled triangles:
 // two thick line segments plus round caps at the joints, so the arrow
 // reads as a smooth stroke instead of a sharp mitered triangle.
-#[allow(clippy::type_complexity)]
-fn submenu_arrow_triangles(
-    rect: (f32, f32, f32, f32)
-) -> Vec<((f32, f32), (f32, f32), (f32, f32))> {
+
+fn submenu_arrow_triangles(rect: Rect) -> Vec<Triangle> {
     let (x, y, w, h) = rect;
     let cy = y + h * 0.5;
     let right = x + w - SHORTCUT_RIGHT_PADDING;
@@ -371,8 +385,7 @@ fn submenu_arrow_triangles(
     tris
 }
 
-#[allow(clippy::type_complexity)]
-fn arrow_segment(a: (f32, f32), b: (f32, f32)) -> Vec<((f32, f32), (f32, f32), (f32, f32))> {
+fn arrow_segment(a: Point, b: Point) -> Vec<Triangle> {
     let (dx, dy) = (b.0 - a.0, b.1 - a.1);
     let len = (dx * dx + dy * dy).sqrt().max(0.0001);
     let (nx, ny) = ((-dy / len) * ARROW_THICKNESS * 0.5, (dx / len) * ARROW_THICKNESS * 0.5);
@@ -385,8 +398,8 @@ fn arrow_segment(a: (f32, f32), b: (f32, f32)) -> Vec<((f32, f32), (f32, f32), (
 
 // Small filled fan approximating a circle, rounding off a joint or line
 // end that would otherwise show as a sharp corner.
-#[allow(clippy::type_complexity)]
-fn arrow_cap(center: (f32, f32)) -> Vec<((f32, f32), (f32, f32), (f32, f32))> {
+
+fn arrow_cap(center: Point) -> Vec<Triangle> {
     let r = ARROW_THICKNESS * 0.5;
     (0..ARROW_CAP_SEGMENTS)
         .map(|i| {
@@ -452,6 +465,7 @@ pub struct ContextMenu {
     menu_min_height: Option<f32>,
     menu_max_height: Option<f32>,
     menu_transition: Option<Transition>,
+    submenu_transition: Option<Transition>,
     item_transition: Option<Transition>,
 
     layout_box: LayoutBox,
@@ -500,6 +514,7 @@ impl ContextMenu {
             menu_min_height: None,
             menu_max_height: None,
             menu_transition: None,
+            submenu_transition: None,
             item_transition: None,
 
             layout_box: LayoutBox::default(),
@@ -667,6 +682,14 @@ impl ContextMenu {
     /// Defaults to a quick ease-out fade when not set.
     pub fn menu_transition(mut self, transition: Transition) -> Self {
         self.menu_transition = Some(transition);
+        self
+    }
+
+    /// Overrides the fade transition used when a submenu level opens or
+    /// closes, independent of the top-level menu's own (usually snappier)
+    /// open/close transition.
+    pub fn submenu_transition(mut self, transition: Transition) -> Self {
+        self.submenu_transition = Some(transition);
         self
     }
 
@@ -1076,10 +1099,11 @@ impl ContextMenu {
 
             let (x, y, w, h) = entry_rect_at(entries, pos, size, padding, i);
 
-            // Scales the row around its own center by the item's animated
-            // hover-scale progress; a no-op unless `.hover_scale(...)` was set.
+            // Only the highlight rect scales with hover; the label, shortcut
+            // and arrow keep the row's real geometry so they don't visibly
+            // detach from a still-settling scale animation.
             let item_scale = item.scale_progress.get();
-            let (x, y, w, h) = if (item_scale - 1.0).abs() > f32::EPSILON {
+            let (bg_x, bg_y, bg_w, bg_h) = if (item_scale - 1.0).abs() > f32::EPSILON {
                 let scaled = crate::scaled_layout_box(
                     LayoutBox { x, y, width: w, height: h },
                     item_scale
@@ -1135,8 +1159,8 @@ impl ContextMenu {
 
             if blended_bg.a() > 0.0 {
                 ctx.draw_rect(RectCommand {
-                    position: (x, y),
-                    size: (w, h),
+                    position: (bg_x, bg_y),
+                    size: (bg_w, bg_h),
                     background: Some(faded_background(Background::Color(blended_bg), opacity)),
                     border_radius: border.map(|b| b.radius).or(Some(Length::px(4.0))),
                     border_width: border.map(|b| b.width),
@@ -1351,33 +1375,30 @@ impl Widget for ContextMenu {
             padding
         );
 
-        #[allow(clippy::type_complexity)]
-        let closing_levels: Vec<
-            (Vec<usize>, (f32, f32), (f32, f32), Option<usize>, Option<usize>, f32)
-        > = self.submenu_stack
+        let closing_levels: Vec<ClosingLevelSnapshot> = self.submenu_stack
             .borrow()
             .iter()
-            .map(|l| (
-                l.path.clone(),
-                l.pos.get(),
-                l.size.get(),
-                l.hovered_index.get(),
-                l.pressed_index.get(),
-                l.opacity.get(),
-            ))
+            .map(|l| ClosingLevelSnapshot {
+                path: l.path.clone(),
+                pos: l.pos.get(),
+                size: l.size.get(),
+                hovered: l.hovered_index.get(),
+                pressed: l.pressed_index.get(),
+                opacity: l.opacity.get(),
+            })
             .collect();
 
-        for (path, pos, size, hovered, pressed, level_opacity) in closing_levels {
-            let entries = self.entries_at(&path);
+        for level in closing_levels {
+            let entries = self.entries_at(&level.path);
             self.paint_level(
                 ctx,
                 &theme,
-                opacity * level_opacity,
+                opacity * level.opacity,
                 entries,
-                pos,
-                size,
-                hovered,
-                pressed,
+                level.pos,
+                level.size,
+                level.hovered,
+                level.pressed,
                 padding
             );
         }
@@ -1516,26 +1537,24 @@ impl Widget for ContextMenu {
 
         self.animate_opacity(anim);
 
-        let menu_transition = self.menu_transition.unwrap_or(OPACITY_TRANSITION);
+        let submenu_transition = self.submenu_transition.unwrap_or(SUBMENU_OPACITY_TRANSITION);
         for level in self.submenu_stack.borrow().iter() {
             let key = AnimKey {
                 widget: level.anim_id,
                 layer: AnimLayer::Content,
                 property: AnimProperty::Opacity,
             };
-            anim.set_target(key, AnimValue([1.0, 0.0, 0.0, 0.0]), Some(menu_transition));
+            anim.set_target(key, AnimValue([1.0, 0.0, 0.0, 0.0]), Some(submenu_transition));
             level.opacity.set(anim.value(key).map_or(1.0, |v| v.0[0]));
         }
 
-        // Fades out submenu levels that were just closed, dropping each
-        // one once its opacity animation actually settles at zero.
         self.closing_submenus.borrow_mut().retain(|level| {
             let key = AnimKey {
                 widget: level.anim_id,
                 layer: AnimLayer::Content,
                 property: AnimProperty::Opacity,
             };
-            anim.set_target(key, AnimValue([0.0, 0.0, 0.0, 0.0]), Some(menu_transition));
+            anim.set_target(key, AnimValue([0.0, 0.0, 0.0, 0.0]), Some(submenu_transition));
             let value = anim.value(key).map_or(0.0, |v| v.0[0]);
             level.opacity.set(value);
             value > 0.001

@@ -35,6 +35,23 @@ use crate::config::AppConfig;
 use crate::cursor::to_winit_cursor;
 use crate::event::XenEvent;
 
+thread_local! {
+    static RELOAD_REQUESTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Requests a full tree rebuild and layout on the next frame. Safe to call
+/// from anywhere - including from inside the render closure itself -
+/// unlike calling `App::reload` directly, which would require re-borrowing
+/// `App` while it's already mid-render.
+pub fn request_reload() {
+    RELOAD_REQUESTED.with(|r| r.set(true));
+    hooks::mark_dirty_and_redraw();
+}
+
+pub(crate) fn take_reload_requested() -> bool {
+    RELOAD_REQUESTED.with(|r| r.replace(false))
+}
+
 pub struct App {
     pub(crate) renderer: Option<WgpuWindowRenderer>,
     pub(crate) window: Option<Arc<Window>>,
@@ -181,6 +198,16 @@ impl App {
 
         event_loop.run_app(self)?;
         Ok(())
+    }
+
+    /// Rebuilds the widget tree from scratch and forces a full layout and
+    /// repaint, instead of relying on incremental reconciliation.
+    pub fn reload(&mut self) {
+        self.schedule_render();
+        while self.pump_reconciliation() {}
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
     }
 
     #[cfg(target_arch = "wasm32")]

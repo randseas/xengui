@@ -41,6 +41,8 @@ use std::sync::{ Arc, Mutex };
 use web_time::Instant;
 use xen_clipboard::Clipboard;
 
+type TextCallback = Box<dyn FnMut(&str, &mut EventCtx)>;
+
 pub struct TextBox {
     base: WidgetBase,
 
@@ -81,10 +83,8 @@ pub struct TextBox {
     // the next event this widget receives.
     pending_paste: Arc<Mutex<Option<String>>>,
 
-    #[allow(clippy::type_complexity)]
-    on_change: Option<Box<dyn FnMut(&str, &mut EventCtx)>>,
-    #[allow(clippy::type_complexity)]
-    on_submit: Option<Box<dyn FnMut(&str, &mut EventCtx)>>,
+    on_change: Option<TextCallback>,
+    on_submit: Option<TextCallback>,
 
     read_only: bool,
 
@@ -989,22 +989,15 @@ impl Widget for TextBox {
         // Cumulative pixel offset for every character boundary, reused for
         // the caret, mouse hit-testing, and selection-highlight geometry.
         let char_count = self.content.chars().count();
-        let mut offsets = Vec::with_capacity(char_count + 1);
-        offsets.push(0.0);
-        for i in 1..=char_count {
-            let end_byte = self.byte_index_for(i);
-            let result = ctx.text.measure(
-                &self.content[..end_byte],
-                style.font.as_deref(),
-                font_size,
-                style.font_weight.unwrap_or_default(),
-                style.font_style.unwrap_or_default(),
-                letter_spacing,
-                line_height,
-                None
-            );
-            offsets.push(result.width);
-        }
+        let offsets = ctx.text.character_offsets(
+            &self.content,
+            style.font.as_deref(),
+            font_size,
+            style.font_weight.unwrap_or_default(),
+            style.font_style.unwrap_or_default(),
+            letter_spacing,
+            line_height
+        );
 
         self.cursor_offset.set(*offsets.get(self.cursor_index.min(char_count)).unwrap_or(&0.0));
         *self.char_offsets.borrow_mut() = offsets;

@@ -70,6 +70,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         height: 480,
         #[cfg(not(target_arch = "wasm32"))]
         position: WindowPosition::Center,
+
+        reload_shortcut: true,
+
         ..Default::default()
     };
 
@@ -113,6 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .shortcut("Ctrl+R")
                         .on_click(|_ctx| {
                             log::info!("context menu -> reload");
+                            xenframe::request_reload();
                         })
                 )
                 .divider()
@@ -135,12 +139,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     })
                 )
                 .font("Noto_Sans")
-                .item_transition(
-                    Transition::new(Duration::from_millis(250)).easing(Easing::EaseInOut)
-                )
-                .menu_transition(
-                    Transition::new(Duration::from_millis(150)).easing(Easing::EaseOut)
-                )
                 .item_border(Border::new(0, Color::TRANSPARENT, 6))
                 .padding(6.0)
                 .font_size(13)

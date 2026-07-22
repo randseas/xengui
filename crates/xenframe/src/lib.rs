@@ -10,16 +10,11 @@ pub mod app;
 pub mod window;
 pub mod handler;
 
-// pub mod renderer;
-// pub mod input;
-// pub mod clipboard;
 pub mod cursor;
 pub mod keyboard;
 pub mod mouse;
 pub mod text_agent;
-// pub mod focus;
-// pub mod ime;
-// pub mod platform;
+
 pub mod config;
 pub mod event;
 pub mod redraw;
@@ -28,6 +23,6 @@ pub mod redraw;
 pub mod web;
 pub mod overlay;
 
-pub use app::{ App };
+pub use app::{ App, request_reload };
 pub use config::*;
 pub use window::WindowPosition;
