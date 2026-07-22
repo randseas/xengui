@@ -130,17 +130,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .divider()
                 .item(
-                    ContextMenuItem::new("Inspect")
-                        .enabled(false)
-                        .on_click(|_ctx| {
-                            log::info!("context menu -> inspect");
-                        })
+                    ContextMenuItem::new("Inspect").on_click(|_ctx| {
+                        log::info!("context menu -> inspect");
+                    })
                 )
                 .font("Noto_Sans")
                 .item_transition(
-                    Transition::new(Duration::from_millis(200)).easing(Easing::EaseInOut)
+                    Transition::new(Duration::from_millis(250)).easing(Easing::EaseInOut)
                 )
-                .item_border(Border::new(0, Color::TRANSPARENT, 6))
+                .menu_transition(
+                    Transition::new(Duration::from_millis(150)).easing(Easing::EaseOut)
+                )
                 .item_border(Border::new(0, Color::TRANSPARENT, 6))
                 .padding(6.0)
                 .font_size(13)

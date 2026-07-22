@@ -132,6 +132,8 @@ struct OpenSubmenu {
     size: Cell<(f32, f32)>,
     hovered_index: Cell<Option<usize>>,
     pressed_index: Cell<Option<usize>>,
+    anim_id: WidgetId,
+    opacity: Cell<f32>,
 }
 
 /// A lightweight, cloneable handle that lets a widget elsewhere in the
@@ -914,6 +916,8 @@ impl ContextMenu {
                         size: Cell::new((child_w, child_h)),
                         hovered_index: Cell::new(None),
                         pressed_index: Cell::new(None),
+                        anim_id: item.anim_id,
+                        opacity: Cell::new(0.0),
                     });
                 }
 
@@ -973,12 +977,7 @@ impl ContextMenu {
         let divider_color = self.divider_color.unwrap_or(theme.border);
         let sf = ctx.scale_factor;
         let pad = self.effective_item_padding();
-        let (pad_l, pad_r, pad_t, pad_b) = (
-            pad.left.value(),
-            pad.right.value(),
-            pad.top.value(),
-            pad.bottom.value(),
-        );
+        let (pad_l, pad_t, pad_b) = (pad.left.value(), pad.top.value(), pad.bottom.value());
 
         for (i, entry) in entries.iter().enumerate() {
             let item = match entry {
@@ -1126,7 +1125,7 @@ impl ContextMenu {
                 let shortcut_w = item.shortcut_width.get();
                 ctx.draw_text(TextCommand {
                     text: shortcut.clone(),
-                    position: (x + w - pad_r - right_reserved - shortcut_w, text_y),
+                    position: (x + w - right_reserved - shortcut_w, text_y),
                     style: shortcut_style,
                     max_width: Some(shortcut_w),
                     clip_rect: None,
@@ -1138,7 +1137,7 @@ impl ContextMenu {
                 text: item.label.clone(),
                 position: (x + pad_l, text_y),
                 style: text_style,
-                max_width: Some((w - pad_l - pad_r - right_reserved).max(0.0)),
+                max_width: Some((w - pad_l - right_reserved).max(0.0)),
                 clip_rect: None,
             });
         }
@@ -1215,7 +1214,6 @@ impl Widget for ContextMenu {
         let sf = ctx.scale_factor;
         let style = &self.base.computed_style;
         let padding = self.effective_item_padding();
-
         let font = style.font.as_deref();
         let font_size = style.font_size
             .map(|s| s.to_physical(sf))
@@ -1226,7 +1224,7 @@ impl Widget for ContextMenu {
             .map(|ls| ls.value().to_physical(sf))
             .unwrap_or(0.0);
         let line_height = style.line_height.map(|lh| lh.value().to_physical(sf)).unwrap_or(0.0);
-        let pad_lr = padding.left.to_physical(sf) + padding.right.to_physical(sf);
+        let pad_lr = padding.left.to_physical(sf);
 
         let width = measure_entries_width(
             &self.entries,
@@ -1275,7 +1273,7 @@ impl Widget for ContextMenu {
 
         #[allow(clippy::type_complexity)]
         let levels: Vec<
-            (Vec<usize>, (f32, f32), (f32, f32), Option<usize>, Option<usize>)
+            (Vec<usize>, (f32, f32), (f32, f32), Option<usize>, Option<usize>, f32)
         > = self.submenu_stack
             .borrow()
             .iter()
@@ -1285,12 +1283,23 @@ impl Widget for ContextMenu {
                 l.size.get(),
                 l.hovered_index.get(),
                 l.pressed_index.get(),
+                l.opacity.get(),
             ))
             .collect();
 
-        for (path, pos, size, hovered, pressed) in levels {
+        for (path, pos, size, hovered, pressed, level_opacity) in levels {
             let entries = self.entries_at(&path);
-            self.paint_level(ctx, &theme, opacity, entries, pos, size, hovered, pressed, padding);
+            self.paint_level(
+                ctx,
+                &theme,
+                opacity * level_opacity,
+                entries,
+                pos,
+                size,
+                hovered,
+                pressed,
+                padding
+            );
         }
     }
 
@@ -1367,11 +1376,7 @@ impl Widget for ContextMenu {
                             self.submenu_stack.borrow()[depth - 1].path.clone()
                         };
 
-                        if
-                            let Some(item) = self.item_at_mut(&path, idx) &&
-                            item.enabled &&
-                            !item.has_submenu()
-                        {
+                        if let Some(item) = self.item_at_mut(&path, idx) && item.enabled {
                             if let Some(cb) = item.on_click.as_mut() {
                                 cb(ctx);
                             }
@@ -1428,6 +1433,17 @@ impl Widget for ContextMenu {
 
         self.animate_opacity(anim);
 
+        let menu_transition = self.menu_transition.unwrap_or(OPACITY_TRANSITION);
+        for level in self.submenu_stack.borrow().iter() {
+            let key = AnimKey {
+                widget: level.anim_id,
+                layer: AnimLayer::Content,
+                property: AnimProperty::Opacity,
+            };
+            anim.set_target(key, AnimValue([1.0, 0.0, 0.0, 0.0]), Some(menu_transition));
+            level.opacity.set(anim.value(key).map_or(1.0, |v| v.0[0]));
+        }
+
         let item_transition = self.item_transition.unwrap_or(ITEM_HOVER_TRANSITION);
 
         Self::animate_entries(&self.entries, self.hovered_index.get(), item_transition, anim);
@@ -1466,10 +1482,32 @@ impl Widget for ContextMenu {
             self.pressed_index.set(old.pressed_index.get());
             self.submenu_stack.replace(old.submenu_stack.borrow().clone());
             self.anim_id = old.anim_id;
+            transfer_entry_anim_state(&mut self.entries, &old.entries);
         }
     }
 
     fn anim_id(&self) -> WidgetId {
         self.anim_id
+    }
+}
+
+// Preserves each item's animation identity and in-flight progress across
+// rebuilds, since `entries` is rebuilt fresh by user code every render.
+fn transfer_entry_anim_state(
+    new_entries: &mut [ContextMenuEntry],
+    old_entries: &[ContextMenuEntry]
+) {
+    for (new_entry, old_entry) in new_entries.iter_mut().zip(old_entries.iter()) {
+        if
+            let (ContextMenuEntry::Item(new_item), ContextMenuEntry::Item(old_item)) = (
+                new_entry,
+                old_entry,
+            )
+        {
+            new_item.anim_id = old_item.anim_id;
+            new_item.hover_progress.set(old_item.hover_progress.get());
+            new_item.scale_progress.set(old_item.scale_progress.get());
+            transfer_entry_anim_state(&mut new_item.submenu, &old_item.submenu);
+        }
     }
 }
