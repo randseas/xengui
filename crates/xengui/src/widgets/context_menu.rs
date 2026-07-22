@@ -1205,7 +1205,9 @@ impl ContextMenu {
             let mut right_reserved = 0.0;
 
             if item.has_submenu() {
-                let arrow_color = base_color.with_alpha_f32(base_color.a() * opacity * alpha_scale);
+                let arrow_color = base_color.with_alpha_f32(
+                    base_color.a() * opacity * alpha_scale * 0.8
+                );
                 for (p0, p1, p2) in submenu_arrow_triangles((x, y, w, h)) {
                     ctx.draw_triangle(TriangleCommand {
                         p0,
