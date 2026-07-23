@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    Overflow,
-    TransitionProperty,
-    properties::StyleValue,
-    style::{ FontStyle, FontWeight, LetterSpacing, IntoThemed },
+    BoxShadow, Overflow, TransitionProperty, properties::StyleValue, style::{ FontStyle, FontWeight, IntoThemed, LetterSpacing },
 };
 
 use super::{
@@ -223,6 +220,18 @@ pub trait StyleBuilder: Sized {
 
         self.mark_dirty();
 
+        self
+    }
+
+    fn box_shadow(mut self, shadows: impl Into<Vec<BoxShadow>>) -> Self {
+        self.style_mut().box_shadow = Some(shadows.into());
+        self.mark_dirty();
+        self
+    }
+
+    fn box_shadow_none(mut self) -> Self {
+        self.style_mut().box_shadow = None;
+        self.mark_dirty();
         self
     }
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     AnimationManager,
+    BoxShadowCommand,
     DrawCommand,
     ImageCommand,
     LayoutContext,
@@ -125,12 +126,14 @@ impl FrameRenderer {
             Triangle,
             Image,
             Text,
+            BoxShadow,
         }
 
         let mut current_kind: Option<RunKind> = None;
         let mut rect_buf: Vec<RectCommand> = Vec::new();
         let mut tri_buf: Vec<TriangleCommand> = Vec::new();
         let mut img_buf: Vec<ImageCommand> = Vec::new();
+        let mut shadow_buf: Vec<BoxShadowCommand> = Vec::new();
 
         macro_rules! flush_run {
             () => {
@@ -138,11 +141,8 @@ impl FrameRenderer {
                     Some(RunKind::Rect) => backend.draw_rects(&rect_buf),
                     Some(RunKind::Triangle) => backend.draw_triangles(&tri_buf),
                     Some(RunKind::Image) => backend.draw_images(&img_buf),
+                    Some(RunKind::BoxShadow) => backend.draw_box_shadows(&shadow_buf),
                     Some(RunKind::Text) => {
-                        // Flushing here (instead of once at the end of the
-                        // frame) is what makes text interleave with rects/
-                        // triangles/images in true paint order, Flutter/
-                        // Skia-style, rather than always drawing on top.
                         backend.flush_text();
                         let decorations = backend.take_text_decorations();
                         if !decorations.is_empty() {
@@ -154,6 +154,7 @@ impl FrameRenderer {
                 rect_buf.clear();
                 tri_buf.clear();
                 img_buf.clear();
+                shadow_buf.clear();
             };
         }
 
@@ -190,6 +191,13 @@ impl FrameRenderer {
                     }
                     img_buf.push(*cmd);
                 }
+                DrawCommand::BoxShadow(cmd) => {
+                    if current_kind != Some(RunKind::BoxShadow) {
+                        flush_run!();
+                        current_kind = Some(RunKind::BoxShadow);
+                    }
+                    shadow_buf.push(cmd);
+                }
             }
         }
         flush_run!();
@@ -202,6 +210,7 @@ impl FrameRenderer {
             let mut top_rect_buf: Vec<RectCommand> = Vec::new();
             let mut top_tri_buf: Vec<TriangleCommand> = Vec::new();
             let mut top_img_buf: Vec<ImageCommand> = Vec::new();
+            let mut top_shadow_buf: Vec<BoxShadowCommand> = Vec::new();
             let mut top_kind: Option<RunKind> = None;
 
             macro_rules! flush_top_run {
@@ -217,6 +226,7 @@ impl FrameRenderer {
                                 backend.draw_rects(&decorations);
                             }
                         }
+                        Some(RunKind::BoxShadow) => backend.draw_box_shadows(&top_shadow_buf),
                         None => {}
                     }
                     top_rect_buf.clear();
@@ -254,6 +264,13 @@ impl FrameRenderer {
                             top_kind = Some(RunKind::Image);
                         }
                         top_img_buf.push(*cmd);
+                    }
+                    DrawCommand::BoxShadow(cmd) => {
+                        if current_kind != Some(RunKind::BoxShadow) {
+                            flush_top_run!();
+                            current_kind = Some(RunKind::BoxShadow);
+                        }
+                        top_shadow_buf.push(cmd);
                     }
                 }
             }
@@ -401,6 +418,7 @@ fn apply_clip(command: &mut DrawCommand, clip_rect: Option<(f32, f32, f32, f32)>
         DrawCommand::Image(cmd) => &mut cmd.clip_rect,
         DrawCommand::Text(cmd) => &mut cmd.clip_rect,
         DrawCommand::Triangle(cmd) => &mut cmd.clip_rect,
+        DrawCommand::BoxShadow(cmd) => &mut cmd.clip_rect,
     };
     *target = Some(clip_intersect(*target, ancestor_clip));
 }

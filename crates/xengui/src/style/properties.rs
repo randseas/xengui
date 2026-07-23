@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use smol_str::SmolStr;
-use crate::{ Cursor, TransitionProperty };
+use crate::{ BoxShadow, Cursor, TransitionProperty };
 use super::{
     Outline,
     AlignItems,
@@ -92,6 +92,10 @@ pub struct Style {
     pub outline: StyleValue<Outline>,
     pub focus_outline: StyleValue<Outline>,
 
+    /// CSS-style box shadow(s), painted in list order (first on top).
+    /// Non-inherited, like `background`.
+    pub box_shadow: Option<Vec<BoxShadow>>,
+
     // Sizing
     pub size: Option<Size>,
     pub min_size: Option<Size>,
@@ -178,6 +182,8 @@ impl Style {
                 StyleValue::Default => self.focus_outline.clone(),
                 value => value.clone(),
             },
+
+            box_shadow: patch.box_shadow.clone().or_else(|| self.box_shadow.clone()),
 
             size: patch.size.or_else(|| self.size),
             min_size: patch.min_size.or_else(|| self.min_size),

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pub mod background;
 pub mod border;
+pub mod box_shadow;
 pub mod outline;
 pub mod overflow;
 pub mod color;
@@ -21,6 +22,7 @@ pub mod system_theme;
 
 pub use background::Background;
 pub use border::Border;
+pub use box_shadow::BoxShadow;
 pub use outline::Outline;
 pub use overflow::Overflow;
 pub use color::Color;

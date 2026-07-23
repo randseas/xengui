@@ -107,21 +107,89 @@ pub trait Widget: Any {
 
     fn paint_box(&self, ctx: &mut PaintContext) {
         let style = self.computed_style();
+        let sf = ctx.scale_factor;
+        let layout = *self.layout_box();
+        let radius = style.border
+            .as_ref()
+            .map(|b| b.radius.to_physical(sf))
+            .unwrap_or(0.0);
 
-        if style.background.is_none() && style.border.is_none() {
-            return;
+        if let Some(shadows) = &style.box_shadow {
+            for shadow in shadows
+                .iter()
+                .rev()
+                .filter(|s| !s.inset) {
+                Self::paint_shadow_layer(ctx, layout, radius, shadow, sf);
+            }
         }
 
-        let border = style.border.as_ref();
-        let sf = ctx.scale_factor;
+        if style.background.is_some() || style.border.is_some() {
+            let border = style.border.as_ref();
 
-        ctx.draw_rect(RectCommand {
-            position: (self.layout_box().x, self.layout_box().y),
-            size: (self.layout_box().width, self.layout_box().height),
-            background: style.background.clone(),
-            border_radius: border.map(|b| Length::px(b.radius.to_physical(sf))),
-            border_color: border.map(|b| b.color),
-            border_width: border.map(|b| Length::px(b.width.to_physical(sf))),
+            ctx.draw_rect(RectCommand {
+                position: (layout.x, layout.y),
+                size: (layout.width, layout.height),
+                background: style.background.clone(),
+                border_radius: border.map(|b| Length::px(b.radius.to_physical(sf))),
+                border_color: border.map(|b| b.color),
+                border_width: border.map(|b| Length::px(b.width.to_physical(sf))),
+                clip_rect: None,
+            });
+        }
+
+        if let Some(shadows) = &style.box_shadow {
+            for shadow in shadows
+                .iter()
+                .rev()
+                .filter(|s| s.inset) {
+                Self::paint_shadow_layer(ctx, layout, radius, shadow, sf);
+            }
+        }
+    }
+
+    fn paint_shadow_layer(
+        ctx: &mut PaintContext,
+        layout: LayoutBox,
+        radius: f32,
+        shadow: &BoxShadow,
+        sf: f32
+    ) {
+        let ox = shadow.offset_x.to_physical(sf);
+        let oy = shadow.offset_y.to_physical(sf);
+        let blur = shadow.blur_radius.to_physical(sf).max(0.0);
+        let spread = shadow.spread_radius.to_physical(sf);
+
+        let cx = layout.x + layout.width * 0.5;
+        let cy = layout.y + layout.height * 0.5;
+
+        let (shadow_position, shadow_size, shadow_radius) = if shadow.inset {
+            let half_w = (layout.width * 0.5 - spread).max(0.0);
+            let half_h = (layout.height * 0.5 - spread).max(0.0);
+            (
+                (cx + ox - half_w, cy + oy - half_h),
+                (half_w * 2.0, half_h * 2.0),
+                (radius - spread).max(0.0),
+            )
+        } else {
+            let half_w = layout.width * 0.5 + spread;
+            let half_h = layout.height * 0.5 + spread;
+            (
+                (cx + ox - half_w, cy + oy - half_h),
+                (half_w * 2.0, half_h * 2.0),
+                (radius + spread).max(0.0),
+            )
+        };
+
+        ctx.draw_box_shadow(BoxShadowCommand {
+            shadow_position,
+            shadow_size,
+            shadow_radius,
+            blur,
+            color: shadow.color,
+            inset: shadow.inset,
+            box_position: (layout.x, layout.y),
+            box_size: (layout.width, layout.height),
+            box_radius: radius,
             clip_rect: None,
         });
     }

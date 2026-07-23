@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::WgpuPipelines;
+use crate::{ WgpuPipelines, WindowChrome, WindowShadow };
 use std::sync::Arc;
 use xengui::{ FrameRenderer, SystemTheme, Widget };
 
@@ -14,6 +14,7 @@ pub struct WgpuWindowRenderer {
     config: wgpu::SurfaceConfiguration,
     pipelines: WgpuPipelines,
     frame: FrameRenderer,
+    chrome: WindowChrome,
 }
 
 impl WgpuWindowRenderer {
@@ -172,7 +173,15 @@ impl WgpuWindowRenderer {
             config,
             pipelines,
             frame: FrameRenderer::new(),
+            chrome: WindowChrome::default(),
         })
+    }
+
+    /// Sets the window chrome (shadow, rounded corners, border) drawn
+    /// around the widget tree's own output - only meaningful when the
+    /// host window has no OS decorations (`decorations: false`).
+    pub fn set_chrome(&mut self, chrome: WindowChrome) {
+        self.chrome = chrome;
     }
 
     pub fn is_animating(&self) -> bool {
@@ -215,6 +224,12 @@ impl WgpuWindowRenderer {
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&Default::default());
 
+        let mut chrome_shadow_drawn = false;
+        if let Some(shadow) = self.chrome.shadow {
+            self.draw_chrome_shadow(&mut encoder, &view, shadow, scale_factor);
+            chrome_shadow_drawn = true;
+        }
+
         {
             let mut backend = self.pipelines.begin_frame(
                 &self.device,
@@ -224,6 +239,9 @@ impl WgpuWindowRenderer {
                 self.config.width,
                 self.config.height
             );
+            if chrome_shadow_drawn {
+                backend.preserve_existing_content();
+            }
             self.frame.render_frame(
                 tree,
                 &mut backend,
@@ -234,8 +252,170 @@ impl WgpuWindowRenderer {
             );
         }
 
+        if self.chrome.radius > 0.0 {
+            self.punch_chrome_corners(&mut encoder, &view, scale_factor);
+        }
+
+        if let Some((width, color)) = self.chrome.border {
+            self.draw_chrome_border(&mut encoder, &view, width, color, scale_factor);
+        }
+
         self.queue.submit(Some(encoder.finish()));
         self.queue.present(frame);
+    }
+
+    fn draw_chrome_shadow(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        shadow: WindowShadow,
+        scale_factor: f32
+    ) {
+        let margin = shadow.margin * scale_factor;
+        let w = self.config.width as f32;
+        let h = self.config.height as f32;
+        let radius = self.chrome.radius * scale_factor;
+        let blur = shadow.blur_radius * scale_factor;
+        let spread = shadow.spread_radius * scale_factor;
+
+        let box_position = (margin, margin);
+        let box_size = ((w - margin * 2.0).max(0.0), (h - margin * 2.0).max(0.0));
+
+        let cmd = xengui::BoxShadowCommand {
+            shadow_position: (
+                box_position.0 + shadow.offset.0 * scale_factor - spread,
+                box_position.1 + shadow.offset.1 * scale_factor - spread,
+            ),
+            shadow_size: (box_size.0 + spread * 2.0, box_size.1 + spread * 2.0),
+            shadow_radius: (radius + spread).max(0.0),
+            blur,
+            color: shadow.color,
+            inset: false,
+            box_position,
+            box_size,
+            box_radius: radius,
+            clip_rect: None,
+        };
+
+        let mut pass = encoder.begin_render_pass(
+            &(wgpu::RenderPassDescriptor {
+                label: Some("xenframe window shadow pass"),
+                color_attachments: &[
+                    Some(wgpu::RenderPassColorAttachment {
+                        view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    }),
+                ],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            })
+        );
+        self.pipelines.box_shadow.draw_batch(
+            &self.device,
+            &self.queue,
+            &mut pass,
+            self.config.width,
+            self.config.height,
+            &[cmd]
+        );
+    }
+
+    fn punch_chrome_corners(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        scale_factor: f32
+    ) {
+        let mut pass = encoder.begin_render_pass(
+            &(wgpu::RenderPassDescriptor {
+                label: Some("xenframe window corner mask pass"),
+                color_attachments: &[
+                    Some(wgpu::RenderPassColorAttachment {
+                        view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    }),
+                ],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            })
+        );
+        self.pipelines.window_mask.draw(
+            &self.device,
+            &self.queue,
+            &mut pass,
+            self.config.width,
+            self.config.height,
+            self.chrome.radius * scale_factor
+        );
+    }
+
+    fn draw_chrome_border(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        width: f32,
+        color: xengui::Color,
+        scale_factor: f32
+    ) {
+        let physical_width = width * scale_factor;
+        let inset = physical_width * 0.5;
+        let cmd = xengui::RectCommand {
+            position: (inset, inset),
+            size: (
+                ((self.config.width as f32) - physical_width).max(0.0),
+                ((self.config.height as f32) - physical_width).max(0.0),
+            ),
+            background: None,
+            border_radius: Some(
+                xengui::Length::px((self.chrome.radius * scale_factor - inset).max(0.0))
+            ),
+            border_width: Some(xengui::Length::px(physical_width)),
+            border_color: Some(color),
+            clip_rect: None,
+        };
+
+        let mut pass = encoder.begin_render_pass(
+            &(wgpu::RenderPassDescriptor {
+                label: Some("xenframe window border pass"),
+                color_attachments: &[
+                    Some(wgpu::RenderPassColorAttachment {
+                        view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    }),
+                ],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            })
+        );
+        self.pipelines.rect.draw_batch(
+            &self.device,
+            &self.queue,
+            &mut pass,
+            self.config.width,
+            self.config.height,
+            &[cmd]
+        );
     }
 
     pub fn resize(

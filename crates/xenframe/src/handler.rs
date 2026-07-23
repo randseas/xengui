@@ -433,7 +433,12 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
             let user_fonts = std::mem::take(&mut self.config.fonts);
             let size = window.inner_size();
             match xengui_wgpu::WgpuWindowRenderer::new(window, size.width, size.height, user_fonts) {
-                Ok(renderer) => {
+                Ok(mut renderer) => {
+                    renderer.set_chrome(xengui_wgpu::WindowChrome {
+                        radius: self.config.window_radius,
+                        shadow: self.config.window_shadow,
+                        border: self.config.window_border,
+                    });
                     self.renderer = Some(renderer);
                     log::info!("application resumed, gpu context ready");
                 }
@@ -578,6 +583,13 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         match event {
             XenEvent::RendererReady(renderer) => {
                 self.renderer = Some(*renderer);
+                if let Some(r) = &mut self.renderer {
+                    r.set_chrome(xengui_wgpu::WindowChrome {
+                        radius: self.config.window_radius,
+                        shadow: self.config.window_shadow,
+                        border: self.config.window_border,
+                    });
+                }
                 log::info!("web gpu context successfully attached to event loop");
                 if let Some(window) = &self.window {
                     let size = window.inner_size();

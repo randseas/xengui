@@ -51,11 +51,31 @@ pub struct TriangleCommand {
 }
 
 #[derive(Clone, Debug)]
+pub struct BoxShadowCommand {
+    /// Rect used for the blurred rounded-rect SDF. For an outset shadow
+    /// this is the box shifted by the offset and grown by the spread; for
+    /// an inset shadow it's the box shifted/shrunk instead - the "light"
+    /// rect the inner shadow appears to be cast from.
+    pub shadow_position: (f32, f32),
+    pub shadow_size: (f32, f32),
+    pub shadow_radius: f32,
+    pub blur: f32,
+    pub color: Color,
+    pub inset: bool,
+    /// The widget's real box; an inset shadow is masked to stay inside it.
+    pub box_position: (f32, f32),
+    pub box_size: (f32, f32),
+    pub box_radius: f32,
+    pub clip_rect: Option<(f32, f32, f32, f32)>,
+}
+
+#[derive(Clone, Debug)]
 pub enum DrawCommand {
     Rect(RectCommand),
     Triangle(TriangleCommand),
     Text(Box<TextCommand>),
     Image(Box<ImageCommand>),
+    BoxShadow(BoxShadowCommand),
 }
 
 // Converts a logical clip rect (top-left origin) into a physical scissor

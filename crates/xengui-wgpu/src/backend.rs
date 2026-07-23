@@ -14,10 +14,12 @@ use xengui::{
 /// Owns the four wgpu render pipelines xengui needs, built once against a
 /// device and reused across every frame via `begin_frame`.
 pub struct WgpuPipelines {
-    rect: RectPipeline,
+    pub(crate) rect: RectPipeline,
     triangle: TrianglePipeline,
     image: ImagePipeline,
     text: TextPipeline,
+    pub(crate) box_shadow: BoxShadowPipeline,
+    pub(crate) window_mask: WindowMaskPipeline,
 }
 
 impl WgpuPipelines {
@@ -32,13 +34,11 @@ impl WgpuPipelines {
             triangle: TrianglePipeline::new(device, surface_format),
             image: ImagePipeline::new(device, surface_format),
             text: TextPipeline::new(device, queue, surface_format, user_fonts)?,
+            box_shadow: BoxShadowPipeline::new(device, surface_format),
+            window_mask: WindowMaskPipeline::new(device, surface_format),
         })
     }
 
-    /// Borrows this pipeline set for exactly one frame, wired to the
-    /// caller's own device/queue/encoder/render target. This is the entry
-    /// point a host embedding xengui into its own render graph (e.g. a
-    /// Bevy render node) should use directly instead of `WgpuWindowRenderer`.
     pub fn begin_frame<'a>(
         &'a mut self,
         device: &'a wgpu::Device,
@@ -51,6 +51,7 @@ impl WgpuPipelines {
         self.rect.reset_frame();
         self.triangle.reset_frame();
         self.image.reset_frame();
+        self.box_shadow.reset_frame();
 
         WgpuFrame {
             pipelines: self,
@@ -102,6 +103,13 @@ impl<'a> WgpuFrame<'a> {
             b: bg.b() as f64,
             a: bg.a() as f64,
         })
+    }
+
+    /// Marks this frame as already having visible content in `view` (e.g.
+    /// a window-chrome shadow drawn before this frame started), so the
+    /// first shape draw call loads instead of clearing it away.
+    pub fn preserve_existing_content(&mut self) {
+        self.shape_pass_open = true;
     }
 }
 
@@ -202,6 +210,38 @@ impl<'a> RenderBackend for WgpuFrame<'a> {
             })
         );
         self.pipelines.image.draw_batch(
+            self.device,
+            self.queue,
+            &mut pass,
+            self.width,
+            self.height,
+            cmds
+        );
+    }
+
+    fn draw_box_shadows(&mut self, cmds: &[BoxShadowCommand]) {
+        if cmds.is_empty() {
+            return;
+        }
+        let load = self.shape_pass_load();
+        let mut pass = self.encoder.begin_render_pass(
+            &(wgpu::RenderPassDescriptor {
+                label: Some("xengui shape pass"),
+                color_attachments: &[
+                    Some(wgpu::RenderPassColorAttachment {
+                        view: self.view,
+                        resolve_target: None,
+                        ops: wgpu::Operations { load, store: wgpu::StoreOp::Store },
+                        depth_slice: None,
+                    }),
+                ],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            })
+        );
+        self.pipelines.box_shadow.draw_batch(
             self.device,
             self.queue,
             &mut pass,
