@@ -3,6 +3,7 @@ use crate::{
     LayoutBox,
     LayoutContext,
     MeasureContext,
+    Position,
     RenderCache,
     Style,
     Widget,
@@ -31,6 +32,10 @@ impl LayoutEngine {
         viewport_width: f32,
         viewport_height: f32
     ) {
+        // Lets Length::ViewportWidth/ViewportHeight resolve against the
+        // current frame's viewport size during measurement and layout.
+        crate::set_viewport_size(viewport_width, viewport_height);
+
         Self::cascade(tree, ctx);
         let mut taffy: TaffyTree<()> = TaffyTree::new();
         let mut path = WidgetPath::new();
@@ -67,8 +72,19 @@ impl LayoutEngine {
             })
             .expect("cannot calculate taffy layout");
 
+        let viewport = (viewport_width, viewport_height);
+
         for (widget, node_id) in tree.iter_mut().zip(child_ids) {
-            apply_layout(widget.as_mut(), &taffy, node_id, 0.0, 0.0);
+            apply_layout(
+                widget.as_mut(),
+                &taffy,
+                node_id,
+                0.0,
+                0.0,
+                ctx.scale_factor,
+                viewport,
+                None
+            );
         }
     }
 }
@@ -164,12 +180,16 @@ fn build_taffy_node(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn apply_layout(
     widget: &mut dyn Widget,
     taffy: &TaffyTree<()>,
     node_id: NodeId,
     parent_x: f32,
-    parent_y: f32
+    parent_y: f32,
+    scale_factor: f32,
+    viewport: (f32, f32),
+    scroll_viewport: Option<LayoutBox>
 ) {
     let layout = taffy.layout(node_id).expect("cannot find taffy layout result");
     let abs_x = parent_x + layout.location.x;
@@ -177,26 +197,86 @@ fn apply_layout(
     let abs_right = abs_x + layout.size.width;
     let abs_bottom = abs_y + layout.size.height;
 
-    let snapped_x = abs_x.round();
-    let snapped_y = abs_y.round();
+    let mut snapped_x = abs_x.round();
+    let mut snapped_y = abs_y.round();
     let snapped_right = abs_right.round();
     let snapped_bottom = abs_bottom.round();
+    let width = snapped_right - snapped_x;
+    let height = snapped_bottom - snapped_y;
+
+    let position = widget.computed_style().position.unwrap_or_default();
+
+    // Fixed is anchored to the viewport itself rather than the flow
+    // position taffy computed, matching CSS's `position: fixed`.
+    if position == Position::Fixed {
+        let (vw, vh) = viewport;
+        let style = widget.computed_style();
+        let (top, right, bottom, left) = (style.top, style.right, style.bottom, style.left);
+
+        if let Some(top) = top {
+            snapped_y = top.to_physical(scale_factor).round();
+        } else if let Some(bottom) = bottom {
+            snapped_y = (vh - bottom.to_physical(scale_factor) - height).round();
+        }
+        if let Some(left) = left {
+            snapped_x = left.to_physical(scale_factor).round();
+        } else if let Some(right) = right {
+            snapped_x = (vw - right.to_physical(scale_factor) - width).round();
+        }
+    }
+
+    // Sticky clamps the in-flow position so it can't scroll past its
+    // nearest scrollable ancestor's edge, matching CSS's `position: sticky`.
+    if position == Position::Sticky && let Some(container) = scroll_viewport {
+        let style = widget.computed_style();
+        if let Some(top) = style.top {
+            snapped_y = snapped_y.max(container.y + top.to_physical(scale_factor));
+        }
+        if let Some(bottom) = style.bottom {
+            snapped_y = snapped_y.min(
+                container.y + container.height - height - bottom.to_physical(scale_factor)
+            );
+        }
+        if let Some(left) = style.left {
+            snapped_x = snapped_x.max(container.x + left.to_physical(scale_factor));
+        }
+        if let Some(right) = style.right {
+            snapped_x = snapped_x.min(
+                container.x + container.width - width - right.to_physical(scale_factor)
+            );
+        }
+    }
 
     widget.layout(LayoutBox {
         x: snapped_x,
         y: snapped_y,
-        width: snapped_right - snapped_x,
-        height: snapped_bottom - snapped_y,
+        width,
+        height,
     });
 
     let child_ids = taffy.children(node_id).ok();
 
-    // Union of every child's own box gives the total scrollable content
-    // size, which can exceed this node's own box when content overflows it.
+    // Union of every in-flow child's own box gives the total scrollable
+    // content size, which can exceed this node's own box when content
+    // overflows it. Out-of-flow children (absolute/fixed) are skipped,
+    // since they don't participate in the normal flow's overflow box.
     if let Some(ids) = &child_ids {
         let mut content_w: f32 = layout.size.width;
         let mut content_h: f32 = layout.size.height;
-        for &child_id in ids {
+        let children_ref = widget.children();
+
+        for (i, &child_id) in ids.iter().enumerate() {
+            let out_of_flow = children_ref
+                .get(i)
+                .is_some_and(|c| {
+                    matches!(
+                        c.computed_style().position.unwrap_or_default(),
+                        Position::Absolute | Position::Fixed
+                    )
+                });
+            if out_of_flow {
+                continue;
+            }
             if let Ok(child_layout) = taffy.layout(child_id) {
                 content_w = content_w.max(child_layout.location.x + child_layout.size.width);
                 content_h = content_h.max(child_layout.location.y + child_layout.size.height);
@@ -207,6 +287,11 @@ fn apply_layout(
 
     let (offset_x, offset_y) = widget.scroll_offset();
 
+    let next_scroll_viewport = widget
+        .clip_children()
+        .map(|(x, y, w, h)| LayoutBox { x, y, width: w, height: h })
+        .or(scroll_viewport);
+
     if let (Some(children), Some(ids)) = (widget.children_mut(), child_ids) {
         for (child, child_id) in children.iter_mut().zip(ids) {
             apply_layout(
@@ -214,7 +299,10 @@ fn apply_layout(
                 taffy,
                 child_id,
                 snapped_x - offset_x,
-                snapped_y - offset_y
+                snapped_y - offset_y,
+                scale_factor,
+                viewport,
+                next_scroll_viewport
             );
         }
     }

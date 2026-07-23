@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    BoxShadow, Overflow, TransitionProperty, properties::StyleValue, style::{ FontStyle, FontWeight, IntoThemed, LetterSpacing },
+    BoxShadow,
+    Overflow,
+    TransitionProperty,
+    properties::StyleValue,
+    style::{ FontStyle, FontWeight, IntoThemed, LetterSpacing },
 };
 
 use super::{
@@ -309,6 +313,38 @@ pub trait StyleBuilder: Sized {
 
     fn position(mut self, position: Position) -> Self {
         self.style_mut().position = Some(position);
+
+        self.mark_dirty();
+
+        self
+    }
+
+    fn top<M>(mut self, value: impl IntoThemed<Length, M>) -> Self {
+        self.style_mut().top = Some(value.resolve_themed());
+
+        self.mark_dirty();
+
+        self
+    }
+
+    fn right<M>(mut self, value: impl IntoThemed<Length, M>) -> Self {
+        self.style_mut().right = Some(value.resolve_themed());
+
+        self.mark_dirty();
+
+        self
+    }
+
+    fn bottom<M>(mut self, value: impl IntoThemed<Length, M>) -> Self {
+        self.style_mut().bottom = Some(value.resolve_themed());
+
+        self.mark_dirty();
+
+        self
+    }
+
+    fn left<M>(mut self, value: impl IntoThemed<Length, M>) -> Self {
+        self.style_mut().left = Some(value.resolve_themed());
 
         self.mark_dirty();
 

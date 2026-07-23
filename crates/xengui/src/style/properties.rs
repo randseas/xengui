@@ -104,6 +104,10 @@ pub struct Style {
     // Layout
     pub display: Option<Display>,
     pub position: Option<Position>,
+    pub top: Option<Length>,
+    pub right: Option<Length>,
+    pub bottom: Option<Length>,
+    pub left: Option<Length>,
     pub overflow_x: Option<Overflow>,
     pub overflow_y: Option<Overflow>,
 
@@ -191,8 +195,13 @@ impl Style {
 
             display: patch.display.or_else(|| self.display),
             position: patch.position.or_else(|| self.position),
+            top: patch.top.or(self.top),
+            right: patch.right.or(self.right),
+            bottom: patch.bottom.or(self.bottom),
+            left: patch.left.or(self.left),
             overflow_x: patch.overflow_x.or_else(|| self.overflow_x),
             overflow_y: patch.overflow_y.or_else(|| self.overflow_y),
+            
             z_index: patch.z_index.or(self.z_index),
 
             flex_direction: patch.flex_direction.or_else(|| self.flex_direction),

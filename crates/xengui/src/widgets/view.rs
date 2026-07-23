@@ -76,7 +76,7 @@ fn arrow_triangle(
     let (x, y, w, h) = rect;
     let cx = x + w * 0.5;
     let cy = y + h * 0.5;
-    let margin = w.min(h) * 0.3;
+    let margin = w.min(h) * 0.15;
     let half = (w.min(h) * 0.5 - margin).max(1.0);
 
     match direction {

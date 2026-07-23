@@ -172,6 +172,19 @@ impl Widget for Button {
 
         let scale = style.scale.unwrap_or(1.0);
         let background_box = crate::scaled_layout_box(self.layout_box, scale);
+        let radius = style.border
+            .as_ref()
+            .map(|b| b.radius.to_physical(sf))
+            .unwrap_or(0.0);
+
+        if let Some(shadows) = &style.box_shadow {
+            for shadow in shadows
+                .iter()
+                .rev()
+                .filter(|s| !s.inset) {
+                self.paint_shadow_layer(ctx, background_box, radius, shadow, sf);
+            }
+        }
 
         if style.background.is_some() || style.border.is_some() {
             let border = style.border.as_ref();
@@ -184,6 +197,15 @@ impl Widget for Button {
                 border_width: border.map(|b| Length::px(b.width.to_physical(sf))),
                 clip_rect: None,
             });
+        }
+
+        if let Some(shadows) = &style.box_shadow {
+            for shadow in shadows
+                .iter()
+                .rev()
+                .filter(|s| s.inset) {
+                self.paint_shadow_layer(ctx, background_box, radius, shadow, sf);
+            }
         }
 
         self.paint_outline(ctx);

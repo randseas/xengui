@@ -18,6 +18,8 @@ fn dim<T>(l: crate::Length, scale_factor: f32) -> T
     match l {
         crate::Length::Px(v) => length(v * scale_factor),
         crate::Length::Percent(v) => percent(v / 100.0),
+        crate::Length::ViewportWidth(_) | crate::Length::ViewportHeight(_) =>
+            length(l.to_physical(scale_factor)),
     }
 }
 
@@ -30,8 +32,9 @@ pub fn style_to_taffy(style: &Style, scale_factor: f32) -> TaffyStyle {
             XDisplay::None => taffy::style::Display::None,
         },
         position: match style.position.unwrap_or_default() {
-            XPosition::Relative => taffy::style::Position::Relative,
-            XPosition::Absolute => taffy::style::Position::Absolute,
+            XPosition::Static | XPosition::Relative | XPosition::Sticky =>
+                taffy::style::Position::Relative,
+            XPosition::Absolute | XPosition::Fixed => taffy::style::Position::Absolute,
         },
         ..Default::default()
     };
@@ -41,6 +44,24 @@ pub fn style_to_taffy(style: &Style, scale_factor: f32) -> TaffyStyle {
     }
     if let Some(oy) = style.overflow_y {
         t.overflow.y = map_overflow(oy);
+    }
+
+    // Sticky stays in-flow and is clamped after layout instead (see
+    // LayoutEngine), so it must not also receive taffy's own relative
+    // offset shift the way Absolute/Fixed insets do.
+    if matches!(style.position.unwrap_or_default(), XPosition::Absolute | XPosition::Fixed) {
+        if let Some(top) = style.top {
+            t.inset.top = dim(top, scale_factor);
+        }
+        if let Some(right) = style.right {
+            t.inset.right = dim(right, scale_factor);
+        }
+        if let Some(bottom) = style.bottom {
+            t.inset.bottom = dim(bottom, scale_factor);
+        }
+        if let Some(left) = style.left {
+            t.inset.left = dim(left, scale_factor);
+        }
     }
 
     if let Some(dir) = style.flex_direction {

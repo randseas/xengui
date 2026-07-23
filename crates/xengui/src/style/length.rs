@@ -1,9 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
+use std::cell::Cell;
+
+thread_local! {
+    static VIEWPORT_SIZE: Cell<(f32, f32)> = const { Cell::new((0.0, 0.0)) };
+}
+
+/// Updates the viewport size used to resolve `Length::ViewportWidth` and
+/// `Length::ViewportHeight` values. Called once per layout pass.
+pub fn set_viewport_size(width: f32, height: f32) {
+    VIEWPORT_SIZE.with(|cell| cell.set((width, height)));
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Length {
     Px(f32),
     Percent(f32),
+    ViewportWidth(f32),
+    ViewportHeight(f32),
 }
 
 impl Default for Length {
@@ -21,10 +34,20 @@ impl Length {
         Self::Percent(value)
     }
 
+    pub const fn vw(value: f32) -> Self {
+        Self::ViewportWidth(value)
+    }
+
+    pub const fn vh(value: f32) -> Self {
+        Self::ViewportHeight(value)
+    }
+
     pub const fn value(&self) -> f32 {
         match self {
             Self::Px(v) => *v,
             Self::Percent(v) => *v,
+            Self::ViewportWidth(v) => *v,
+            Self::ViewportHeight(v) => *v,
         }
     }
 
@@ -32,6 +55,14 @@ impl Length {
         match self {
             Self::Px(v) => v * scale_factor,
             Self::Percent(v) => v,
+            Self::ViewportWidth(v) => {
+                let (vw, _) = VIEWPORT_SIZE.with(Cell::get);
+                vw * (v / 100.0)
+            }
+            Self::ViewportHeight(v) => {
+                let (_, vh) = VIEWPORT_SIZE.with(Cell::get);
+                vh * (v / 100.0)
+            }
         }
     }
 
