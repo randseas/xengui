@@ -112,6 +112,7 @@ impl WindowMaskPipeline {
         Self { pipeline }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn draw(
         &self,
         device: &wgpu::Device,
@@ -119,14 +120,18 @@ impl WindowMaskPipeline {
         render_pass: &mut wgpu::RenderPass<'_>,
         surface_width: u32,
         surface_height: u32,
+        margin: f32,
         radius: f32
     ) {
         let w = surface_width as f32;
         let h = surface_height as f32;
-        let half_w = w * 0.5;
-        let half_h = h * 0.5;
 
-        let ndc = |px: f32, py: f32| -> [f32; 2] { [px / half_w - 1.0, 1.0 - py / half_h] };
+        let box_w = (w - margin * 2.0).max(0.0);
+        let box_h = (h - margin * 2.0).max(0.0);
+        let half_w = box_w * 0.5;
+        let half_h = box_h * 0.5;
+
+        let ndc = |px: f32, py: f32| -> [f32; 2] { [px / (w * 0.5) - 1.0, 1.0 - py / (h * 0.5)] };
 
         let mk = |screen: [f32; 2], local: [f32; 2]| Vertex {
             position: screen,
@@ -135,13 +140,18 @@ impl WindowMaskPipeline {
             radius,
         };
 
+        let x0 = margin;
+        let y0 = margin;
+        let x1 = margin + box_w;
+        let y1 = margin + box_h;
+
         let vertices = [
-            mk(ndc(0.0, 0.0), [-half_w, -half_h]),
-            mk(ndc(w, 0.0), [half_w, -half_h]),
-            mk(ndc(0.0, h), [-half_w, half_h]),
-            mk(ndc(0.0, h), [-half_w, half_h]),
-            mk(ndc(w, 0.0), [half_w, -half_h]),
-            mk(ndc(w, h), [half_w, half_h]),
+            mk(ndc(x0, y0), [-half_w, -half_h]),
+            mk(ndc(x1, y0), [half_w, -half_h]),
+            mk(ndc(x0, y1), [-half_w, half_h]),
+            mk(ndc(x0, y1), [-half_w, half_h]),
+            mk(ndc(x1, y0), [half_w, -half_h]),
+            mk(ndc(x1, y1), [half_w, half_h]),
         ];
 
         let vertex_buffer = device.create_buffer(

@@ -153,6 +153,12 @@ impl WgpuWindowRenderer {
             })
             .unwrap_or(wgpu::CompositeAlphaMode::Auto);
 
+        log::info!(
+            "surface alpha_mode selected: {:?} (available: {:?})",
+            alpha_mode,
+            surface_caps.alpha_modes
+        );
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
@@ -333,6 +339,8 @@ impl WgpuWindowRenderer {
         view: &wgpu::TextureView,
         scale_factor: f32
     ) {
+        let margin = self.chrome.shadow.map(|s| s.margin).unwrap_or(0.0) * scale_factor;
+
         let mut pass = encoder.begin_render_pass(
             &(wgpu::RenderPassDescriptor {
                 label: Some("xenframe window corner mask pass"),
@@ -359,6 +367,7 @@ impl WgpuWindowRenderer {
             &mut pass,
             self.config.width,
             self.config.height,
+            margin,
             self.chrome.radius * scale_factor
         );
     }
@@ -367,18 +376,20 @@ impl WgpuWindowRenderer {
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
-        width: f32,
+        border_width: f32,
         color: xengui::Color,
         scale_factor: f32
     ) {
-        let physical_width = width * scale_factor;
+        let margin = self.chrome.shadow.map(|s| s.margin).unwrap_or(0.0) * scale_factor;
+        let physical_width = border_width * scale_factor;
         let inset = physical_width * 0.5;
+
+        let box_w = ((self.config.width as f32) - margin * 2.0).max(0.0);
+        let box_h = ((self.config.height as f32) - margin * 2.0).max(0.0);
+
         let cmd = xengui::RectCommand {
-            position: (inset, inset),
-            size: (
-                ((self.config.width as f32) - physical_width).max(0.0),
-                ((self.config.height as f32) - physical_width).max(0.0),
-            ),
+            position: (margin + inset, margin + inset),
+            size: ((box_w - physical_width).max(0.0), (box_h - physical_width).max(0.0)),
             background: None,
             border_radius: Some(
                 xengui::Length::px((self.chrome.radius * scale_factor - inset).max(0.0))

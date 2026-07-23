@@ -1,7 +1,7 @@
 {
-  "name": "XenGui Demo",
-  "short_name": "XenGui Demo",
-  "description": "XenGui Demo",
+  "name": "XenGui",
+  "short_name": "XenGui",
+  "description": "XenGui – One codebase. Any platform",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -4,9 +4,9 @@
 
 #[cfg(not(target_arch = "wasm32"))]
 use xenframe::WindowPosition;
-use xengui::{ Display::Flex, FlexDirection::Column, /*properties::StyleValue, widgets::Link,*/ * };
+use xengui::{ Display::Flex, FlexDirection::{ Column, Row }, widgets::Link, * };
 use xenframe::{ App, AppConfig };
-use xengui_wgpu::{ WindowShadow };
+/*use xengui_wgpu::{ WindowShadow };*/
 //use xen_clipboard::Clipboard;
 
 // write debug messages directly into the screen
@@ -61,27 +61,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let config = AppConfig {
-        title: "XenGui App".into(),
+        title: "XenGui – One codebase. Any platform".into(),
         reload_shortcut: true,
 
         #[cfg(not(target_arch = "wasm32"))]
-        width: 640 + 64,
+        width: 640,
         #[cfg(not(target_arch = "wasm32"))]
-        height: 480 + 64,
+        height: 480,
         #[cfg(not(target_arch = "wasm32"))]
         position: WindowPosition::Center,
         #[cfg(not(target_arch = "wasm32"))]
-        decorations: false,
-
-        window_radius: 12.0,
-        window_shadow: Some(WindowShadow {
-            color: Color::rgba(0, 0, 0, 120),
-            blur_radius: 24.0,
-            spread_radius: 0.0,
-            offset: (0.0, 8.0),
-            margin: 32.0,
-        }),
-        window_border: Some((1.0, Color::NEUTRAL_700)),
+        decorations: true,
 
         ..Default::default()
     };
@@ -89,9 +79,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app = App::new(config);
 
     app.with_font(
-        "Noto_Sans",
+        "Inter",
         include_bytes!(
-            concat!(env!("CARGO_MANIFEST_DIR"), "/fonts/NotoSans-VariableFont.ttf")
+            concat!(env!("CARGO_MANIFEST_DIR"), "/fonts/Inter-VariableFont.ttf")
         ).to_vec()
     );
 
@@ -101,81 +91,138 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .route("/", |_|
                 Box::new(
                     View::new()
-                        .font("Noto_Sans")
+                        .font("Inter")
                         .display(Flex)
                         .flex_direction(Column)
                         .gap(0, 4)
+                        .background(|theme: &Theme| theme.background)
+                        .overflow_y(Overflow::Scroll)
+                        /* Navbar */
                         .child(
                             View::new()
+                                .position(Position::Absolute)
                                 .display(Flex)
-                                .flex_direction(FlexDirection::Row)
+                                .flex_direction(Row)
                                 .align_items(AlignItems::Center)
                                 .justify_content(JustifyContent::SpaceBetween)
                                 .width(Length::Percent(100.0))
-                                .height(32.0)
-                                .window_drag_region(true)
                                 .background(|theme: &Theme| theme.surface)
-                                .child(Label::new().label("XenGui App"))
+                                .box_shadow(
+                                    BoxShadow::new(0.0, 4.0, 16.0, Color::NEUTRAL_900).spread(2.0)
+                                )
+                                .border(|theme: &Theme| Border::new(1, theme.border, 0))
+                                .padding(Edges::symmetric(120, 16))
+                                .child(Label::new().font_size(18).label("XenGui"))
                                 .child(
                                     View::new()
                                         .display(Flex)
-                                        .flex_direction(FlexDirection::Row)
+                                        .flex_direction(Row)
+                                        .gap(20, 0)
+                                        .child(xen_router::router_link("/docs").label("Docs"))
                                         .child(
-                                            Button::new()
-                                                .label("—")
-                                                .on_click(|_ctx| xenframe::minimize_window())
+                                            xen_router::router_link("/examples").label("Examples")
                                         )
                                         .child(
-                                            Button::new()
-                                                .label("□")
-                                                .on_click(|_ctx| xenframe::toggle_maximize_window())
+                                            xen_router
+                                                ::router_link("/playground")
+                                                .label("Playground")
                                         )
                                         .child(
-                                            Button::new()
-                                                .label("✕")
-                                                .on_click(|_ctx| xenframe::close_window())
+                                            Link::new()
+                                                .href("https://github.com/randseas/xengui")
+                                                .target_blank(true)
+                                                .label("GitHub")
                                         )
                                 )
+                                .child(
+                                    View::new()
+                                        .display(Flex)
+                                        .flex_direction(Row)
+                                        .gap(4, 0)
+                                        .child(Button::new().label("Get started"))
+                                )
                         )
-                        .child(Label::new().label("Current page: / (home)"))
-                        .child(xen_router::router_link("/").label("Home"))
-                        .child(xen_router::router_link("/docs").label("Docs"))
-                        .child(xen_router::router_link("/docs/xenframe").label("Docs (xenframe)"))
-                        .child(xen_router::router_link("/users/42").label("Users :42"))
-                        .child(
-                            xen_router::router_link("/test/string_test").label("Test :string_test")
-                        )
+                        /* Main */
                         .child(
                             View::new()
-                                .width(220.0)
-                                .height(90.0)
-                                .margin(Edges::only(0, 16, 0, 0))
-                                .background(|theme: &Theme| theme.surface)
-                                .border(|theme: &Theme|
-                                    Border::new(1, theme.border, Length::px(10.0))
+                                .display(Flex)
+                                .flex_direction(Column)
+                                .align_items(AlignItems::Start)
+                                .justify_content(JustifyContent::Center)
+                                .height(Length::percent(100.0))
+                                .padding(Edges::only(120, 160, 120, 0))
+                                .child(
+                                    View::new()
+                                        .display(Flex)
+                                        .flex_direction(Column)
+                                        .align_items(AlignItems::Start)
+                                        .justify_content(JustifyContent::Start)
+                                        .child(
+                                            View::new()
+                                                .display(Flex)
+                                                .flex_direction(Column)
+                                                .font_size(60)
+                                                .font_weight(FontWeight::Medium)
+                                                .line_height(Length::percent(78.0))
+                                                .letter_spacing(Length::px(-2.25))
+                                                .color(|theme: &Theme| theme.foreground)
+                                                .child(Label::new().label("The GUI framework"))
+                                                .child(Label::new().label("Rust deserves"))
+                                                .child(
+                                                    Label::new()
+                                                        .color(
+                                                            |theme: &Theme| theme.foreground_muted
+                                                        )
+                                                        .font_size(16)
+                                                        .font_weight(FontWeight::Regular)
+                                                        .line_height(Length::px(10.0))
+                                                        .letter_spacing(Length::px(-0.1))
+                                                        .margin(Edges::only(0, 16, 0, 8))
+                                                        .label(
+                                                            "Build native desktop, web, mobile, and embedded applications from a single codebase."
+                                                        )
+                                                )
+                                        )
+                                        .child(
+                                            View::new()
+                                                .display(Flex)
+                                                .flex_direction(Row)
+                                                .margin(Edges::only(0, 16, 0, 0))
+                                                .gap(8, 0)
+                                                .child(
+                                                    Button::new()
+                                                        .background(Color::BLUE_500)
+                                                        .border(Border::new(1, Color::BLUE_500, 10))
+                                                        .padding(Edges::only(15, 9, 15, 9))
+                                                        .label("Get started")
+                                                )
+                                                .child(
+                                                    Button::new()
+                                                        .background(Color::BLUE_500)
+                                                        .border(Border::new(1, Color::BLUE_500, 10))
+                                                        .padding(Edges::only(15, 9, 15, 9))
+                                                        .label("GitHub")
+                                                )
+                                        )
                                 )
-                                .box_shadow(
-                                    BoxShadow::new(0.0, 4.0, 16.0, Color::rgba(0, 0, 0, 90)).spread(
-                                        -2.0
-                                    )
+                                .child(
+                                    View::new()
+                                        .background(|theme: &Theme| theme.surface)
+                                        .border(|theme: &Theme| Border::new(1, theme.border, 12))
+                                        .width(Length::percent(100.0))
+                                        .height(Length::px(640.0))
+                                        .child(Label::new().label("App"))
                                 )
                         )
+                        /* Footer */
                         .child(
-                            Button::new()
-                                .label("Shadowed Button")
-                                .padding(Edges::only(14, 8, 14, 8))
-                                .margin(Edges::only(0, 10, 0, 0))
-                                .background(|theme: &Theme| theme.primary)
-                                .border(Border::new(0, Color::TRANSPARENT, Length::px(8.0)))
-                                .color(Color::WHITE)
-                                .box_shadow(
-                                    BoxShadow::new(
-                                        0.0,
-                                        6.0,
-                                        14.0,
-                                        Color::rgba(43, 127, 255, 130)
-                                    ).spread(-1.0)
-                                )
+                            View::new()
+                                .display(Flex)
+                                .flex_direction(Column)
+                                .align_items(AlignItems::Start)
+                                .justify_content(JustifyContent::Center)
+                                .padding(Edges::symmetric(120, 0))
+                                .child(Label::new().label("Footer"))
                         )
                 )
             )
@@ -213,46 +260,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         )
                 )
             )
-            .route("/users/:id", |p| {
-                Box::new(
-                    View::new()
-                        .font("Noto_Sans")
-                        .display(Flex)
-                        .flex_direction(Column)
-                        .gap(0, 4)
-                        .child(Label::new().label("Current page: /users/:id (users)"))
-                        .child(Label::new().label(format!("User: {}", p.get("id").unwrap_or(""))))
-                        .child(xen_router::router_link("/").label("Home"))
-                        .child(xen_router::router_link("/docs").label("Docs"))
-                        .child(xen_router::router_link("/docs/xenframe").label("Docs (xenframe)"))
-                        .child(xen_router::router_link("/users/42").label("Users :42"))
-                        .child(
-                            xen_router::router_link("/test/string_test").label("Test :string_test")
-                        )
-                )
-            })
-            .route("/test/:string", |p| {
-                Box::new(
-                    View::new()
-                        .font("Noto_Sans")
-                        .display(Flex)
-                        .flex_direction(Column)
-                        .gap(0, 4)
-                        .child(Label::new().label("Current page: /test/:string (test)"))
-                        .child(
-                            Label::new().label(
-                                format!("Test string: {}", p.get("string").unwrap_or(""))
-                            )
-                        )
-                        .child(xen_router::router_link("/").label("Home"))
-                        .child(xen_router::router_link("/docs").label("Docs"))
-                        .child(xen_router::router_link("/docs/xenframe").label("Docs (xenframe)"))
-                        .child(xen_router::router_link("/users/42").label("Users :42"))
-                        .child(
-                            xen_router::router_link("/test/string_test").label("Test :string_test")
-                        )
-                )
-            })
             .not_found(|| Box::new(Label::new().label("404")))
             .build()
     });

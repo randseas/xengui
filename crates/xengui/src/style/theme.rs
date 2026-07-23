@@ -148,7 +148,7 @@ impl Theme {
             .surface(Color::NEUTRAL_900)
 
             .foreground(Color::NEUTRAL_50)
-            .foreground_muted(Color::NEUTRAL_400)
+            .foreground_muted(Color::NEUTRAL_300)
 
             .border(Color::NEUTRAL_800)
             .border_hover(Color::NEUTRAL_700)
