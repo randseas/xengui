@@ -3284,6 +3284,7 @@ dependencies = [
  "xenframe",
  "xengui",
  "xengui-lucide",
+ "xengui-wgpu",
 ]
 
 [[package]]

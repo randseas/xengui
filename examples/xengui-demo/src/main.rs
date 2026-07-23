@@ -6,6 +6,7 @@
 use xenframe::WindowPosition;
 use xengui::{ Display::Flex, FlexDirection::Column, /*properties::StyleValue, widgets::Link,*/ * };
 use xenframe::{ App, AppConfig };
+use xengui_wgpu::{ WindowShadow };
 //use xen_clipboard::Clipboard;
 
 // write debug messages directly into the screen
@@ -64,13 +65,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         reload_shortcut: true,
 
         #[cfg(not(target_arch = "wasm32"))]
-        width: 640,
+        width: 640 + 64,
         #[cfg(not(target_arch = "wasm32"))]
-        height: 480,
+        height: 480 + 64,
         #[cfg(not(target_arch = "wasm32"))]
         position: WindowPosition::Center,
         #[cfg(not(target_arch = "wasm32"))]
         decorations: false,
+
+        window_radius: 12.0,
+        window_shadow: Some(WindowShadow {
+            color: Color::rgba(0, 0, 0, 120),
+            blur_radius: 24.0,
+            spread_radius: 0.0,
+            offset: (0.0, 8.0),
+            margin: 32.0,
+        }),
+        window_border: Some((1.0, Color::NEUTRAL_700)),
 
         ..Default::default()
     };
@@ -133,6 +144,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .child(xen_router::router_link("/users/42").label("Users :42"))
                         .child(
                             xen_router::router_link("/test/string_test").label("Test :string_test")
+                        )
+                        .child(
+                            View::new()
+                                .width(220.0)
+                                .height(90.0)
+                                .margin(Edges::only(0, 16, 0, 0))
+                                .background(|theme: &Theme| theme.surface)
+                                .border(|theme: &Theme|
+                                    Border::new(1, theme.border, Length::px(10.0))
+                                )
+                                .box_shadow(
+                                    BoxShadow::new(0.0, 4.0, 16.0, Color::rgba(0, 0, 0, 90)).spread(
+                                        -2.0
+                                    )
+                                )
+                        )
+                        .child(
+                            Button::new()
+                                .label("Shadowed Button")
+                                .padding(Edges::only(14, 8, 14, 8))
+                                .margin(Edges::only(0, 10, 0, 0))
+                                .background(|theme: &Theme| theme.primary)
+                                .border(Border::new(0, Color::TRANSPARENT, Length::px(8.0)))
+                                .color(Color::WHITE)
+                                .box_shadow(
+                                    BoxShadow::new(
+                                        0.0,
+                                        6.0,
+                                        14.0,
+                                        Color::rgba(43, 127, 255, 130)
+                                    ).spread(-1.0)
+                                )
                         )
                 )
             )
