@@ -2,6 +2,9 @@
 use smol_str::SmolStr;
 
 use crate::{
+    AnimationManager,
+    BoxShadow,
+    BoxShadowCommand,
     Color,
     Constraints,
     EventCtx,
@@ -16,9 +19,8 @@ use crate::{
     PaintContext,
     RectCommand,
     Style,
-    properties::StyleValue,
-    AnimationManager,
     WidgetId,
+    properties::StyleValue,
 };
 use std::any::Any;
 
@@ -119,7 +121,7 @@ pub trait Widget: Any {
                 .iter()
                 .rev()
                 .filter(|s| !s.inset) {
-                Self::paint_shadow_layer(ctx, layout, radius, shadow, sf);
+                self.paint_shadow_layer(ctx, layout, radius, shadow, sf);
             }
         }
 
@@ -142,12 +144,13 @@ pub trait Widget: Any {
                 .iter()
                 .rev()
                 .filter(|s| s.inset) {
-                Self::paint_shadow_layer(ctx, layout, radius, shadow, sf);
+                self.paint_shadow_layer(ctx, layout, radius, shadow, sf);
             }
         }
     }
 
     fn paint_shadow_layer(
+        &self,
         ctx: &mut PaintContext,
         layout: LayoutBox,
         radius: f32,

@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-use crate::pipelines::{ ImagePipeline, RectPipeline, TextPipeline, TrianglePipeline };
+use crate::pipelines::{ BoxShadowPipeline, ImagePipeline, RectPipeline, TextPipeline, TrianglePipeline, WindowMaskPipeline };
 use xengui::{
-    Color,
-    ImageCommand,
-    RectCommand,
-    RenderBackend,
-    SystemTheme,
-    TextCommand,
-    TextMeasurer,
-    TriangleCommand,
+    BoxShadowCommand, Color, ImageCommand, RectCommand, RenderBackend, SystemTheme, TextCommand, TextMeasurer, TriangleCommand,
 };
 
 /// Owns the four wgpu render pipelines xengui needs, built once against a
