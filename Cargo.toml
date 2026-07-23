@@ -23,6 +23,7 @@ opt-level = 1
 [workspace.dependencies]
 xengui = { version = "0.2.6", path = "crates/xengui" }
 xenframe = { version = "0.1.0", path = "crates/xenframe" }
+xen-router = { version = "0.1.0", path = "crates/xen-router" }
 xengui-wgpu = { version = "0.1.0", path = "crates/xengui-wgpu" }
 xen-clipboard = { version = "0.1.7", path = "crates/xen-clipboard" }
 xen-animation = { version = "0.1.4", path = "crates/xen-animation" }

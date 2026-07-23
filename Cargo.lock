@@ -3219,6 +3219,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "xen-router"
+version = "0.1.0"
+dependencies = [
+ "smol_str 0.3.6",
+ "wasm-bindgen",
+ "web-sys",
+ "xengui",
+]
+
+[[package]]
 name = "xen-svg"
 version = "0.1.1"
 dependencies = [
@@ -3269,6 +3279,7 @@ dependencies = [
  "log",
  "web-sys",
  "xen-clipboard",
+ "xen-router",
  "xenframe",
  "xengui",
  "xengui-lucide",

@@ -4,7 +4,7 @@ use std::time::Duration;
 
 #[cfg(not(target_arch = "wasm32"))]
 use xenframe::WindowPosition;
-use xengui::{ properties::StyleValue, * };
+use xengui::{ Display::Flex, FlexDirection::Column, properties::StyleValue, widgets::Link, * };
 use xenframe::{ App, AppConfig };
 use xen_clipboard::Clipboard;
 
@@ -47,8 +47,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // console_error_panic_hook::set_once();
         install_panic_hook();
         let _ = console_log::init_with_level(log::Level::Info);
-        // TEST: overlay
-        show_debug_overlay("xengui: overlay initialized");
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -62,17 +60,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let config = AppConfig {
-        #[cfg(not(target_arch = "wasm32"))]
         title: "XenGui App".into(),
+        reload_shortcut: true,
+
         #[cfg(not(target_arch = "wasm32"))]
         width: 640,
         #[cfg(not(target_arch = "wasm32"))]
         height: 480,
         #[cfg(not(target_arch = "wasm32"))]
         position: WindowPosition::Center,
-
-        reload_shortcut: true,
-
         ..Default::default()
     };
 
@@ -86,6 +82,104 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     app.render(|| {
+        xen_router::Router
+            ::new()
+            .route("/", |_|
+                Box::new(
+                    View::new()
+                        .font("Noto_Sans")
+                        .display(Flex)
+                        .flex_direction(Column)
+                        .gap(0, 4)
+                        .child(Label::new().label("Current page: / (home)"))
+                        .child(xen_router::router_link("/").label("Home"))
+                        .child(xen_router::router_link("/docs").label("Docs"))
+                        .child(xen_router::router_link("/docs/xenframe").label("Docs (xenframe)"))
+                        .child(xen_router::router_link("/users/42").label("Users :42"))
+                        .child(
+                            xen_router::router_link("/test/string_test").label("Test :string_test")
+                        )
+                )
+            )
+            .route("/docs", |_|
+                Box::new(
+                    View::new()
+                        .font("Noto_Sans")
+                        .display(Flex)
+                        .flex_direction(Column)
+                        .gap(0, 4)
+                        .child(Label::new().label("Current page: /docs (docs)"))
+                        .child(xen_router::router_link("/").label("Home"))
+                        .child(xen_router::router_link("/docs").label("Docs"))
+                        .child(xen_router::router_link("/docs/xenframe").label("Docs (xenframe)"))
+                        .child(xen_router::router_link("/users/42").label("Users :42"))
+                        .child(
+                            xen_router::router_link("/test/string_test").label("Test :string_test")
+                        )
+                )
+            )
+            .route("/docs/xenframe", |_|
+                Box::new(
+                    View::new()
+                        .font("Noto_Sans")
+                        .display(Flex)
+                        .flex_direction(Column)
+                        .gap(0, 4)
+                        .child(Label::new().label("Current page: /docs/xenframe (xenframe docs)"))
+                        .child(xen_router::router_link("/").label("Home"))
+                        .child(xen_router::router_link("/docs").label("Docs"))
+                        .child(xen_router::router_link("/docs/xenframe").label("Docs (xenframe)"))
+                        .child(xen_router::router_link("/users/42").label("Users :42"))
+                        .child(
+                            xen_router::router_link("/test/string_test").label("Test :string_test")
+                        )
+                )
+            )
+            .route("/users/:id", |p| {
+                Box::new(
+                    View::new()
+                        .font("Noto_Sans")
+                        .display(Flex)
+                        .flex_direction(Column)
+                        .gap(0, 4)
+                        .child(Label::new().label("Current page: /users/:id (users)"))
+                        .child(Label::new().label(format!("User: {}", p.get("id").unwrap_or(""))))
+                        .child(xen_router::router_link("/").label("Home"))
+                        .child(xen_router::router_link("/docs").label("Docs"))
+                        .child(xen_router::router_link("/docs/xenframe").label("Docs (xenframe)"))
+                        .child(xen_router::router_link("/users/42").label("Users :42"))
+                        .child(
+                            xen_router::router_link("/test/string_test").label("Test :string_test")
+                        )
+                )
+            })
+            .route("/test/:string", |p| {
+                Box::new(
+                    View::new()
+                        .font("Noto_Sans")
+                        .display(Flex)
+                        .flex_direction(Column)
+                        .gap(0, 4)
+                        .child(Label::new().label("Current page: /test/:string (test)"))
+                        .child(
+                            Label::new().label(
+                                format!("Test string: {}", p.get("string").unwrap_or(""))
+                            )
+                        )
+                        .child(xen_router::router_link("/").label("Home"))
+                        .child(xen_router::router_link("/docs").label("Docs"))
+                        .child(xen_router::router_link("/docs/xenframe").label("Docs (xenframe)"))
+                        .child(xen_router::router_link("/users/42").label("Users :42"))
+                        .child(
+                            xen_router::router_link("/test/string_test").label("Test :string_test")
+                        )
+                )
+            })
+            .not_found(|| Box::new(Label::new().label("404")))
+            .build()
+    });
+
+    /*app.render(|| {
         let clipboard = Clipboard::default();
         let (text, set_text) = use_state(String::from("Ferris"));
         let (counter, set_counter) = use_state::<i32>(12);
@@ -330,7 +424,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         )
                 )
         )
-    });
+    });*/
 
     if let Err(e) = app.run() {
         eprintln!("Error running app: {:?}", e);
