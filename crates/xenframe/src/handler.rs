@@ -1,5 +1,7 @@
 use std::sync::Arc;
 use web_time::Instant;
+#[cfg(target_arch = "wasm32")]
+use winit::window::Window;
 use winit::{
     event::WindowEvent,
     event_loop::{ ActiveEventLoop, ControlFlow },
@@ -37,6 +39,27 @@ use crate::{
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
+
+#[cfg(target_arch = "wasm32")]
+fn sync_canvas_position(window: &Arc<Window>) {
+    use winit::platform::web::WindowExtWebSys;
+
+    let Some(canvas) = window.canvas() else {
+        return;
+    };
+    let Some(web_window) = web_sys::window() else {
+        return;
+    };
+    let Some(vv) = web_window.visual_viewport() else {
+        return;
+    };
+
+    let style = canvas.style();
+    let _ = style.set_property(
+        "transform",
+        &format!("translate({}px, {}px)", vv.offset_left(), vv.offset_top())
+    );
+}
 
 impl winit::application::ApplicationHandler<XenEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
@@ -280,6 +303,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                         )
                     };
 
+                    sync_canvas_position(window);
+
                     if let (Some(w_val), Some(h_val)) = (inner_w, inner_h) {
                         animate_canvas_resize(
                             window,
@@ -358,6 +383,29 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                             vv_closure.as_ref().unchecked_ref()
                         );
                         vv_closure.forget();
+
+                        let window_for_vv_scroll = window.clone();
+                        let initial_resize_done_clone2 = initial_resize_done.clone();
+                        let anim_manager_clone2 = anim_manager.clone();
+                        let anim_running_clone2 = anim_running.clone();
+                        let anim_target_clone2 = anim_target.clone();
+
+                        let vv_scroll_closure = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(
+                            move || {
+                                sync_canvas_to_viewport(
+                                    &window_for_vv_scroll,
+                                    initial_resize_done_clone2.clone(),
+                                    anim_manager_clone2.clone(),
+                                    anim_running_clone2.clone(),
+                                    anim_target_clone2.clone()
+                                );
+                            }
+                        );
+                        let _ = vv.add_event_listener_with_callback(
+                            "scroll",
+                            vv_scroll_closure.as_ref().unchecked_ref()
+                        );
+                        vv_scroll_closure.forget();
                     }
                 }
             }
