@@ -19,6 +19,8 @@ pub mod config;
 pub mod event;
 pub mod redraw;
 
+pub mod window_controls;
+
 #[cfg(target_arch = "wasm32")]
 pub mod web;
 pub mod overlay;
@@ -26,3 +28,11 @@ pub mod overlay;
 pub use app::{ App, request_reload };
 pub use config::*;
 pub use window::WindowPosition;
+
+pub use window_controls::{
+    close_window,
+    drag_window,
+    is_window_maximized,
+    minimize_window,
+    toggle_maximize_window,
+};

@@ -22,6 +22,11 @@ pub struct Interaction {
     pub focusable: bool,
     pub hover_cursor: Option<Cursor>,
 
+    /// Marks this widget as a window drag handle: a left-button press on
+    /// it moves the OS window instead of going through the normal press
+    /// dispatch, so a custom titlebar can be built from ordinary widgets.
+    pub drag_region: bool,
+
     pub hovered: bool,
     pub pressed: bool,
     pub focused: bool,
@@ -43,6 +48,7 @@ impl Interaction {
             enabled: true,
             focusable: false,
             hover_cursor: None,
+            drag_region: false,
             hovered: false,
             pressed: false,
             focused: false,
@@ -67,6 +73,7 @@ impl Interaction {
     pub fn is_active(&self) -> bool {
         self.focusable ||
             self.hover_cursor.is_some() ||
+            self.drag_region ||
             self.on_mouse_enter.is_some() ||
             self.on_mouse_leave.is_some() ||
             self.on_hover.is_some() ||
@@ -277,6 +284,11 @@ macro_rules! impl_interaction_builders {
                 f: impl FnMut(&$crate::KeyboardEvent, &mut $crate::EventCtx) + 'static,
             ) -> Self {
                 self.base.interaction.on_key = Some(Box::new(f));
+                self
+            }
+
+            pub fn window_drag_region(mut self, value: bool) -> Self {
+                self.base.interaction.drag_region = value;
                 self
             }
         }

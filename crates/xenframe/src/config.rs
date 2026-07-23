@@ -38,6 +38,15 @@ pub struct AppConfig {
     #[cfg(not(target_arch = "wasm32"))]
     pub position: WindowPosition,
 
+    /// Whether the OS draws the native title bar and window border.
+    ///
+    /// Set to `false` to build a custom titlebar out of ordinary widgets;
+    /// combine with `StyleBuilder::window_drag_region` for the draggable
+    /// area and `xenframe::minimize_window`/`toggle_maximize_window`/
+    /// `close_window` for the window control buttons. No effect on wasm32.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub decorations: bool,
+
     /// Native window theme hint used by the operating system.
     pub theme: Option<winit::window::Theme>,
 
@@ -94,6 +103,9 @@ impl Default for AppConfig {
 
             #[cfg(not(target_arch = "wasm32"))]
             position: WindowPosition::Center,
+
+            #[cfg(not(target_arch = "wasm32"))]
+            decorations: true,
 
             fonts: Vec::new(),
 

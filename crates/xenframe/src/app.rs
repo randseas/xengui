@@ -67,6 +67,7 @@ pub struct App {
     pub(crate) reconcile_work: Option<reconciler::WorkLoop>,
     pub(crate) clipboard: xen_clipboard::Clipboard,
     pub(crate) pending_long_press: Option<(Instant, (f32, f32), String)>,
+    pub(crate) last_titlebar_click: Option<(Instant, (f32, f32))>,
 
     #[cfg(target_arch = "wasm32")]
     pub(crate) initial_resize_done: Rc<RefCell<bool>>,
@@ -99,6 +100,7 @@ impl App {
             reconcile_work: None,
             clipboard: xen_clipboard::Clipboard::new(),
             pending_long_press: None,
+            last_titlebar_click: None,
 
             #[cfg(target_arch = "wasm32")]
             initial_resize_done: Rc::new(RefCell::new(false)),

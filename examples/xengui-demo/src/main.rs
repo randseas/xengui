@@ -69,6 +69,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         height: 480,
         #[cfg(not(target_arch = "wasm32"))]
         position: WindowPosition::Center,
+        #[cfg(not(target_arch = "wasm32"))]
+        decorations: false,
+
         ..Default::default()
     };
 
@@ -91,6 +94,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .display(Flex)
                         .flex_direction(Column)
                         .gap(0, 4)
+                        .child(
+                            View::new()
+                                .display(Flex)
+                                .flex_direction(FlexDirection::Row)
+                                .align_items(AlignItems::Center)
+                                .justify_content(JustifyContent::SpaceBetween)
+                                .width(Length::Percent(100.0))
+                                .height(32.0)
+                                .window_drag_region(true)
+                                .background(|theme: &Theme| theme.surface)
+                                .child(Label::new().label("XenGui App"))
+                                .child(
+                                    View::new()
+                                        .display(Flex)
+                                        .flex_direction(FlexDirection::Row)
+                                        .child(
+                                            Button::new()
+                                                .label("—")
+                                                .on_click(|_ctx| xenframe::minimize_window())
+                                        )
+                                        .child(
+                                            Button::new()
+                                                .label("□")
+                                                .on_click(|_ctx| xenframe::toggle_maximize_window())
+                                        )
+                                        .child(
+                                            Button::new()
+                                                .label("✕")
+                                                .on_click(|_ctx| xenframe::close_window())
+                                        )
+                                )
+                        )
                         .child(Label::new().label("Current page: / (home)"))
                         .child(xen_router::router_link("/").label("Home"))
                         .child(xen_router::router_link("/docs").label("Docs"))

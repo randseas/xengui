@@ -14,6 +14,8 @@ use xengui::{
     InputEvent,
     Key,
     KeyState,
+    MULTI_CLICK_DISTANCE_DP,
+    MULTI_CLICK_INTERVAL,
     ModifiersState,
     MouseButton,
     Theme,
@@ -98,6 +100,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     )
                 )
                 .with_resizable(self.config.resizable)
+                .with_decorations(self.config.decorations)
                 .with_transparent(true)
                 .with_blur(true);
 
@@ -120,6 +123,8 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                 .create_window(attributes)
                 .expect("Critical Error: Could not create window context.")
         );
+
+        crate::window_controls::set_active_window(window.clone());
 
         // Synchronize system window theme preferences
         if let Some(actual_theme) = window.theme() {
@@ -820,6 +825,36 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     }
                 }
 
+                if
+                    state == winit::event::ElementState::Pressed &&
+                    button == winit::event::MouseButton::Left &&
+                    let Some(p) = &path &&
+                    find_widget_mut(&mut self.root, p).is_some_and(|w|
+                        w.interaction().is_some_and(|i| i.drag_region)
+                    )
+                {
+                    let scale_factor = self.window
+                        .as_ref()
+                        .map_or(1.0, |w| w.scale_factor() as f32);
+                    let click_distance = MULTI_CLICK_DISTANCE_DP * scale_factor;
+
+                    let is_double_click = self.last_titlebar_click.is_some_and(|(t, p)| {
+                        Instant::now().duration_since(t) < MULTI_CLICK_INTERVAL &&
+                            (p.0 - point.0).abs() < click_distance &&
+                            (p.1 - point.1).abs() < click_distance
+                    });
+                    self.last_titlebar_click = Some((Instant::now(), point));
+
+                    if let Some(window) = &self.window {
+                        if is_double_click {
+                            window.set_maximized(!window.is_maximized());
+                        } else {
+                            let _ = window.drag_window();
+                        }
+                    }
+                    return;
+                }
+
                 if let Some(path) = &path {
                     let mut ctx = EventCtx::new();
                     dispatch_positional(
@@ -1024,6 +1059,11 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if crate::window_controls::take_close_requested() {
+            event_loop.exit();
+            return;
+        }
+
         if let Some((deadline, point, path)) = self.pending_long_press.clone() {
             if Instant::now() >= deadline {
                 self.pending_long_press = None;
