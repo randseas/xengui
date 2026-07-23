@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use std::time::Duration;
+//use std::time::Duration;
 
 #[cfg(not(target_arch = "wasm32"))]
 use xenframe::WindowPosition;
-use xengui::{ Display::Flex, FlexDirection::Column, properties::StyleValue, widgets::Link, * };
+use xengui::{ Display::Flex, FlexDirection::Column, /*properties::StyleValue, widgets::Link,*/ * };
 use xenframe::{ App, AppConfig };
-use xen_clipboard::Clipboard;
+//use xen_clipboard::Clipboard;
 
 // write debug messages directly into the screen
 #[cfg(target_arch = "wasm32")]

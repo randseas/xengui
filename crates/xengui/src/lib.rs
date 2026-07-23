@@ -13,6 +13,7 @@ pub mod widget;
 pub mod widget_base;
 pub mod animation;
 pub mod constants;
+pub mod dispatcher;
 pub mod reconciler;
 pub mod redraw;
 pub mod types;
@@ -50,6 +51,7 @@ pub use input::{
     dispatch_animation_tick,
 };
 pub use constants::*;
+pub use dispatcher::Dispatcher;
 pub use style::{
     current_theme,
     set_active_theme,

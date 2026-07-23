@@ -160,14 +160,6 @@ impl TextBox {
         }
     }
 
-    /// Stable identity among siblings, kept across rebuilds even when this
-    /// widget moves position (reorder, insert, remove). Use for list items
-    /// instead of relying on array index.
-    pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
-        self.base.key = Some(key.into());
-        self
-    }
-
     pub fn value(mut self, value: impl Into<String>) -> Self {
         self.content = value.into();
         self.cursor_index = self.content.chars().count();
@@ -186,20 +178,8 @@ impl TextBox {
         self
     }
 
-    pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
-        self.base.style.font = Some(font.into());
-        self.mark_dirty();
-        self
-    }
-
     pub fn max_length(mut self, max_length: usize) -> Self {
         self.max_length = Some(max_length);
-        self
-    }
-
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.base.interaction.set_enabled(enabled);
-        self.mark_dirty();
         self
     }
 
@@ -219,23 +199,7 @@ impl TextBox {
     }
 
     fn recompute_style(&mut self) {
-        let patch = if !self.base.interaction.enabled {
-            self.base.disabled_style.as_ref()
-        } else if self.base.interaction.focused {
-            self.base.focus_style.as_ref()
-        } else if self.base.interaction.hovered {
-            self.base.hover_style.as_ref()
-        } else {
-            None
-        };
-
-        let base = self.base.inherited_style.inherit_style(&self.base.style);
-
-        self.base.computed_style = match patch {
-            Some(patch) => base.overlay(patch),
-            None => base,
-        };
-
+        self.base.recompute_style();
         self.base.interaction.hover_cursor = self.base.computed_style.cursor.or(Some(Cursor::Text));
     }
 
@@ -880,55 +844,14 @@ impl WidgetContent for TextBox {
 }
 
 crate::impl_interaction_builders!(base TextBox);
-crate::impl_themed_style_builders!(base TextBox; hover_style => hover_style, focus_style => focus_style, disabled_style => disabled_style);
+crate::impl_common_style_builders!(base TextBox);
+crate::impl_themed_style_builders!(base TextBox; hover_style => hover_style, pressed_style => pressed_style, focus_style => focus_style, disabled_style => disabled_style);
 
 impl Widget for TextBox {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-
-    fn get_key(&self) -> Option<&SmolStr> {
-        self.base.key.as_ref()
-    }
+    crate::impl_widget_boilerplate!();
 
     fn debug_name(&self) -> &'static str {
         "Widget#TextBox"
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.base.dirty
-    }
-
-    fn set_dirty(&mut self, dirty: bool) {
-        self.base.dirty = dirty;
-    }
-
-    fn style(&self) -> &Style {
-        &self.base.style
-    }
-
-    fn style_mut(&mut self) -> &mut Style {
-        &mut self.base.style
-    }
-
-    fn computed_style(&self) -> &Style {
-        &self.base.computed_style
-    }
-
-    fn children(&self) -> &[Box<dyn Widget>] {
-        &[]
-    }
-
-    fn interaction(&self) -> Option<&Interaction> {
-        Some(&self.base.interaction)
-    }
-
-    fn interaction_mut(&mut self) -> Option<&mut Interaction> {
-        Some(&mut self.base.interaction)
     }
 
     fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {
@@ -1014,14 +937,6 @@ impl Widget for TextBox {
         let (width, height) = constraints.constrain_size(width, height);
 
         MeasureResult::new(width, height)
-    }
-
-    fn layout(&mut self, rect: LayoutBox) {
-        self.layout_box = rect;
-    }
-
-    fn layout_box(&self) -> &LayoutBox {
-        &self.layout_box
     }
 
     fn paint(&self, ctx: &mut PaintContext) {

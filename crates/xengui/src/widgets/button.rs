@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     AnimationManager,
-    Background,
     Constraints,
     EventCtx,
     EventStatus,
     InputEvent,
     Interaction,
-    IntoThemed,
     LayoutBox,
     Length,
     MeasureContext,
@@ -67,16 +65,6 @@ impl Button {
         }
     }
 
-    /// Assigns a stable identifier to this widget.
-    ///
-    /// Keys are used to preserve widget identity across rebuilds, allowing state
-    /// to remain associated with the same logical widget even if its position in
-    /// the widget tree changes.
-    pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
-        self.base.key = Some(key.into());
-        self
-    }
-
     /// Sets the text displayed by this widget.
     pub fn label(mut self, content: impl Into<SmolStr>) -> Self {
         self.content = content.into();
@@ -84,65 +72,8 @@ impl Button {
         self
     }
 
-    /// Sets the font family used to render the widget's text.
-    ///
-    /// The font name must correspond to a font that has been registered with the
-    /// application.
-    pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
-        self.base.style.font = Some(font.into());
-        self.mark_dirty();
-        self
-    }
-
-    pub fn hover_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.base.hover_style.get_or_insert_with(Style::default).background = Some(
-            background.resolve_themed()
-        );
-        self.mark_dirty();
-        self
-    }
-
-    pub fn pressed_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.base.pressed_style.get_or_insert_with(Style::default).background = Some(
-            background.resolve_themed()
-        );
-        self.mark_dirty();
-        self
-    }
-
-    pub fn disabled_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.base.disabled_style.get_or_insert_with(Style::default).background = Some(
-            background.resolve_themed()
-        );
-        self.mark_dirty();
-        self
-    }
-
-    /// Enables or disables user interaction for this widget.
-    ///
-    /// When disabled, the widget does not receive or respond to user input events
-    /// such as pointer or keyboard interactions.
-    ///
-    /// This is equivalent to calling [`Self::disabled`] with the opposite value.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.base.interaction.set_enabled(enabled);
-        self.mark_dirty();
-        self
-    }
-
-    /// Enables or disables the widget using an inverted boolean.
-    ///
-    /// Passing `true` disables the widget, while `false` enables it.
-    ///
-    /// This is equivalent to calling [`Self::enabled`] with the negated value.
-    pub fn disabled(mut self, disabled: bool) -> Self {
-        self.base.interaction.set_enabled(!disabled);
-        self.mark_dirty();
-        self
-    }
-
     // Widget-specific extra step (hover cursor) stays local; the shared
-    // style-overlay logic now lives in WidgetBase.
+    // style-overlay logic lives in WidgetBase::recompute_style.
     fn recompute_style(&mut self) {
         self.base.recompute_style();
         self.base.interaction.hover_cursor = self.base.computed_style.cursor.or(
@@ -181,63 +112,14 @@ impl WidgetContent for Button {
 }
 
 crate::impl_interaction_builders!(base Button);
+crate::impl_common_style_builders!(base Button);
 crate::impl_themed_style_builders!(base Button; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style, focus_style => focus_style);
 
 impl Widget for Button {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
+    crate::impl_widget_boilerplate!();
 
     fn debug_name(&self) -> &'static str {
         "Widget#Button"
-    }
-
-    fn get_key(&self) -> Option<&SmolStr> {
-        self.base.key.as_ref()
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.base.dirty
-    }
-
-    fn set_dirty(&mut self, dirty: bool) {
-        self.base.dirty = dirty;
-    }
-
-    fn style(&self) -> &Style {
-        &self.base.style
-    }
-
-    fn style_mut(&mut self) -> &mut Style {
-        &mut self.base.style
-    }
-
-    fn computed_style(&self) -> &Style {
-        &self.base.computed_style
-    }
-
-    fn children(&self) -> &[Box<dyn Widget>] {
-        &[]
-    }
-
-    fn interaction(&self) -> Option<&Interaction> {
-        Some(&self.base.interaction)
-    }
-
-    fn interaction_mut(&mut self) -> Option<&mut Interaction> {
-        Some(&mut self.base.interaction)
-    }
-
-    fn layout(&mut self, rect: LayoutBox) {
-        self.layout_box = rect;
-    }
-
-    fn layout_box(&self) -> &LayoutBox {
-        &self.layout_box
     }
 
     fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {
@@ -285,20 +167,9 @@ impl Widget for Button {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
-        log::trace!(
-            "paint -> '{}' x={} y={} dirty={:?}",
-            self.content,
-            self.layout_box.x,
-            self.layout_box.y,
-            self.is_dirty()
-        );
-
         let style = &self.base.computed_style;
         let sf = ctx.scale_factor;
 
-        // Background is painted through its own scaled rect instead of
-        // paint_box(), so a scale transition applies independently of
-        // the content layer below.
         let scale = style.scale.unwrap_or(1.0);
         let background_box = crate::scaled_layout_box(self.layout_box, scale);
 

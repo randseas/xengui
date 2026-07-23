@@ -13,7 +13,6 @@ use crate::{
     EventStatus,
     InputEvent,
     Interaction,
-    IntoThemed,
     Key,
     KeyState,
     LayoutBox,
@@ -35,7 +34,6 @@ use crate::{
     WidgetBase,
     WidgetId,
 };
-use smol_str::SmolStr;
 use xen_animation::{ AnimValue, Easing, Transition };
 use std::cell::Cell;
 
@@ -137,44 +135,6 @@ impl View {
         view
     }
 
-    /// Stable identity among siblings, kept across rebuilds even when this
-    /// widget moves position (reorder, insert, remove). Use for list items
-    /// instead of relying on array index.
-    pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
-        self.base.key = Some(key.into());
-        self
-    }
-
-    pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
-        self.base.style.font = Some(font.into());
-        self.mark_dirty();
-        self
-    }
-
-    pub fn hover_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.base.hover_style.get_or_insert_with(Style::default).background = Some(
-            background.resolve_themed()
-        );
-        self.mark_dirty();
-        self
-    }
-
-    pub fn pressed_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.base.pressed_style.get_or_insert_with(Style::default).background = Some(
-            background.resolve_themed()
-        );
-        self.mark_dirty();
-        self
-    }
-
-    pub fn disabled_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.base.disabled_style.get_or_insert_with(Style::default).background = Some(
-            background.resolve_themed()
-        );
-        self.mark_dirty();
-        self
-    }
-
     pub fn child(mut self, child: impl Widget + 'static) -> Self {
         self.children.push(Box::new(child));
         self
@@ -192,12 +152,6 @@ impl View {
         self
     }
 
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.base.interaction.set_enabled(enabled);
-        self.mark_dirty();
-        self
-    }
-
     pub fn scroll_step(mut self, step: f32) -> Self {
         self.scroll_step = step;
         self
@@ -211,25 +165,7 @@ impl View {
     }
 
     fn recompute_style(&mut self) {
-        let patch = if !self.base.interaction.enabled {
-            self.base.disabled_style.as_ref()
-        } else if self.base.interaction.pressed {
-            self.base.pressed_style.as_ref().or(self.base.hover_style.as_ref())
-        } else if self.base.interaction.focused {
-            self.base.focus_style.as_ref()
-        } else if self.base.interaction.hovered {
-            self.base.hover_style.as_ref()
-        } else {
-            None
-        };
-
-        let base = self.base.inherited_style.inherit_style(&self.base.style);
-
-        self.base.computed_style = match patch {
-            Some(patch) => base.overlay(patch),
-            None => base,
-        };
-
+        self.base.recompute_style();
         self.base.interaction.hover_cursor = self.base.computed_style.cursor;
     }
 
@@ -780,43 +716,14 @@ impl StyleBuilder for View {
 }
 
 crate::impl_interaction_builders!(base View);
+crate::impl_common_style_builders!(base View);
 crate::impl_themed_style_builders!(base View; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style, focus_style => focus_style);
 
 impl Widget for View {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
+    crate::impl_widget_boilerplate!();
 
     fn debug_name(&self) -> &'static str {
         "Widget#View"
-    }
-
-    fn get_key(&self) -> Option<&SmolStr> {
-        self.base.key.as_ref()
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.base.dirty
-    }
-
-    fn set_dirty(&mut self, dirty: bool) {
-        self.base.dirty = dirty;
-    }
-
-    fn style(&self) -> &Style {
-        &self.base.style
-    }
-
-    fn style_mut(&mut self) -> &mut Style {
-        &mut self.base.style
-    }
-
-    fn computed_style(&self) -> &Style {
-        &self.base.computed_style
     }
 
     fn children(&self) -> &[Box<dyn Widget>] {
@@ -825,14 +732,6 @@ impl Widget for View {
 
     fn children_mut(&mut self) -> Option<&mut Vec<Box<dyn Widget>>> {
         Some(&mut self.children)
-    }
-
-    fn interaction(&self) -> Option<&Interaction> {
-        Some(&self.base.interaction)
-    }
-
-    fn interaction_mut(&mut self) -> Option<&mut Interaction> {
-        Some(&mut self.base.interaction)
     }
 
     fn scroll_offset(&self) -> (f32, f32) {
@@ -858,14 +757,6 @@ impl Widget for View {
 
     fn measure(&self, _ctx: &mut MeasureContext, _constraints: Constraints) -> MeasureResult {
         MeasureResult::new(0.0, 0.0)
-    }
-
-    fn layout(&mut self, rect: LayoutBox) {
-        self.layout_box = rect;
-    }
-
-    fn layout_box(&self) -> &LayoutBox {
-        &self.layout_box
     }
 
     fn paint(&self, ctx: &mut PaintContext) {

@@ -10,7 +10,6 @@ use crate::{
     EventStatus,
     InputEvent,
     Interaction,
-    IntoThemed,
     LayoutBox,
     MULTI_CLICK_DISTANCE_DP,
     MULTI_CLICK_INTERVAL,
@@ -94,83 +93,18 @@ impl Label {
         label
     }
 
-    /// Stable identity among siblings, kept across rebuilds even when this
-    /// widget moves position (reorder, insert, remove). Use for list items
-    /// instead of relying on array index.
-    pub fn key(mut self, key: impl Into<SmolStr>) -> Self {
-        self.base.key = Some(key.into());
-        self
-    }
-
-    // Builder methods
     pub fn label(mut self, content: impl Into<SmolStr>) -> Self {
         self.content = content.into();
         self.base.mark_dirty();
         self
     }
 
-    pub fn font(mut self, font: impl Into<SmolStr>) -> Self {
-        self.base.style.font = Some(font.into());
-        self.base.mark_dirty();
-        self
-    }
-
-    pub fn selectable(mut self, selectable: bool) -> Self {
-        self.selectable = selectable;
-        self.base.mark_dirty();
-        self
-    }
-
-    pub fn hover_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.base.hover_style.get_or_insert_with(Style::default).background = Some(
-            background.resolve_themed()
-        );
-        self.base.mark_dirty();
-        self
-    }
-
-    pub fn pressed_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.base.pressed_style.get_or_insert_with(Style::default).background = Some(
-            background.resolve_themed()
-        );
-        self.base.mark_dirty();
-        self
-    }
-
-    pub fn disabled_background<M>(mut self, background: impl IntoThemed<Background, M>) -> Self {
-        self.base.disabled_style.get_or_insert_with(Style::default).background = Some(
-            background.resolve_themed()
-        );
-        self.base.mark_dirty();
-        self
-    }
-
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.base.interaction.set_enabled(enabled);
-        self.base.mark_dirty();
-        self
-    }
-
+    // Widget-specific extra step (hover cursor) stays local; the shared
+    // style-overlay logic lives in WidgetBase::recompute_style. Note the
+    // priority order changes here from `pressed > focused > hovered` to
+    // WidgetBase's canonical `pressed > hovered > focused`.
     fn recompute_style(&mut self) {
-        let patch = if !self.base.interaction.enabled {
-            self.base.disabled_style.as_ref()
-        } else if self.base.interaction.pressed {
-            self.base.pressed_style.as_ref().or(self.base.hover_style.as_ref())
-        } else if self.base.interaction.focused {
-            self.base.focus_style.as_ref()
-        } else if self.base.interaction.hovered {
-            self.base.hover_style.as_ref()
-        } else {
-            None
-        };
-
-        let base = self.base.inherited_style.inherit_style(&self.base.style);
-
-        self.base.computed_style = match patch {
-            Some(patch) => base.overlay(patch),
-            None => base,
-        };
-
+        self.base.recompute_style();
         // Only shows the I-beam when text selection is actually enabled.
         self.base.interaction.hover_cursor = self.base.computed_style.cursor.or(
             Some(if self.selectable { Cursor::Text } else { Cursor::Default })
@@ -231,67 +165,18 @@ impl StyleBuilder for Label {
 
     fn mark_dirty(&mut self) {
         self.base.dirty = true;
-        self.base.recompute_style();
+        self.recompute_style();
     }
 }
 
+crate::impl_common_style_builders!(base Label);
 crate::impl_themed_style_builders!(base Label; hover_style => hover_style, pressed_style => pressed_style, disabled_style => disabled_style, focus_style => focus_style);
 
 impl Widget for Label {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
+    crate::impl_widget_boilerplate!();
 
     fn debug_name(&self) -> &'static str {
         "Widget#Label"
-    }
-
-    fn get_key(&self) -> Option<&SmolStr> {
-        self.base.key.as_ref()
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.base.dirty
-    }
-
-    fn set_dirty(&mut self, dirty: bool) {
-        self.base.dirty = dirty;
-    }
-
-    fn style(&self) -> &Style {
-        &self.base.style
-    }
-
-    fn style_mut(&mut self) -> &mut Style {
-        &mut self.base.style
-    }
-
-    fn computed_style(&self) -> &Style {
-        &self.base.computed_style
-    }
-
-    fn children(&self) -> &[Box<dyn Widget>] {
-        &[]
-    }
-
-    fn interaction(&self) -> Option<&Interaction> {
-        Some(&self.base.interaction)
-    }
-
-    fn interaction_mut(&mut self) -> Option<&mut Interaction> {
-        Some(&mut self.base.interaction)
-    }
-
-    fn layout(&mut self, rect: LayoutBox) {
-        self.layout_box = rect;
-    }
-
-    fn layout_box(&self) -> &LayoutBox {
-        &self.layout_box
     }
 
     fn measure(&self, ctx: &mut MeasureContext, constraints: Constraints) -> MeasureResult {

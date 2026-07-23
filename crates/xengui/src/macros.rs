@@ -135,3 +135,118 @@ macro_rules! impl_themed_style_builders {
         }
     };
 }
+
+#[macro_export]
+macro_rules! impl_common_style_builders {
+    (base $ty:ty) => {
+        impl $ty {
+            /// Stable identity among siblings, kept across rebuilds even when this
+            /// widget moves position (reorder, insert, remove). Use for list items
+            /// instead of relying on array index.
+            pub fn key(mut self, key: impl Into<smol_str::SmolStr>) -> Self {
+                self.base.key = Some(key.into());
+                self
+            }
+
+            pub fn font(mut self, font: impl Into<smol_str::SmolStr>) -> Self {
+                self.base.style.font = Some(font.into());
+                self.mark_dirty();
+                self
+            }
+
+            pub fn hover_background<M>(
+                mut self,
+                background: impl $crate::IntoThemed<$crate::Background, M>,
+            ) -> Self {
+                self.base.hover_style.get_or_insert_with($crate::Style::default).background =
+                    Some(background.resolve_themed());
+                self.mark_dirty();
+                self
+            }
+
+            pub fn pressed_background<M>(
+                mut self,
+                background: impl $crate::IntoThemed<$crate::Background, M>,
+            ) -> Self {
+                self.base.pressed_style.get_or_insert_with($crate::Style::default).background =
+                    Some(background.resolve_themed());
+                self.mark_dirty();
+                self
+            }
+
+            pub fn disabled_background<M>(
+                mut self,
+                background: impl $crate::IntoThemed<$crate::Background, M>,
+            ) -> Self {
+                self.base.disabled_style.get_or_insert_with($crate::Style::default).background =
+                    Some(background.resolve_themed());
+                self.mark_dirty();
+                self
+            }
+
+            pub fn enabled(mut self, enabled: bool) -> Self {
+                self.base.interaction.set_enabled(enabled);
+                self.mark_dirty();
+                self
+            }
+        }
+    };
+}
+
+/// Generates the `Widget` trait accessor methods every `base: WidgetBase` +
+/// `layout_box: LayoutBox` widget needs (identity, dirty flag, style
+/// pointers, interaction, layout box). Widget-specific behavior
+/// (`debug_name`, `children`, `measure`, `paint`, `event`, ...) is still
+/// implemented by hand next to this macro call.
+#[macro_export]
+macro_rules! impl_widget_boilerplate {
+    () => {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+
+        fn get_key(&self) -> Option<&smol_str::SmolStr> {
+            self.base.key.as_ref()
+        }
+
+        fn is_dirty(&self) -> bool {
+            self.base.dirty
+        }
+
+        fn set_dirty(&mut self, dirty: bool) {
+            self.base.dirty = dirty;
+        }
+
+        fn style(&self) -> &$crate::Style {
+            &self.base.style
+        }
+
+        fn style_mut(&mut self) -> &mut $crate::Style {
+            &mut self.base.style
+        }
+
+        fn computed_style(&self) -> &$crate::Style {
+            &self.base.computed_style
+        }
+
+        fn interaction(&self) -> Option<&$crate::Interaction> {
+            Some(&self.base.interaction)
+        }
+
+        fn interaction_mut(&mut self) -> Option<&mut $crate::Interaction> {
+            Some(&mut self.base.interaction)
+        }
+
+        fn layout(&mut self, rect: $crate::LayoutBox) {
+            self.layout_box = rect;
+        }
+
+        fn layout_box(&self) -> &$crate::LayoutBox {
+            &self.layout_box
+        }
+    };
+}
