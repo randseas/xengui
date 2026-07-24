@@ -91,6 +91,15 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
         {
             use crate::WindowPosition;
 
+            // Windows' custom chrome subclasses a real decorated window
+            // (see win32_chrome::install_for_window) instead of relying on
+            // a fully borderless one, so decorations always start true here.
+            let decorations = if cfg!(target_os = "windows") {
+                true
+            } else {
+                self.config.decorations
+            };
+
             attributes = attributes
                 .with_title(&self.config.title)
                 .with_inner_size(
@@ -100,7 +109,7 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
                     )
                 )
                 .with_resizable(self.config.resizable)
-                .with_decorations(self.config.decorations)
+                .with_decorations(decorations)
                 .with_transparent(true)
                 .with_blur(true);
 
