@@ -93,11 +93,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .height(Length::Percent(100.0))
                                 .child(
                                     Button::new()
+                                        .align_items(AlignItems::Center)
+                                        .justify_content(JustifyContent::Center)
                                         .height(Length::Percent(100.0))
-                                        .width(Length::px(42.0))
+                                        .width(Length::px(44.0))
                                         .label("─")
                                         .font_size(14)
-                                        .padding(Edges::symmetric(14, 0))
                                         .background(Color::TRANSPARENT)
                                         .color(|theme: &Theme| theme.foreground)
                                         .transition_all(
@@ -107,16 +108,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         )
                                         .hover_style(|s, theme: &Theme| {
                                             s.background(theme.surface_hover)
+                                        })
+                                        .pressed_style(|s, theme: &Theme| {
+                                            s.background(theme.pressed)
                                         })
                                         .on_click(move |_| xenframe::minimize_window())
                                 )
                                 .child(
                                     Button::new()
+                                        .align_items(AlignItems::Center)
+                                        .justify_content(JustifyContent::Center)
                                         .height(Length::Percent(100.0))
-                                        .width(Length::px(42.0))
-                                        .label("□")
+                                        .width(Length::px(44.0))
+                                        .label("a")
                                         .font_size(14)
-                                        .padding(Edges::symmetric(14, 0))
                                         .background(Color::TRANSPARENT)
                                         .color(|theme: &Theme| theme.foreground)
                                         .transition_all(
@@ -127,15 +132,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         .hover_style(|s, theme: &Theme| {
                                             s.background(theme.surface_hover)
                                         })
+                                        .pressed_style(|s, theme: &Theme| {
+                                            s.background(theme.pressed)
+                                        })
                                         .on_click(move |_| xenframe::toggle_maximize_window())
                                 )
                                 .child(
                                     Button::new()
+                                        .align_items(AlignItems::Center)
+                                        .justify_content(JustifyContent::Center)
                                         .height(Length::Percent(100.0))
-                                        .width(Length::px(42.0))
+                                        .width(Length::px(44.0))
                                         .label("✕")
                                         .font_size(14)
-                                        .padding(Edges::symmetric(14, 0))
                                         .background(Color::TRANSPARENT)
                                         .color(|theme: &Theme| theme.foreground)
                                         .transition_all(
@@ -145,6 +154,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         )
                                         .hover_style(|s, _| {
                                             s.background(Color::RED_600).color(Color::WHITE)
+                                        })
+                                        .pressed_style(|s, _| {
+                                            s.background(Color::RED_800).color(Color::WHITE)
                                         })
                                         .on_click(move |_| xenframe::close_window())
                                 )

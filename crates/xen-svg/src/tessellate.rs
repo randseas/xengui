@@ -65,7 +65,9 @@ fn tessellate_element(
     parent_opacity: f32,
     out: &mut Vec<SvgTriangle>
 ) {
-    let transform = parent_transform.then(element.attrs().transform);
+    // Element's own local transform must apply first, then the accumulated
+    // ancestor chain - not the other way around.
+    let transform = element.attrs().transform.then(parent_transform);
     let opacity = parent_opacity * element.attrs().opacity;
 
     match element {

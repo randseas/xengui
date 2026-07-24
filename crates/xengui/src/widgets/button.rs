@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     AnimationManager,
+    AlignItems,
+    Color,
     Constraints,
     EventCtx,
     EventStatus,
     InputEvent,
     Interaction,
+    JustifyContent,
     LayoutBox,
     Length,
     MeasureContext,
@@ -15,6 +18,7 @@ use crate::{
     Style,
     StyleBuilder,
     TextCommand,
+    TriangleCommand,
     Widget,
     WidgetBase,
     WidgetContent,
@@ -23,6 +27,16 @@ use crate::{
 };
 use smol_str::SmolStr;
 use std::cell::Cell;
+use std::sync::Arc;
+use xen_svg::{ SvgDocument, SvgTriangle, parse_svg, tessellate_document };
+
+/// Where the icon sits relative to the label along the content's main axis.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum IconPosition {
+    #[default]
+    Start,
+    End,
+}
 
 /// A clickable widget that performs an action when activated.
 ///
@@ -48,6 +62,13 @@ pub struct Button {
     layout_box: LayoutBox,
     content_size: Cell<(f32, f32)>,
     anim_id: WidgetId,
+    icon_document: Option<Arc<SvgDocument>>,
+    icon_triangles: Arc<Vec<SvgTriangle>>,
+    icon_render_size: Cell<(f32, f32)>,
+    icon_size: Option<(f32, f32)>,
+    icon_gap: f32,
+    icon_position: IconPosition,
+    icon_tint: Option<Color>,
 }
 
 impl Button {
@@ -56,12 +77,25 @@ impl Button {
         interaction.focusable = true;
         interaction.hover_cursor = Some(DEFAULT_POINTER_CURSOR_ICON);
 
+        let mut base = WidgetBase::new(interaction);
+        // Default alignment for the label/icon content inside the button box;
+        // overridable via the normal StyleBuilder::justify_content/align_items.
+        base.style.justify_content = Some(JustifyContent::Center);
+        base.style.align_items = Some(AlignItems::Center);
+
         Self {
-            base: WidgetBase::new(interaction),
+            base,
             content: SmolStr::new(""),
             layout_box: LayoutBox::default(),
             content_size: Cell::new((0.0, 0.0)),
             anim_id: WidgetId::new_unique(),
+            icon_document: None,
+            icon_triangles: Arc::new(Vec::new()),
+            icon_render_size: Cell::new((0.0, 0.0)),
+            icon_size: None,
+            icon_gap: 8.0,
+            icon_position: IconPosition::Start,
+            icon_tint: None,
         }
     }
 
@@ -70,6 +104,58 @@ impl Button {
         self.content = content.into();
         self.mark_dirty();
         self
+    }
+
+    /// Sets the icon's SVG source. Fails soft (icon stays empty) on invalid markup.
+    pub fn icon(mut self, svg_source: &str) -> Self {
+        match parse_svg(svg_source) {
+            Ok(document) => {
+                self.icon_triangles = Arc::new(tessellate_document(&document));
+                self.icon_document = Some(Arc::new(document));
+            }
+            Err(err) => log::error!("Button::icon parse error: {err}"),
+        }
+        self.mark_dirty();
+        self
+    }
+
+    /// Overrides the icon's rendered size; otherwise the SVG's own viewBox size is used.
+    pub fn icon_size(mut self, width: f32, height: f32) -> Self {
+        self.icon_size = Some((width, height));
+        self.mark_dirty();
+        self
+    }
+
+    pub fn icon_gap(mut self, gap: f32) -> Self {
+        self.icon_gap = gap;
+        self.mark_dirty();
+        self
+    }
+
+    pub fn icon_position(mut self, position: IconPosition) -> Self {
+        self.icon_position = position;
+        self.mark_dirty();
+        self
+    }
+
+    /// Overrides the icon's currentColor fallback (defaults to the label's text color).
+    pub fn icon_color(mut self, color: Color) -> Self {
+        self.icon_tint = Some(color);
+        self.mark_dirty();
+        self
+    }
+
+    fn icon_natural_size(&self) -> (f32, f32) {
+        if let Some(size) = self.icon_size {
+            return size;
+        }
+        match &self.icon_document {
+            Some(doc) => {
+                let (_, _, w, h) = doc.view_box;
+                (w, h)
+            }
+            None => (0.0, 0.0),
+        }
     }
 
     // Widget-specific extra step (hover cursor) stays local; the shared
@@ -151,16 +237,30 @@ impl Widget for Button {
 
         self.content_size.set((result.width, result.height));
 
+        let (icon_w, icon_h) = self.icon_natural_size();
+        let (icon_w, icon_h) = (icon_w * scale_factor, icon_h * scale_factor);
+        self.icon_render_size.set((icon_w, icon_h));
+
+        let has_icon = icon_w > 0.0 && icon_h > 0.0;
+        let gap = if has_icon && !self.content.is_empty() {
+            self.icon_gap * scale_factor
+        } else {
+            0.0
+        };
+        let combined_w = if has_icon { icon_w + gap + result.width } else { result.width };
+        let combined_h = result.height.max(icon_h);
+
         let padding = style.padding.unwrap_or_default();
 
         let width =
-            result.width +
+            combined_w +
             padding.left.to_physical(scale_factor) +
             padding.right.to_physical(scale_factor);
         let height =
-            result.height +
+            combined_h +
             padding.top.to_physical(scale_factor) +
             padding.bottom.to_physical(scale_factor);
+
         let (width, height) = constraints.constrain_size(width, height);
 
         MeasureResult::new(width, height)
@@ -211,7 +311,10 @@ impl Widget for Button {
 
         self.paint_outline(ctx);
 
-        let (content_w, content_h) = self.content_size.get();
+        let (text_w, text_h) = self.content_size.get();
+        let (icon_w, icon_h) = self.icon_render_size.get();
+        let has_icon = icon_w > 0.0 && icon_h > 0.0;
+
         let padding = style.padding.unwrap_or_default();
         let (pad_l, pad_r, pad_t, pad_b) = (
             padding.left.to_physical(sf),
@@ -219,18 +322,67 @@ impl Widget for Button {
             padding.top.to_physical(sf),
             padding.bottom.to_physical(sf),
         );
-        let available_w = self.layout_box.width - pad_l - pad_r;
-        let draw_max_width = available_w.max(content_w);
+        let available_w = (self.layout_box.width - pad_l - pad_r).max(0.0);
+        let available_h = (self.layout_box.height - pad_t - pad_b).max(0.0);
 
-        let text_x = self.layout_box.x + pad_l + (available_w - content_w).max(0.0) * 0.5;
-        let text_y =
-            self.layout_box.y +
-            pad_t +
-            (self.layout_box.height - pad_t - pad_b - content_h).max(0.0) * 0.5;
+        let gap = if has_icon && !self.content.is_empty() { self.icon_gap * sf } else { 0.0 };
+        let combined_w = if has_icon { icon_w + gap + text_w } else { text_w };
+        let combined_h = text_h.max(icon_h);
+
+        let justify = style.justify_content.unwrap_or(JustifyContent::Center);
+        let align = style.align_items.unwrap_or(AlignItems::Center);
+
+        let content_x =
+            self.layout_box.x + pad_l + justify_offset(justify, available_w, combined_w);
+        let content_y = self.layout_box.y + pad_t + align_offset(align, available_h, combined_h);
+        let draw_max_width = available_w.max(text_w);
+
+        let (icon_x, text_x) = match (has_icon, self.icon_position) {
+            (true, IconPosition::Start) => (content_x, content_x + icon_w + gap),
+            (true, IconPosition::End) => (content_x + text_w + gap, content_x),
+            _ => (content_x, content_x),
+        };
+        let icon_y = content_y + (combined_h - icon_h).max(0.0) * 0.5;
+        let text_y = content_y + (combined_h - text_h).max(0.0) * 0.5;
+
+        if has_icon && let Some(doc) = &self.icon_document {
+            let (vb_x, vb_y, vb_w, vb_h) = doc.view_box;
+            if !self.icon_triangles.is_empty() && vb_w > 0.0 && vb_h > 0.0 {
+                let scale_x = icon_w / vb_w;
+                let scale_y = icon_h / vb_h;
+                let inherited_color = self.icon_tint.unwrap_or(style.color.unwrap_or(Color::BLACK));
+                let inherited_svg_color = xen_svg::Color::rgba_f32(
+                    inherited_color.r(),
+                    inherited_color.g(),
+                    inherited_color.b(),
+                    inherited_color.a()
+                );
+
+                for triangle in self.icon_triangles.iter() {
+                    let Some(color) = triangle.paint.resolve(inherited_svg_color) else {
+                        continue;
+                    };
+                    let color = crate::svg_compat::from_svg_color(color);
+                    let color = color.with_alpha_f32(color.a() * triangle.opacity);
+
+                    let map = |p: (f32, f32)| -> (f32, f32) {
+                        (icon_x + (p.0 - vb_x) * scale_x, icon_y + (p.1 - vb_y) * scale_y)
+                    };
+
+                    ctx.draw_triangle(TriangleCommand {
+                        p0: map(triangle.p0),
+                        p1: map(triangle.p1),
+                        p2: map(triangle.p2),
+                        color,
+                        clip_rect: None,
+                    });
+                }
+            }
+        }
 
         let content_scale = style.content_scale.unwrap_or(scale);
         let content_box = crate::scaled_layout_box(
-            LayoutBox { x: text_x, y: text_y, width: content_w, height: content_h },
+            LayoutBox { x: text_x, y: text_y, width: text_w, height: text_h },
             content_scale
         );
 
@@ -279,12 +431,23 @@ impl Widget for Button {
             return false;
         };
 
+        let icon_eq = match (&self.icon_document, &other.icon_document) {
+            (Some(a), Some(b)) => **a == **b,
+            (None, None) => true,
+            _ => false,
+        };
+
         self.content == other.content &&
             self.base.style == other.base.style &&
             self.base.hover_style == other.base.hover_style &&
             self.base.pressed_style == other.base.pressed_style &&
             self.base.disabled_style == other.base.disabled_style &&
-            self.base.focus_style == other.base.focus_style
+            self.base.focus_style == other.base.focus_style &&
+            icon_eq &&
+            self.icon_position == other.icon_position &&
+            self.icon_gap == other.icon_gap &&
+            self.icon_size == other.icon_size &&
+            self.icon_tint == other.icon_tint
     }
 
     fn cascade_style(&mut self, parent: &Style, anim: &mut AnimationManager) {
@@ -302,11 +465,30 @@ impl Widget for Button {
     fn transfer_measured_state(&mut self, old: &dyn Widget) {
         if let Some(old) = old.as_any().downcast_ref::<Button>() {
             self.content_size.set(old.content_size.get());
+            self.icon_render_size.set(old.icon_render_size.get());
             self.anim_id = old.anim_id;
         }
     }
 
     fn anim_id(&self) -> WidgetId {
         self.anim_id
+    }
+}
+
+// helper methods
+
+fn justify_offset(justify: JustifyContent, available: f32, content: f32) -> f32 {
+    match justify {
+        JustifyContent::Start => 0.0,
+        JustifyContent::End => (available - content).max(0.0),
+        _ => (available - content).max(0.0) * 0.5,
+    }
+}
+
+fn align_offset(align: AlignItems, available: f32, content: f32) -> f32 {
+    match align {
+        AlignItems::Start => 0.0,
+        AlignItems::End => (available - content).max(0.0),
+        _ => (available - content).max(0.0) * 0.5,
     }
 }
