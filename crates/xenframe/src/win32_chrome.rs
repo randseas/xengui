@@ -1,26 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 #![cfg(target_os = "windows")]
 
-//! Chromium-style custom chrome for Windows: keeps the native window frame
-//! (WS_THICKFRAME) so resizing, Snap Layouts, and the DWM shadow/rounded
-//! corners all keep working, and only strips the title bar (WS_CAPTION).
-//! Subclassing is used solely to answer WM_NCHITTEST for the resize
-//! border; WM_NCCALCSIZE is left untouched so the OS keeps computing the
-//! non-client area normally.
-
 use std::sync::Arc;
-use std::sync::atomic::{ AtomicIsize, Ordering };
 use raw_window_handle::{ HasWindowHandle, RawWindowHandle };
 use winit::window::Window;
-use windows_sys::Win32::Foundation::{ HWND, LPARAM, LRESULT, POINT, RECT, WPARAM };
+use windows_sys::Win32::Foundation::{ HWND, LPARAM, LRESULT, RECT, WPARAM };
+use windows_sys::Win32::UI::Shell::{ DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CallWindowProcW,
-    GetClientRect,
-    GetWindowLongPtrW,
-    SetWindowLongPtrW,
+    GetWindowRect,
+    IsZoomed,
     SetWindowPos,
-    GWL_STYLE,
-    GWLP_WNDPROC,
     HTBOTTOM,
     HTBOTTOMLEFT,
     HTBOTTOMRIGHT,
@@ -30,13 +19,15 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     HTTOP,
     HTTOPLEFT,
     HTTOPRIGHT,
+    NCCALCSIZE_PARAMS,
     SWP_FRAMECHANGED,
     SWP_NOACTIVATE,
     SWP_NOMOVE,
     SWP_NOSIZE,
     SWP_NOZORDER,
+    WM_DESTROY,
+    WM_NCCALCSIZE,
     WM_NCHITTEST,
-    WS_CAPTION,
 };
 use windows_sys::Win32::Graphics::Dwm::{
     DwmExtendFrameIntoClientArea,
@@ -46,75 +37,82 @@ use windows_sys::Win32::Graphics::Dwm::{
     DWMWCP_ROUND,
 };
 use windows_sys::Win32::UI::Controls::MARGINS;
-use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
 
-static ORIGINAL_WNDPROC: AtomicIsize = AtomicIsize::new(0);
-const RESIZE_BORDER: i32 = 8;
+const SUBCLASS_ID: usize = 1;
 
-unsafe extern "system" fn subclass_proc(
+unsafe extern "system" fn custom_chrome_subclass(
     hwnd: HWND,
     msg: u32,
     wparam: WPARAM,
-    lparam: LPARAM
+    lparam: LPARAM,
+    _uidsubclass: usize,
+    _dwrefdata: usize
 ) -> LRESULT {
-    if msg == WM_NCHITTEST {
-        let x = (lparam & 0xffff) as i16 as i32;
-        let y = ((lparam >> 16) & 0xffff) as i16 as i32;
-        let mut pt = POINT { x, y };
-        unsafe {
-            ScreenToClient(hwnd, &mut pt);
+    match msg {
+        WM_NCCALCSIZE if wparam != 0 => {
+            let params = unsafe { &mut *(lparam as *mut NCCALCSIZE_PARAMS) };
+
+            // Adjust client margins when window is maximized to prevent overflow
+            if (unsafe { IsZoomed(hwnd) }) != 0 {
+                let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+                unsafe {
+                    GetWindowRect(hwnd, &mut rect);
+                }
+                params.rgrc[0] = rect;
+            }
+
+            // Return 0 to remove the native OS titlebar area entirely
+            return 0;
         }
+        WM_NCHITTEST => {
+            // Call default proc first to let OS evaluate base hit areas
+            let hit = unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) };
+            if hit != (HTCLIENT as LRESULT) {
+                return hit;
+            }
 
-        let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-        unsafe {
-            GetClientRect(hwnd, &mut rect);
+            let x = (lparam & 0xffff) as i16 as i32;
+            let y = ((lparam >> 16) & 0xffff) as i16 as i32;
+
+            let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            unsafe {
+                GetWindowRect(hwnd, &mut rect);
+            }
+
+            let border_width = 8;
+            let left = x < rect.left + border_width;
+            let right = x >= rect.right - border_width;
+            let top = y < rect.top + border_width;
+            let bottom = y >= rect.bottom - border_width;
+
+            let custom_hit = match (left, right, top, bottom) {
+                (true, _, true, _) => HTTOPLEFT,
+                (_, true, true, _) => HTTOPRIGHT,
+                (true, _, _, true) => HTBOTTOMLEFT,
+                (_, true, _, true) => HTBOTTOMRIGHT,
+                (true, _, _, _) => HTLEFT,
+                (_, true, _, _) => HTRIGHT,
+                (_, _, true, _) => HTTOP,
+                (_, _, _, true) => HTBOTTOM,
+                _ => HTCLIENT,
+            };
+
+            if custom_hit != HTCLIENT {
+                return custom_hit as LRESULT;
+            }
         }
-
-        let left = pt.x <= RESIZE_BORDER;
-        let right = pt.x >= rect.right - RESIZE_BORDER;
-        let top = pt.y <= RESIZE_BORDER;
-        let bottom = pt.y >= rect.bottom - RESIZE_BORDER;
-
-        let hit = match (left, right, top, bottom) {
-            (true, _, true, _) => Some(HTTOPLEFT),
-            (_, true, true, _) => Some(HTTOPRIGHT),
-            (true, _, _, true) => Some(HTBOTTOMLEFT),
-            (_, true, _, true) => Some(HTBOTTOMRIGHT),
-            (true, _, _, _) => Some(HTLEFT),
-            (_, true, _, _) => Some(HTRIGHT),
-            (_, _, true, _) => Some(HTTOP),
-            (_, _, _, true) => Some(HTBOTTOM),
-            _ => None,
-        };
-
-        if let Some(hit) = hit {
-            return hit as LRESULT;
+        WM_DESTROY => {
+            // Remove subclass hook when window is destroyed
+            unsafe {
+                RemoveWindowSubclass(hwnd, Some(custom_chrome_subclass), SUBCLASS_ID);
+            }
         }
-
-        // Everywhere else is ordinary client area; the app's own custom
-        // titlebar widget drags the window via `drag_window()` instead of
-        // this hit-test claiming HTCAPTION.
-        return HTCLIENT as LRESULT;
+        _ => {}
     }
 
-    let original = ORIGINAL_WNDPROC.load(Ordering::Relaxed);
-    let original_proc = unsafe {
-        std::mem::transmute::<
-            isize,
-            unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM) -> LRESULT
-        >(original)
-    };
-
-    unsafe { CallWindowProcW(Some(original_proc), hwnd, msg, wparam, lparam) }
+    unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
 }
 
-/// Strips only WS_CAPTION from `window`'s HWND, leaving WS_THICKFRAME /
-/// WS_SYSMENU / WS_MINIMIZEBOX / WS_MAXIMIZEBOX intact, then re-enables
-/// the DWM shadow, rounded corners, and dark title-bar tint. Call once,
-/// right after window creation, only when `AppConfig::decorations` is
-/// false. The window itself must still be created with real OS
-/// decorations (`with_decorations(true)`) for this to have anything to
-/// subclass correctly.
 pub fn install_for_window(window: &Arc<Window>) {
     let Ok(handle) = window.window_handle() else {
         return;
@@ -126,11 +124,7 @@ pub fn install_for_window(window: &Arc<Window>) {
     unsafe {
         let hwnd = handle.hwnd.get() as HWND;
 
-        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-        let new_style = style & !(WS_CAPTION as isize);
-        SetWindowLongPtrW(hwnd, GWL_STYLE, new_style);
-
-        // Needed for a GWL_STYLE change to actually take visual effect.
+        // Force frame recalculation without stripping WS_CAPTION
         SetWindowPos(
             hwnd,
             std::ptr::null_mut(),
@@ -141,8 +135,7 @@ pub fn install_for_window(window: &Arc<Window>) {
             SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
         );
 
-        // Keeps the OS's native drop shadow around a window that no
-        // longer has a caption.
+        // Extend DWM frame for native shadows
         let margins = MARGINS {
             cxLeftWidth: 1,
             cxRightWidth: 1,
@@ -151,7 +144,7 @@ pub fn install_for_window(window: &Arc<Window>) {
         };
         let _ = DwmExtendFrameIntoClientArea(hwnd, &margins);
 
-        let corner_pref: u32 = DWMWCP_ROUND as u32;
+        let corner_pref = DWMWCP_ROUND as u32;
         let _ = DwmSetWindowAttribute(
             hwnd,
             DWMWA_WINDOW_CORNER_PREFERENCE as u32,
@@ -167,11 +160,7 @@ pub fn install_for_window(window: &Arc<Window>) {
             std::mem::size_of_val(&dark) as u32
         );
 
-        let previous = SetWindowLongPtrW(
-            hwnd,
-            GWLP_WNDPROC,
-            subclass_proc as *const () as usize as isize
-        );
-        ORIGINAL_WNDPROC.store(previous, Ordering::Relaxed);
+        // Attach subclassing via comctl32 safely
+        SetWindowSubclass(hwnd, Some(custom_chrome_subclass), SUBCLASS_ID, 0);
     }
 }

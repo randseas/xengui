@@ -20,6 +20,7 @@ pub struct Theme {
     pub accent: Color,
     pub background: Color,
     pub surface: Color,
+    pub surface_hover: Color,
     pub foreground: Color,
     pub foreground_muted: Color,
     pub border: Color,
@@ -69,6 +70,7 @@ impl Theme {
 
             background: Color::WHITE,
             surface: Color::NEUTRAL_50,
+            surface_hover: Color::NEUTRAL_100,
 
             foreground: Color::NEUTRAL_900,
             foreground_muted: Color::NEUTRAL_500,
@@ -119,6 +121,7 @@ impl Theme {
 
             .background(Color::WHITE)
             .surface(Color::NEUTRAL_50)
+            .surface_hover(Color::NEUTRAL_100)
 
             .foreground(Color::NEUTRAL_900)
             .foreground_muted(Color::NEUTRAL_500)
@@ -146,6 +149,7 @@ impl Theme {
 
             .background(Color::NEUTRAL_950)
             .surface(Color::NEUTRAL_900)
+            .surface_hover(Color::NEUTRAL_800)
 
             .foreground(Color::NEUTRAL_50)
             .foreground_muted(Color::NEUTRAL_300)
@@ -193,6 +197,11 @@ impl Theme {
 
     pub fn surface(mut self, color: Color) -> Self {
         self.surface = color;
+        self
+    }
+
+    pub fn surface_hover(mut self, color: Color) -> Self {
+        self.surface_hover = color;
         self
     }
 
@@ -374,6 +383,7 @@ impl Theme {
             accent: palette.accent,
             background: palette.background,
             surface: palette.surface,
+            surface_hover: palette.surface_hover,
             foreground: palette.foreground,
             border: palette.border,
             ..self.clone()
