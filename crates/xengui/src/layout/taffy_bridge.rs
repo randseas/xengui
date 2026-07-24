@@ -155,12 +155,11 @@ pub fn style_to_taffy(style: &Style, scale_factor: f32) -> TaffyStyle {
     }
 
     if let Some(b) = &style.border {
-        let w = length(b.width.value() * scale_factor);
         t.border = Rect {
-            left: w,
-            right: w,
-            top: w,
-            bottom: w,
+            left: dim(b.left, scale_factor),
+            right: dim(b.right, scale_factor),
+            top: dim(b.top, scale_factor),
+            bottom: dim(b.bottom, scale_factor),
         };
     }
 

@@ -174,7 +174,8 @@ impl Widget for Button {
         let background_box = crate::scaled_layout_box(self.layout_box, scale);
         let radius = style.border
             .as_ref()
-            .map(|b| b.radius.to_physical(sf))
+            .and_then(|b| b.radius)
+            .map(|r| r.to_physical(sf))
             .unwrap_or(0.0);
 
         if let Some(shadows) = &style.box_shadow {
@@ -192,9 +193,9 @@ impl Widget for Button {
                 position: (background_box.x, background_box.y),
                 size: (background_box.width, background_box.height),
                 background: style.background.clone(),
-                border_radius: border.map(|b| Length::px(b.radius.to_physical(sf))),
+                border_radius: border.and_then(|b| b.radius).map(|r| Length::px(r.to_physical(sf))),
                 border_color: border.map(|b| b.color),
-                border_width: border.map(|b| Length::px(b.width.to_physical(sf))),
+                border_width: border.map(|b| Length::px(b.top.to_physical(sf))),
                 clip_rect: None,
             });
         }

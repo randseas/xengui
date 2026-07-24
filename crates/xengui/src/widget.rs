@@ -3,6 +3,8 @@ use smol_str::SmolStr;
 
 use crate::{
     AnimationManager,
+    Background,
+    Border,
     BoxShadow,
     BoxShadowCommand,
     Color,
@@ -113,7 +115,8 @@ pub trait Widget: Any {
         let layout = *self.layout_box();
         let radius = style.border
             .as_ref()
-            .map(|b| b.radius.to_physical(sf))
+            .and_then(|b| b.radius)
+            .map(|r| r.to_physical(sf))
             .unwrap_or(0.0);
 
         if let Some(shadows) = &style.box_shadow {
@@ -128,15 +131,32 @@ pub trait Widget: Any {
         if style.background.is_some() || style.border.is_some() {
             let border = style.border.as_ref();
 
-            ctx.draw_rect(RectCommand {
-                position: (layout.x, layout.y),
-                size: (layout.width, layout.height),
-                background: style.background.clone(),
-                border_radius: border.map(|b| Length::px(b.radius.to_physical(sf))),
-                border_color: border.map(|b| b.color),
-                border_width: border.map(|b| Length::px(b.width.to_physical(sf))),
-                clip_rect: None,
-            });
+            if border.is_some_and(|b| !b.is_uniform()) {
+                if style.background.is_some() {
+                    ctx.draw_rect(RectCommand {
+                        position: (layout.x, layout.y),
+                        size: (layout.width, layout.height),
+                        background: style.background.clone(),
+                        border_radius: None,
+                        border_color: None,
+                        border_width: None,
+                        clip_rect: None,
+                    });
+                }
+                self.paint_edge_borders(ctx, layout, border.unwrap(), sf);
+            } else {
+                ctx.draw_rect(RectCommand {
+                    position: (layout.x, layout.y),
+                    size: (layout.width, layout.height),
+                    background: style.background.clone(),
+                    border_radius: border
+                        .and_then(|b| b.radius)
+                        .map(|r| Length::px(r.to_physical(sf))),
+                    border_color: border.map(|b| b.color),
+                    border_width: border.map(|b| Length::px(b.top.to_physical(sf))),
+                    clip_rect: None,
+                });
+            }
         }
 
         if let Some(shadows) = &style.box_shadow {
@@ -146,6 +166,38 @@ pub trait Widget: Any {
                 .filter(|s| s.inset) {
                 self.paint_shadow_layer(ctx, layout, radius, shadow, sf);
             }
+        }
+    }
+
+    fn paint_edge_borders(&self, ctx: &mut PaintContext, layout: LayoutBox, b: &Border, sf: f32) {
+        let top = b.top.to_physical(sf);
+        let right = b.right.to_physical(sf);
+        let bottom = b.bottom.to_physical(sf);
+        let left = b.left.to_physical(sf);
+
+        let mut edge = |x: f32, y: f32, w: f32, h: f32| {
+            ctx.draw_rect(RectCommand {
+                position: (x, y),
+                size: (w, h),
+                background: Some(Background::Color(b.color)),
+                border_radius: None,
+                border_width: None,
+                border_color: None,
+                clip_rect: None,
+            });
+        };
+
+        if top > 0.0 {
+            edge(layout.x, layout.y, layout.width, top);
+        }
+        if bottom > 0.0 {
+            edge(layout.x, layout.y + layout.height - bottom, layout.width, bottom);
+        }
+        if left > 0.0 {
+            edge(layout.x, layout.y, left, layout.height);
+        }
+        if right > 0.0 {
+            edge(layout.x + layout.width - right, layout.y, right, layout.height);
         }
     }
 
@@ -220,7 +272,7 @@ pub trait Widget: Any {
         let layout = self.layout_box();
         let offset = outline.offset.to_physical(sf);
         let radius = outline.radius
-            .or_else(|| { style.border.as_ref().map(|b| b.radius) })
+            .or_else(|| style.border.as_ref().and_then(|b| b.radius))
             .map(|r| Length::px(r.to_physical(sf)));
 
         ctx.draw_rect(RectCommand {
@@ -255,7 +307,10 @@ pub trait Widget: Any {
                 Outline {
                     width: Length::px(2.5),
                     color: Color::BLUE_500,
-                    radius: style.border.as_ref().map(|b| b.radius.add_px(4.0)),
+                    radius: style.border
+                        .as_ref()
+                        .and_then(|b| b.radius)
+                        .map(|r| r.add_px(4.0)),
                     offset: Length::px(4.0),
                 },
         };
@@ -263,7 +318,7 @@ pub trait Widget: Any {
         let sf = ctx.scale_factor;
         let offset = outline.offset.to_physical(sf);
         let radius = outline.radius
-            .or_else(|| { style.border.as_ref().map(|b| b.radius) })
+            .or_else(|| style.border.as_ref().and_then(|b| b.radius))
             .map(|r| Length::px(r.to_physical(sf)));
 
         ctx.draw_rect(RectCommand {
@@ -295,7 +350,7 @@ pub trait Widget: Any {
             return true;
         };
 
-        let radius = border.radius.value();
+        let radius: f32 = border.radius.unwrap_or(Length::Px(0.0)).value();
 
         if radius <= 0.0 {
             return true;

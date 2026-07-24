@@ -222,20 +222,45 @@ pub fn animate_computed_style(
         }
 
         if let Some(mut border) = style.border {
-            border.width = animate_length(
+            border.top = animate_length(
                 anim,
                 key(AnimProperty::BorderWidth),
                 transition,
-                border.width,
+                border.top,
                 &mut animating
             );
-            border.radius = animate_length(
+            border.right = animate_length(
                 anim,
-                key(AnimProperty::BorderRadius),
+                key(AnimProperty::BorderWidth),
                 transition,
-                border.radius,
+                border.right,
                 &mut animating
             );
+            border.bottom = animate_length(
+                anim,
+                key(AnimProperty::BorderWidth),
+                transition,
+                border.bottom,
+                &mut animating
+            );
+            border.left = animate_length(
+                anim,
+                key(AnimProperty::BorderWidth),
+                transition,
+                border.left,
+                &mut animating
+            );
+            if let Some(radius) = border.radius {
+                border.radius = Some(
+                    animate_length(
+                        anim,
+                        key(AnimProperty::BorderRadius),
+                        transition,
+                        radius,
+                        &mut animating
+                    )
+                );
+            }
             style.border = Some(border);
         }
 

@@ -1064,8 +1064,8 @@ impl ContextMenu {
             position: (mx, my),
             size: (mw, mh),
             background: Some(faded_background(bg, opacity)),
-            border_radius: border.map(|b| b.radius),
-            border_width: border.map(|b| b.width),
+            border_radius: border.and_then(|b| b.radius),
+            border_width: border.map(|b| b.top),
             border_color: Some(border_color.with_alpha_f32(border_color.a() * opacity)),
             clip_rect: None,
         });
@@ -1162,8 +1162,8 @@ impl ContextMenu {
                     position: (bg_x, bg_y),
                     size: (bg_w, bg_h),
                     background: Some(faded_background(Background::Color(blended_bg), opacity)),
-                    border_radius: border.map(|b| b.radius).or(Some(Length::px(4.0))),
-                    border_width: border.map(|b| b.width),
+                    border_radius: border.and_then(|b| b.radius).or(Some(Length::px(4.0))),
+                    border_width: border.map(|b| b.top),
                     border_color: border.map(|b| b.color.with_alpha_f32(b.color.a() * opacity)),
                     clip_rect: None,
                 });

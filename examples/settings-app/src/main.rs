@@ -68,7 +68,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .flex_direction(FlexDirection::Row)
                         .align_items(AlignItems::Center)
                         .width(Length::Percent(100.0))
-                        .height(Length::px(36.0))
+                        .height(Length::px(32.0))
+                        .min_height(Length::px(32.0))
                         .background(|theme: &Theme| theme.surface)
                         .border(|theme: &Theme| { Border::bottom(1, theme.border) })
                         .padding(Edges::only(12, 0, 0, 0))
@@ -82,7 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             View::new()
                                 .flex_grow(1.0)
                                 .height(Length::Percent(100.0))
-                                // Marks this view as a window drag region
+                                // Mark this view as a window drag region
                                 .window_drag_region(true)
                         )
                         .child(
@@ -92,11 +93,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .height(Length::Percent(100.0))
                                 .child(
                                     Button::new()
+                                        .height(Length::Percent(100.0))
+                                        .width(Length::px(42.0))
                                         .label("─")
-                                        .font_size(10)
+                                        .font_size(14)
                                         .padding(Edges::symmetric(14, 0))
                                         .background(Color::TRANSPARENT)
                                         .color(|theme: &Theme| theme.foreground)
+                                        .transition_all(
+                                            Transition::new(Duration::from_millis(200)).easing(
+                                                Easing::EaseInOut
+                                            )
+                                        )
                                         .hover_style(|s, theme: &Theme| {
                                             s.background(theme.surface_hover)
                                         })
@@ -104,11 +112,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 )
                                 .child(
                                     Button::new()
+                                        .height(Length::Percent(100.0))
+                                        .width(Length::px(42.0))
                                         .label("□")
-                                        .font_size(11)
+                                        .font_size(14)
                                         .padding(Edges::symmetric(14, 0))
                                         .background(Color::TRANSPARENT)
                                         .color(|theme: &Theme| theme.foreground)
+                                        .transition_all(
+                                            Transition::new(Duration::from_millis(200)).easing(
+                                                Easing::EaseInOut
+                                            )
+                                        )
                                         .hover_style(|s, theme: &Theme| {
                                             s.background(theme.surface_hover)
                                         })
@@ -116,11 +131,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 )
                                 .child(
                                     Button::new()
+                                        .height(Length::Percent(100.0))
+                                        .width(Length::px(42.0))
                                         .label("✕")
-                                        .font_size(11)
+                                        .font_size(14)
                                         .padding(Edges::symmetric(14, 0))
                                         .background(Color::TRANSPARENT)
                                         .color(|theme: &Theme| theme.foreground)
+                                        .transition_all(
+                                            Transition::new(Duration::from_millis(200)).easing(
+                                                Easing::EaseInOut
+                                            )
+                                        )
                                         .hover_style(|s, _| {
                                             s.background(Color::RED_600).color(Color::WHITE)
                                         })
@@ -146,9 +168,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .flex_direction(FlexDirection::Column)
                                 .overflow_x(Overflow::Auto)
                                 .overflow_y(Overflow::Auto)
-                                .scrollbar_track_color(Color::NEUTRAL_100)
-                                .scrollbar_thumb_color(Color::NEUTRAL_400)
-                                .scrollbar_arrow_color(Color::NEUTRAL_400)
                                 .gap(0, 4)
                                 .child(
                                     Label::new()
