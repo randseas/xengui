@@ -505,7 +505,7 @@ impl View {
         }
 
         let current = self.scroll_target.get();
-        let next = self.clamp_offset((current.0 - dx, current.1 - dy));
+        let next = self.clamp_offset((current.0 + dx, current.1 + dy));
 
         // A no-op scroll (already at the edge, or this widget inherited a
         // scrollable style from an ancestor without actually overflowing)
@@ -652,7 +652,7 @@ impl View {
             return false;
         };
 
-        let t = self.active_scrollbar().thickness;
+        let sb = self.active_scrollbar();
 
         let (track_len, content_len, viewport_len, max_offset) = if drag.vertical {
             let (_, track) = self.vertical_track_bounds().unwrap_or((0.0, 0.0));
@@ -672,7 +672,9 @@ impl View {
             )
         };
 
-        let thumb_len = ((track_len * viewport_len) / content_len).max(t * 2.0).min(track_len);
+        let thumb_len = ((track_len * viewport_len) / content_len)
+            .max(sb.min_thumb_length)
+            .min(track_len);
         let travel = (track_len - thumb_len).max(1.0);
 
         let mouse_pos = if drag.vertical { position.1 } else { position.0 };
