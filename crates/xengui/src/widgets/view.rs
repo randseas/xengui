@@ -486,8 +486,8 @@ impl View {
         }
 
         let (raw_dx, raw_dy) = match delta {
-            MouseScrollDelta::LineDelta(x, y) => (x * scroll_step, y * scroll_step),
-            MouseScrollDelta::PixelDelta(x, y) => (x as f32, y as f32),
+            MouseScrollDelta::LineDelta(x, y) => (-x * scroll_step, -y * scroll_step),
+            MouseScrollDelta::PixelDelta(x, y) => (-x as f32, -y as f32),
         };
 
         let (raw_dx, raw_dy) = if modifiers.shift { (raw_dy, raw_dx) } else { (raw_dx, raw_dy) };

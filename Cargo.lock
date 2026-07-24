@@ -2104,6 +2104,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "settings-app"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "console_log",
+ "env_logger",
+ "log",
+ "xen-clipboard",
+ "xenframe",
+ "xengui",
+ "xengui-lucide",
+]
+
+[[package]]
 name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3243,10 +3257,12 @@ dependencies = [
  "console_error_panic_hook",
  "console_log",
  "log",
+ "raw-window-handle",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
  "web-time",
+ "windows-sys 0.61.2",
  "winit",
  "xen-animation",
  "xen-clipboard",

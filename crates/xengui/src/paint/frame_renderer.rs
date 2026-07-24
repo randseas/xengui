@@ -71,7 +71,11 @@ impl FrameRenderer {
         let needs_full_layout =
             std::mem::take(&mut self.force_layout) ||
             tree_is_dirty(tree) ||
-            self.anim.active_keys().any(|k| k.property.affects_layout());
+            self.anim
+                .active_keys()
+                .any(|k| {
+                    k.property.affects_layout() || k.property == crate::AnimProperty::ScrollOffset
+                });
 
         let mut layout_ctx = LayoutContext {
             text: backend.text_measurer(),

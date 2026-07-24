@@ -21,6 +21,9 @@ pub mod redraw;
 
 pub mod window_controls;
 
+#[cfg(target_os = "windows")]
+pub mod win32_chrome;
+
 #[cfg(target_arch = "wasm32")]
 pub mod web;
 pub mod overlay;

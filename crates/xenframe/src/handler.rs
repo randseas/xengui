@@ -126,6 +126,11 @@ impl winit::application::ApplicationHandler<XenEvent> for App {
 
         crate::window_controls::set_active_window(window.clone());
 
+        #[cfg(target_os = "windows")]
+        if !self.config.decorations {
+            crate::win32_chrome::install_for_window(&window);
+        }
+
         // Synchronize system window theme preferences
         if let Some(actual_theme) = window.theme() {
             self.config.theme = Some(actual_theme);
